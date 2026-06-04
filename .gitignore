@@ -1,0 +1,70 @@
+# CMake User Presets
+CMakeUserPresets.json
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Linker Files
+*.ilk
+
+# Debugger Files
+*.pdb
+
+# Compiled Dynamic Libraries
+*.so
+*.dylib
+*.dll
+*.so.*
+
+# Fortran Module Files
+*.mod
+*.smod
+
+# Compiled Static Libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Build Directories
+build/
+Build/
+build-*/
+
+# CMake Generated Files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+install_manifest.txt
+compile_commands.json
+
+# Temporary Files
+*.tmp
+*.log
+*.bak
+*.swp
+
+# Debug Information Files
+*.dwo
+
+# Test Output & Cache
+Testing/
+.cache/
+out
+bin

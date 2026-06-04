@@ -1,0 +1,17 @@
+---
+Checks: [
+  bugprone-*,
+  cppcoreguidelines-*,
+  linuxkernel-*,
+  llvm-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+]
+
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle:     none
+

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+binary="example"
+
+if [[ ! -d "build" ]]; then
+  cmake --preset dev
+fi && cmake --build --preset dev && ./out/bin/dev/"${binary}"
