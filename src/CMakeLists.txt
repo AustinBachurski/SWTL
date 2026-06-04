@@ -20,8 +20,7 @@ target_link_libraries(example PRIVATE example_lib)
 enable_warnings_for_target(example)
 
 target_compile_options(example PRIVATE
-    $<$<CONFIG:Debug>:-freflection -fsanitize=address,undefined>
-    $<$<CONFIG:Release>:-freflection>
+    $<$<CONFIG:Debug>:-fsanitize=address,undefined>
 )
 
 target_link_options(example PRIVATE
