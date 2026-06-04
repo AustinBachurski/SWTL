@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25...4.3)
 
-project(CPP_TEMPLATE LANGUAGES CXX)
+project(SWTL LANGUAGES CXX)
 
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors." ON)
 
