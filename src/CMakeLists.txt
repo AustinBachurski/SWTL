@@ -1,28 +1,28 @@
-add_library(example_lib INTERFACE)
+add_library(swtl)
 
-target_sources(example_lib INTERFACE
-    FILE_SET HEADERS
-    BASE_DIRS
-    "${PROJECT_SOURCE_DIR}/include"
+target_sources(swtl PUBLIC
+  FILE_SET CXX_MODULES
+  BASE_DIRS
+  "${PROJECT_SOURCE_DIR}/src"
 
-    FILES
-    #"${PROJECT_SOURCE_DIR}/include/Example_Lib/example.hpp"
+  FILES
+  "${PROJECT_SOURCE_DIR}/src/vector.cppm"
 )
 
 add_executable(example)
 
 target_sources(example PRIVATE
-    main.cpp
+  main.cpp
 )
 
-target_link_libraries(example PRIVATE example_lib)
+target_link_libraries(example PRIVATE swtl)
 
 enable_warnings_for_target(example)
 
 target_compile_options(example PRIVATE
-    $<$<CONFIG:Debug>:-fsanitize=address,undefined>
+  $<$<CONFIG:Debug>:-fsanitize=address,undefined>
 )
 
 target_link_options(example PRIVATE
-    $<$<CONFIG:Debug>:-fsanitize=address,undefined>
+  $<$<CONFIG:Debug>:-fsanitize=address,undefined>
 )
