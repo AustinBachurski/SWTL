@@ -1,3 +1,5 @@
+module;
+#include <iterator>
 export module swtl_vector;
 
 import std;
@@ -6,7 +8,7 @@ namespace swtl {
 
 export template <typename T> class VectorIterator {
 public:
-  using iterator_category = std::random_access_iterator_tag;
+  using iterator_category = std::contiguous_iterator_tag;
   using value_type = std::remove_cv_t<T>;
   using difference_type = std::ptrdiff_t;
   using pointer = T *;
@@ -88,10 +90,10 @@ private:
   pointer ptr_{};
 };
 
-// Ensures that VectorIterator meets the requirements of
-// std::random_access_iterator.
-static_assert(std::random_access_iterator<VectorIterator<int>>);
-static_assert(std::random_access_iterator<VectorIterator<int const>>);
+// Ensures that the iterator meets the
+// requirements for the appropriate iterator tag.
+static_assert(std::contiguous_iterator<VectorIterator<int>>);
+static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 
 export template <typename T> class Vector {
 public:
