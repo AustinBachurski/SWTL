@@ -10,8 +10,8 @@ template <typename T> auto printAll(swtl::Vector<T> const &vec) -> void {
     return;
   }
 
-  for (auto const idx : std::views::iota(0UZ, vec.size())) {
-    std::print("{}, ", vec.data()[idx]);
+  for (auto const &element : vec) {
+    std::print("{}, ", element);
   }
   std::println();
 }
@@ -84,6 +84,11 @@ auto main() -> int {
     std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
     printAll(vec);
 
+    vec.push_back(9);
+    std::println("{}", static_cast<void *>(vec.data()));
+    std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
+    printAll(vec);
+
     std::println("Destroying <int> vector.\n");
   }
   {
@@ -134,86 +139,91 @@ auto main() -> int {
     std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
     printAll(vec);
 
+    vec.push_back("string w/value: 9");
+    std::println("{}", static_cast<void *>(vec.data()));
+    std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
+    printAll(vec);
+
     std::println("Destroying <std::string> vector.\n");
   }
-  {
-    std::println("Creating <int> forward_list.");
+  //{
+  //  std::println("Creating <int> forward_list.");
 
-    Forward_List<int> empty;
-    Forward_List<int> list;
-    list.push_front(42);
-    list.push_front(41);
-    list.push_front(40);
-    list.push_front(39);
-    list.push_front(38);
-    list.push_front(37);
+  //  Forward_List<int> empty;
+  //  Forward_List<int> list;
+  //  list.push_front(42);
+  //  list.push_front(41);
+  //  list.push_front(40);
+  //  list.push_front(39);
+  //  list.push_front(38);
+  //  list.push_front(37);
 
-    std::print("Empty: ");
-    print_list(empty);
+  //  std::print("Empty: ");
+  //  print_list(empty);
 
-    std::print("Populated: ");
-    print_list(list);
+  //  std::print("Populated: ");
+  //  print_list(list);
 
-    empty = list;
-    std::print("Post Copy Assignment: ");
-    print_list(empty);
+  //  empty = list;
+  //  std::print("Post Copy Assignment: ");
+  //  print_list(empty);
 
-    auto copied{list};
-    std::print("Copy Constructor: ");
-    print_list(copied);
+  //  auto copied{list};
+  //  std::print("Copy Constructor: ");
+  //  print_list(copied);
 
-    auto moved{std::move(empty)};
-    std::print("Move Constructor: ");
-    print_list(moved);
-    std::print("Moved From: ");
-    print_list(empty);
+  //  auto moved{std::move(empty)};
+  //  std::print("Move Constructor: ");
+  //  print_list(moved);
+  //  std::print("Moved From: ");
+  //  print_list(empty);
 
-    empty = std::move(list);
-    std::print("Move Assignment: ");
-    print_list(empty);
-    std::print("Moved From: ");
-    print_list(list);
+  //  empty = std::move(list);
+  //  std::print("Move Assignment: ");
+  //  print_list(empty);
+  //  std::print("Moved From: ");
+  //  print_list(list);
 
-    std::println("Destroying <int> forward_list.\n");
-  }
-  {
-    std::println("Creating <std::string> forward_list.");
+  //  std::println("Destroying <int> forward_list.\n");
+  //}
+  //{
+  //  std::println("Creating <std::string> forward_list.");
 
-    Forward_List<std::string> empty;
-    Forward_List<std::string> list;
-    list.push_front("string w/value: 42");
-    list.push_front("string w/value: 41");
-    list.push_front("string w/value: 40");
-    list.push_front("string w/value: 39");
-    list.push_front("string w/value: 38");
-    list.push_front("string w/value: 37");
+  //  Forward_List<std::string> empty;
+  //  Forward_List<std::string> list;
+  //  list.push_front("string w/value: 42");
+  //  list.push_front("string w/value: 41");
+  //  list.push_front("string w/value: 40");
+  //  list.push_front("string w/value: 39");
+  //  list.push_front("string w/value: 38");
+  //  list.push_front("string w/value: 37");
 
-    std::print("Empty: ");
-    print_list(empty);
+  //  std::print("Empty: ");
+  //  print_list(empty);
 
-    std::print("Populated: ");
-    print_list(list);
+  //  std::print("Populated: ");
+  //  print_list(list);
 
-    empty = list;
-    std::print("Post Copy Assignment: ");
-    print_list(empty);
+  //  empty = list;
+  //  std::print("Post Copy Assignment: ");
+  //  print_list(empty);
 
-    auto copied{list};
-    std::print("Copy Constructor: ");
-    print_list(copied);
+  //  auto copied{list};
+  //  std::print("Copy Constructor: ");
+  //  print_list(copied);
 
-    auto moved{std::move(empty)};
-    std::print("Move Constructor: ");
-    print_list(moved);
-    std::print("Moved From: ");
-    print_list(empty);
+  //  auto moved{std::move(empty)};
+  //  std::print("Move Constructor: ");
+  //  print_list(moved);
+  //  std::print("Moved From: ");
+  //  print_list(empty);
 
-    empty = std::move(list);
-    std::print("Move Assignment: ");
-    print_list(empty);
-    std::print("Moved From: ");
-    print_list(list);
+  //  empty = std::move(list);
+  //  std::print("Move Assignment: ");
+  //  print_list(empty);
+  //  std::print("Moved From: ");
+  //  print_list(list);
 
-    std::println("Destroying <std::string> forward_list.\n");
-  }
+  //  std::println("Destroying <std::string> forward_list.\n");
+  //}
 }

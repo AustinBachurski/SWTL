@@ -4,8 +4,107 @@ import std;
 
 namespace swtl {
 
+export template <typename T> class VectorIterator {
+public:
+  using iterator_category = std::random_access_iterator_tag;
+  using value_type = std::remove_cv_t<T>;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T *;
+  using reference = T &;
+
+  constexpr VectorIterator() = default;
+  constexpr explicit VectorIterator(pointer ptr) : ptr_{ptr} {}
+
+  [[nodiscard]] constexpr auto operator*() const -> reference { return *ptr_; }
+  [[nodiscard]] constexpr auto operator->() const -> pointer { return ptr_; }
+
+  constexpr auto operator++() noexcept -> VectorIterator & {
+    ++ptr_;
+    return *this;
+  }
+
+  constexpr auto operator++(int) noexcept -> VectorIterator {
+    auto temp{*this};
+    ++ptr_;
+    return temp;
+  }
+
+  constexpr auto operator--() noexcept -> VectorIterator & {
+    --ptr_;
+    return *this;
+  }
+
+  constexpr auto operator--(int) noexcept -> VectorIterator {
+    auto temp{*this};
+    --ptr_;
+    return temp;
+  }
+
+  constexpr auto operator+=(difference_type distance) noexcept
+      -> VectorIterator & {
+    ptr_ += distance;
+    return *this;
+  }
+
+  constexpr auto operator-=(difference_type distance) noexcept
+      -> VectorIterator & {
+    ptr_ -= distance;
+    return *this;
+  }
+
+  [[nodiscard]] constexpr auto operator[](difference_type idx) const noexcept
+      -> reference {
+    return ptr_[idx];
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator+(VectorIterator const &lhs, difference_type distance) noexcept
+      -> VectorIterator {
+    return lhs.ptr_ + distance;
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator+(difference_type distance, VectorIterator const &rhs) noexcept
+      -> VectorIterator {
+    return rhs + distance;
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator-(VectorIterator const &lhs, difference_type distance) noexcept
+      -> VectorIterator {
+    return lhs.ptr_ - distance;
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator-(difference_type distance, VectorIterator const &rhs) noexcept
+      -> VectorIterator {
+    return rhs - distance;
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator-(VectorIterator const &lhs, VectorIterator const &rhs) noexcept
+      -> difference_type {
+    return lhs.ptr_ - rhs.ptr_;
+  }
+
+  [[nodiscard]] constexpr friend auto
+  operator<=>(VectorIterator const &lhs,
+              VectorIterator const &rhs) noexcept = default;
+
+private:
+  pointer ptr_{};
+};
+
+static_assert(std::random_access_iterator<VectorIterator<int>>);
+static_assert(std::random_access_iterator<VectorIterator<int const>>);
+
 export template <typename T> class Vector {
 public:
+  using iterator = VectorIterator<T>;
+  using const_iterator = VectorIterator<T const>;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
   Vector() = default;
   ~Vector() {
     for (auto const idx : std::views::iota(0UZ, size_)) {
@@ -22,10 +121,52 @@ public:
     std::construct_at(data_ + size_++, value);
   }
 
-  [[nodiscard]] constexpr auto is_empty() const { return size_ == 0UZ; }
-  [[nodiscard]] constexpr auto data() const { return data_; }
+  [[nodiscard]] constexpr auto begin() noexcept -> iterator {
+    return iterator{data_};
+  }
+  [[nodiscard]] constexpr auto end() noexcept -> iterator {
+    return iterator{data_ + size_};
+  }
+  [[nodiscard]] constexpr auto begin() const noexcept -> const_iterator {
+    return const_iterator{data_};
+  }
+  [[nodiscard]] constexpr auto end() const noexcept -> const_iterator {
+    return const_iterator{data_ + size_};
+  }
+  [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
+    return begin();
+  }
+  [[nodiscard]] constexpr auto cend() const noexcept -> const_iterator {
+    return end();
+  }
+  [[nodiscard]] constexpr auto rbegin() noexcept -> reverse_iterator {
+    return reverse_iterator{end()};
+  }
+  [[nodiscard]] constexpr auto rend() noexcept -> reverse_iterator {
+    return reverse_iterator{begin()};
+  }
+  [[nodiscard]] constexpr auto rbegin() const noexcept
+      -> const_reverse_iterator {
+    return reverse_iterator{end()};
+  }
+  [[nodiscard]] constexpr auto rend() const noexcept -> const_reverse_iterator {
+    return reverse_iterator{begin()};
+  }
+  [[nodiscard]] constexpr auto crbegin() const noexcept
+      -> const_reverse_iterator {
+    return rbegin();
+  }
+  [[nodiscard]] constexpr auto crend() const noexcept
+      -> const_reverse_iterator {
+    return rend();
+  }
+
+  [[nodiscard]] constexpr auto data() const noexcept { return data_; }
   [[nodiscard]] constexpr auto size() const { return size_; }
-  [[nodiscard]] constexpr auto capacity() const { return capacity_; }
+  [[nodiscard]] constexpr auto capacity() const noexcept { return capacity_; }
+  [[nodiscard]] constexpr auto is_empty() const noexcept {
+    return size_ == 0UZ;
+  }
 
 private:
   T *data_{};
