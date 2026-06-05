@@ -17,6 +17,10 @@ public:
 
   [[nodiscard]] constexpr auto operator*() const -> reference { return *ptr_; }
   [[nodiscard]] constexpr auto operator->() const -> pointer { return ptr_; }
+  [[nodiscard]] constexpr auto operator[](difference_type idx) const noexcept
+      -> reference {
+    return ptr_[idx];
+  }
 
   constexpr auto operator++() noexcept -> VectorIterator & {
     ++ptr_;
@@ -52,33 +56,22 @@ public:
     return *this;
   }
 
-  [[nodiscard]] constexpr auto operator[](difference_type idx) const noexcept
-      -> reference {
-    return ptr_[idx];
-  }
-
   [[nodiscard]] constexpr friend auto
   operator+(VectorIterator const &lhs, difference_type distance) noexcept
       -> VectorIterator {
-    return lhs.ptr_ + distance;
+    return VectorIterator{lhs.ptr_ + distance};
   }
 
   [[nodiscard]] constexpr friend auto
   operator+(difference_type distance, VectorIterator const &rhs) noexcept
       -> VectorIterator {
-    return rhs + distance;
+    return VectorIterator{rhs + distance};
   }
 
   [[nodiscard]] constexpr friend auto
   operator-(VectorIterator const &lhs, difference_type distance) noexcept
       -> VectorIterator {
-    return lhs.ptr_ - distance;
-  }
-
-  [[nodiscard]] constexpr friend auto
-  operator-(difference_type distance, VectorIterator const &rhs) noexcept
-      -> VectorIterator {
-    return rhs - distance;
+    return VectorIterator{lhs.ptr_ - distance};
   }
 
   [[nodiscard]] constexpr friend auto
@@ -95,6 +88,8 @@ private:
   pointer ptr_{};
 };
 
+// Ensures that VectorIterator meets the requirements of
+// std::random_access_iterator.
 static_assert(std::random_access_iterator<VectorIterator<int>>);
 static_assert(std::random_access_iterator<VectorIterator<int const>>);
 
