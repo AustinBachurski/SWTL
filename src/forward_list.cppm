@@ -67,11 +67,11 @@ public:
   class Iterator {
     friend class Forward_List;
 
-    using Iterator_Category = std::forward_iterator_tag;
-    using Value_Type = std::remove_cv_t<T>;
-    using Pointer = T *;
-    using Reference = T &;
-    using Difference = std::ptrdiff_t;
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = std::remove_cv_t<T>;
+    using difference_type = std::ptrdiff_t;
+    using pointer = T *;
+    using reference = T &;
 
   public:
     Iterator &operator++() {
@@ -89,13 +89,13 @@ public:
 
     bool operator!=(Iterator const &other) const { return ptr_ != other.ptr_; }
 
-    Reference operator*() { return static_cast<Node *>(ptr_)->data_; }
+    reference operator*() { return static_cast<Node *>(ptr_)->data_; }
 
-    Value_Type operator*() const {
+    value_type operator*() const {
       return static_cast<Node const *>(ptr_)->data_;
     }
 
-    Pointer *operator->() { return &static_cast<Node *>(ptr_)->data_; }
+    pointer *operator->() { return &static_cast<Node *>(ptr_)->data_; }
 
   private:
     Iterator(NodeBase *value) : ptr_{value} {}
