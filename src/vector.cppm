@@ -1,5 +1,3 @@
-module;
-#include <iterator>
 export module swtl_vector;
 
 import std;
@@ -95,8 +93,17 @@ private:
 static_assert(std::contiguous_iterator<VectorIterator<int>>);
 static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 
-export template <typename T> class Vector {
+export template <typename T, typename Allocator = std::allocator<T>>
+class Vector {
 public:
+  using value_type = std::remove_cv_t<T>;
+  using allocator_type = Allocator;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using reference = value_type &;
+  using const_reference = value_type const &;
+  using pointer = std::allocator_traits<Allocator>::pointer;
+  using const_pointer = std::allocator_traits<Allocator>::const_pointer;
   using iterator = VectorIterator<T>;
   using const_iterator = VectorIterator<T const>;
   using reverse_iterator = std::reverse_iterator<iterator>;
@@ -104,18 +111,8 @@ public:
 
   Vector() = default;
   ~Vector() {
-    for (auto const idx : std::views::iota(0UZ, size_)) {
-      std::destroy_at(&data_[idx]);
-    }
-    operator delete(data_, static_cast<std::align_val_t>(alignof(T)));
-  }
-
-  auto push_back(T const &value) -> void {
-    if (size_ == capacity_) {
-      reallocate();
-    }
-
-    std::construct_at(data_ + size_++, value);
+    std::ranges::destroy(VectorIterator{data_}, VectorIterator{data_ + size_});
+    std::allocator_traits<Allocator>::deallocate(allocator_, data_, capacity_);
   }
 
   [[nodiscard]] constexpr auto begin() noexcept -> iterator {
@@ -165,98 +162,57 @@ public:
     return size_ == 0UZ;
   }
 
+  constexpr auto push_back(T const &value) -> void {
+    if (size_ == capacity_) {
+      std::size_t new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
+
+      auto new_data{
+          std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
+
+      if constexpr (std::is_nothrow_move_constructible_v<T>) {
+        std::ranges::uninitialized_move(
+            VectorIterator{data_}, VectorIterator{data_ + size_},
+            VectorIterator{new_data}, VectorIterator{new_data + size_});
+      } else if constexpr (std::is_nothrow_copy_constructible_v<T>) {
+        std::ranges::uninitialized_copy(
+            VectorIterator{data_}, VectorIterator{data_ + size_},
+            VectorIterator{new_data}, VectorIterator{new_data + size_});
+      } else {
+        try {
+          std::ranges::uninitialized_copy(
+              VectorIterator{data_}, VectorIterator{data_ + size_},
+              VectorIterator{new_data}, VectorIterator{new_data + size_});
+        } catch (...) {
+          // The ununitialized_copy function takes care of destroying the new
+          // objects that it created during attempted migration, just have to
+          // free the memory before rethrowing.
+          std::allocator_traits<Allocator>::deallocate(allocator_, new_data,
+                                                       new_capacity);
+          throw;
+        }
+      }
+
+      // The uninitialized_ functions don't destroy objects unless the copy
+      // fails, and even then it's only the objects that were created prior to
+      // the error - not the originals.  So on successful reallocation: destroy
+      // the old objects, give the memory back to the allocator, and update our
+      // internals.
+      std::ranges::destroy(VectorIterator{data_},
+                           VectorIterator{data_ + size_});
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+      data_ = new_data;
+      capacity_ = new_capacity;
+    }
+
+    std::construct_at(data_ + size_++, value);
+  }
+
 private:
+  [[no_unique_address]] Allocator allocator_;
   T *data_{};
   std::size_t capacity_{};
   std::size_t size_{};
-
-  auto reallocate() -> void {
-    // If data_ is nullptr, simply add one element.
-    if (data_ == nullptr) {
-      data_ = static_cast<T *>(operator new(
-          sizeof(T), static_cast<std::align_val_t>(alignof(T))));
-      capacity_ = 1UZ;
-      return;
-    }
-
-    std::size_t new_capacity = capacity_ * 2;
-
-    auto *new_data{static_cast<T *>(operator new(
-        new_capacity * sizeof(T), static_cast<std::align_val_t>(alignof(T))))};
-
-    // Trivially copyable types can be swapped by a simple memcpy, no move or
-    // iteration required.
-    if constexpr (std::is_trivially_copyable_v<T>) {
-      std::memcpy(new_data, data_, size_ * sizeof(T));
-      operator delete(data_, static_cast<std::align_val_t>(alignof(T)));
-      data_ = new_data;
-      capacity_ = new_capacity;
-      return;
-    }
-
-    // If T's move constructor can't throw, destroy the old objects in the same
-    // iteration.
-    if constexpr (std::is_nothrow_move_constructible_v<T>) {
-      for (auto const idx : std::views::iota(0UZ, size_)) {
-        std::construct_at(new_data + idx, std::move(data_[idx]));
-        std::destroy_at(&data_[idx]);
-      }
-
-      operator delete(data_, static_cast<std::align_val_t>(alignof(T)));
-      data_ = new_data;
-      capacity_ = new_capacity;
-      return;
-    }
-
-    // If T's copy constructor can't throw, destroy the old objects in the same
-    // iteration.
-    if constexpr (std::is_nothrow_copy_constructible_v<T>) {
-      for (auto const idx : std::views::iota(0UZ, size_)) {
-        std::construct_at(new_data + idx, data_[idx]);
-        std::destroy_at(&data_[idx]);
-      }
-
-      operator delete(data_, static_cast<std::align_val_t>(alignof(T)));
-      data_ = new_data;
-      capacity_ = new_capacity;
-      return;
-    }
-
-    // If moving or copying a T can throw, maintain the old collection and only
-    // commit the new memory and capacity once all new objects have been
-    // successfully constructed.  Track successful construction so that they can
-    // be destroyed prior to freeing the memory.
-
-    std::size_t elements_constructed{};
-
-    try {
-      for (auto const idx : std::views::iota(0UZ, size_)) {
-        std::construct_at(new_data + idx, data_[idx]);
-        ++elements_constructed;
-      }
-
-      for (auto const idx : std::views::iota(0UZ, size_)) {
-        std::destroy_at(&data_[idx]);
-      }
-
-      operator delete(data_, static_cast<std::align_val_t>(alignof(T)));
-      data_ = new_data;
-      capacity_ = new_capacity;
-      return;
-    } catch (...) {
-      // Exception encountered during migration of objects from old to new
-      // storage, deconstruct the successful copies and free the newly allocated
-      // memory to clean up.  Do not commit data_ or capacity_ updates to
-      // maintain strong exception safety guarantees.
-
-      for (auto const idx : std::views::iota(0UZ, elements_constructed)) {
-        std::destroy_at(&new_data[idx]);
-      }
-
-      operator delete(new_data, static_cast<std::align_val_t>(alignof(T)));
-      throw;
-    }
-  }
 };
 
 } // namespace swtl
