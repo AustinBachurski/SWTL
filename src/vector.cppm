@@ -110,9 +110,12 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   Vector() = default;
-  ~Vector() {
+  constexpr ~Vector() {
     std::ranges::destroy(VectorIterator{data_}, VectorIterator{data_ + size_});
-    std::allocator_traits<Allocator>::deallocate(allocator_, data_, capacity_);
+    if (data_ != nullptr) {
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+    }
   }
 
   [[nodiscard]] constexpr auto begin() noexcept -> iterator {
@@ -199,8 +202,10 @@ public:
       // internals.
       std::ranges::destroy(VectorIterator{data_},
                            VectorIterator{data_ + size_});
-      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                   capacity_);
+      if (data_ != nullptr) {
+        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                     capacity_);
+      }
       data_ = new_data;
       capacity_ = new_capacity;
     }

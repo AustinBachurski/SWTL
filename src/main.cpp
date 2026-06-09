@@ -33,6 +33,23 @@ void print_list(auto const &list) {
   std::println(" ]");
 }
 
+consteval auto does_it_work() {
+  constexpr auto count{10UZ};
+  swtl::Vector<std::size_t> vec;
+
+  for (auto const num : std::views::iota(0UZ, count)) {
+    vec.push_back(num);
+  }
+
+  std::array<std::size_t, count> values;
+
+  for (auto &&[idx, num] : std::views::enumerate(vec)) {
+    values.at(idx) = num;
+  }
+
+  return values;
+}
+
 } // namespace
 
 auto main() -> int {
@@ -226,4 +243,8 @@ auto main() -> int {
 
   //  std::println("Destroying <std::string> forward_list.\n");
   //}
+
+  constexpr auto from_constexpr{does_it_work()};
+
+  std::println("Values from constexpr swtl::Vector:\n{}", from_constexpr);
 }
