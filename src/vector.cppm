@@ -159,7 +159,10 @@ public:
     other.size_ = 0UZ;
   }
 
-  Vector &operator=(Vector &&other) noexcept {
+  Vector &operator=(Vector &&other) noexcept(
+      std::allocator_traits<
+          Allocator>::propagate_on_container_move_assignment::value ||
+      std::allocator_traits<Allocator>::is_always_equal::value) {
     if (this == std::addressof(other)) {
       return *this;
     }
