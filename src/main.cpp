@@ -33,6 +33,17 @@ void print_list(auto const &list) {
   std::println(" ]");
 }
 
+template <typename T> auto test_non_const(swtl::VectorIterator<T> it) -> void {
+  ++it;
+  std::println("Non-const Iterator Accepted");
+}
+
+template <typename T>
+auto test_const(swtl::VectorIterator<T const> it) -> void {
+  ++it;
+  std::println("Const Iterator Accepted");
+}
+
 consteval auto does_it_work() {
   constexpr auto count{10UZ};
   swtl::Vector<std::size_t> vec;
@@ -272,5 +283,17 @@ auto main() -> int {
 
     // move assign
     stolen = std::move(new_vec);
+
+    printAll(stolen);
+  }
+
+  {
+    swtl::Vector<int> non_const_vec;
+    swtl::Vector<int> const const_vec;
+
+    test_non_const<int>(non_const_vec.begin());
+    test_const<int>(const_vec.begin());
+    test_const<int>(non_const_vec.begin());
+    // test_non_const<int>(const_vec.begin()); // Shound fail to compile.
   }
 }

@@ -12,11 +12,24 @@ public:
   using pointer = T *;
   using reference = T &;
 
+  template <typename U> friend class VectorIterator;
+
+  template <typename U>
+  constexpr VectorIterator(VectorIterator<U> const &other)
+    requires(std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>)
+      : ptr_{other.ptr_} {}
+
   constexpr VectorIterator() = default;
   constexpr explicit VectorIterator(pointer ptr) : ptr_{ptr} {}
 
-  [[nodiscard]] constexpr auto operator*() const -> reference { return *ptr_; }
-  [[nodiscard]] constexpr auto operator->() const -> pointer { return ptr_; }
+  [[nodiscard]] constexpr auto operator*() const noexcept -> reference {
+    return *ptr_;
+  }
+
+  [[nodiscard]] constexpr auto operator->() const noexcept -> pointer {
+    return ptr_;
+  }
+
   [[nodiscard]] constexpr auto operator[](difference_type idx) const noexcept
       -> reference {
     return ptr_[idx];
@@ -111,12 +124,16 @@ public:
 
   Vector() = default;
 
-  Vector(Vector const &other) {
+  Vector(Vector const &other)
+      : allocator_{
+            std::allocator_traits<Allocator>::
+                select_on_container_copy_construction(other.allocator_)} {
     data_ =
         std::allocator_traits<Allocator>::allocate(allocator_, other.capacity_);
     try {
-      std::uninitialized_copy(other.begin(), other.end(),
-                              VectorIterator{data_});
+      std::ranges::uninitialized_copy(other.begin(), other.end(),
+                                      VectorIterator{data_},
+                                      VectorIterator{data_ + other.size_});
       capacity_ = other.capacity_;
       size_ = other.size_;
     } catch (...) {
@@ -240,11 +257,10 @@ public:
   [[nodiscard]] constexpr auto rend() noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
-  [[nodiscard]] constexpr auto rbegin() const noexcept
-      -> const_reverse_iterator {
+  [[nodiscard]] constexpr auto rbegin() const noexcept -> reverse_iterator {
     return reverse_iterator{end()};
   }
-  [[nodiscard]] constexpr auto rend() const noexcept -> const_reverse_iterator {
+  [[nodiscard]] constexpr auto rend() const noexcept -> reverse_iterator {
     return reverse_iterator{begin()};
   }
   [[nodiscard]] constexpr auto crbegin() const noexcept
@@ -256,12 +272,27 @@ public:
     return rend();
   }
 
-  [[nodiscard]] constexpr auto data() const noexcept { return data_; }
-  [[nodiscard]] constexpr auto size() const { return size_; }
-  [[nodiscard]] constexpr auto capacity() const noexcept { return capacity_; }
-  [[nodiscard]] constexpr auto is_empty() const noexcept {
+  template <typename Self>
+  [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
+    using CorrectConstness =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           T const *, T *>;
+
+    return const_cast<CorrectConstness>(self.data_);
+  }
+
+  [[nodiscard]] constexpr auto size() const noexcept -> size_type {
+    return size_;
+  }
+
+  [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
+    return capacity_;
+  }
+
+  [[nodiscard]] constexpr auto is_empty() const noexcept -> bool {
     return size_ == 0UZ;
   }
+
   constexpr auto swap(Vector &other) noexcept -> void {
     if constexpr (std::allocator_traits<
                       Allocator>::propagate_on_container_swap::value) {
@@ -317,8 +348,9 @@ public:
       capacity_ = new_capacity;
     }
 
-    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_++,
+    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
                                                 value);
+    ++size_;
   }
 
   constexpr friend auto swap(Vector &lhs, Vector &rhs) noexcept -> void {
