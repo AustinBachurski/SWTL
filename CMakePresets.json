@@ -117,14 +117,10 @@
   ],
   "testPresets": [
     {
-      "name": "x64-clang-debug",
-      "configurePreset": "x64-clang-debug",
-      "output": { "outputOnFailure": true }
-    },
-    {
-      "name": "x64-gcc-debug",
-      "configurePreset": "x64-gcc-debug",
-      "output": { "outputOnFailure": true }
+      "name": "test-dev",
+      "configurePreset": "dev",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error"}
     }
   ]
 }
