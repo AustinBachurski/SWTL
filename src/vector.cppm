@@ -1,5 +1,3 @@
-module;
-#include <memory>
 export module swtl_vector;
 
 import std;
