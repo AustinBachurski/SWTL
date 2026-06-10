@@ -1,3 +1,5 @@
+module;
+#include <memory>
 export module swtl_vector;
 
 import std;
@@ -110,6 +112,101 @@ public:
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
   Vector() = default;
+
+  Vector(Vector const &other) {
+    data_ =
+        std::allocator_traits<Allocator>::allocate(allocator_, other.capacity_);
+    try {
+      std::uninitialized_copy(other.begin(), other.end(),
+                              VectorIterator{data_});
+      capacity_ = other.capacity_;
+      size_ = other.size_;
+    } catch (...) {
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   other.capacity_);
+      throw;
+    }
+  }
+
+  Vector &operator=(Vector const &other) {
+    if (this == std::addressof(other)) {
+      return *this;
+    }
+
+    if constexpr (std::allocator_traits<Allocator>::
+                      propagate_on_container_copy_assignment::value) {
+      if (allocator_ != other.allocator_) {
+        std::ranges::destroy(begin(), end());
+        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                     capacity_);
+        data_ = nullptr;
+        size_ = 0UZ;
+        capacity_ = 0UZ;
+      }
+      allocator_ = other.allocator_;
+    }
+
+    Vector temp{other};
+    swap(temp);
+    return *this;
+  }
+
+  Vector(Vector &&other) noexcept
+      : allocator_{std::move(other.allocator_)}, data_{other.data_},
+        capacity_{other.capacity_}, size_{other.size_} {
+    other.data_ = nullptr;
+    other.capacity_ = 0UZ;
+    other.size_ = 0UZ;
+  }
+
+  Vector &operator=(Vector &&other) noexcept {
+    if (this == std::addressof(other)) {
+      return *this;
+    }
+    if constexpr (std::allocator_traits<Allocator>::
+                      propagate_on_container_move_assignment::value) {
+      std::ranges::destroy(begin(), end());
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+      allocator_ = std::move(other.allocator_);
+      data_ = other.data_;
+      capacity_ = other.capacity_;
+      size_ = other.size_;
+      other.data_ = nullptr;
+      other.capacity_ = 0UZ;
+      other.size_ = 0UZ;
+    } else if (allocator_ == other.allocator_) {
+      std::ranges::destroy(begin(), end());
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+      data_ = other.data_;
+      capacity_ = other.capacity_;
+      size_ = other.size_;
+      other.data_ = nullptr;
+      other.capacity_ = 0UZ;
+      other.size_ = 0UZ;
+    } else {
+      auto *new_data{std::allocator_traits<Allocator>::allocate(
+          allocator_, other.capacity_)};
+      try {
+        std::uninitialized_move(other.begin(), other.end(),
+                                VectorIterator{new_data});
+        std::ranges::destroy(begin(), end());
+        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                     capacity_);
+        data_ = new_data;
+        new_data = nullptr;
+        size_ = other.size_;
+        capacity_ = other.capacity_;
+      } catch (...) {
+        std::allocator_traits<Allocator>::deallocate(allocator_, new_data,
+                                                     other.capacity_);
+        throw;
+      }
+    }
+    return *this;
+  }
+
   constexpr ~Vector() {
     std::ranges::destroy(VectorIterator{data_}, VectorIterator{data_ + size_});
     if (data_ != nullptr) {
@@ -164,6 +261,15 @@ public:
   [[nodiscard]] constexpr auto is_empty() const noexcept {
     return size_ == 0UZ;
   }
+  constexpr auto swap(Vector &other) noexcept -> void {
+    if constexpr (std::allocator_traits<
+                      Allocator>::propagate_on_container_swap::value) {
+      std::swap(allocator_, other.allocator_);
+    }
+    std::swap(data_, other.data_);
+    std::swap(size_, other.size_);
+    std::swap(capacity_, other.capacity_);
+  }
 
   constexpr auto push_back(T const &value) -> void {
     if (size_ == capacity_) {
@@ -197,9 +303,9 @@ public:
 
       // The uninitialized_ functions don't destroy objects unless the copy
       // fails, and even then it's only the objects that were created prior to
-      // the error - not the originals.  So on successful reallocation: destroy
-      // the old objects, give the memory back to the allocator, and update our
-      // internals.
+      // the error - not the originals.  So on successful reallocation:
+      // destroy the old objects, give the memory back to the allocator, and
+      // update our internals.
       std::ranges::destroy(VectorIterator{data_},
                            VectorIterator{data_ + size_});
       if (data_ != nullptr) {
@@ -210,7 +316,12 @@ public:
       capacity_ = new_capacity;
     }
 
-    std::construct_at(data_ + size_++, value);
+    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_++,
+                                                value);
+  }
+
+  constexpr friend auto swap(Vector &lhs, Vector &rhs) noexcept -> void {
+    lhs.swap(rhs);
   }
 
 private:

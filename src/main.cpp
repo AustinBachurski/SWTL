@@ -247,4 +247,30 @@ auto main() -> int {
   constexpr auto from_constexpr{does_it_work()};
 
   std::println("Values from constexpr swtl::Vector:\n{}", from_constexpr);
+
+  {
+    swtl::Vector<std::string> vec;
+
+    vec.push_back("I");
+    vec.push_back("used");
+    vec.push_back("to");
+    vec.push_back("be");
+    vec.push_back("an");
+    vec.push_back("adventurer");
+    vec.push_back("like");
+    vec.push_back("you");
+
+    // copy ctor
+    auto new_vec{vec};
+    new_vec.push_back("but I took an arrow to the knee...");
+
+    // copy assign
+    new_vec = vec;
+
+    // move ctor
+    auto stolen{std::move(vec)};
+
+    // move assign
+    stolen = std::move(new_vec);
+  }
 }
