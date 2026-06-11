@@ -273,25 +273,23 @@ public:
   }
 
   template <typename Self>
-  [[nodiscard]] constexpr auto at(this Self &&self, size_type position) {
+  [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
+    using const_correct_pointer =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_pointer, pointer>;
+    return static_cast<const_correct_pointer>(self.data_);
+  }
+
+  template <typename Self>
+  [[nodiscard]] constexpr auto at(this Self &&self, size_type position)
+      -> decltype(auto) {
     if (position >= self.size_) {
       throw std::out_of_range(
           std::format("Vector Range Check: position (which is {}) >= "
                       "this->size() (which is {})",
                       position, self.size_));
     }
-    using CorrectConstness =
-        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
-                           T const, T>;
-    return const_cast<CorrectConstness>(self.data_[position]);
-  }
-
-  template <typename Self>
-  [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
-    using CorrectConstness =
-        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
-                           T const *, T *>;
-    return const_cast<CorrectConstness>(self.data_);
+    return std::forward_like<Self>(self.data_[position]);
   }
 
   [[nodiscard]] constexpr auto size() const noexcept -> size_type {

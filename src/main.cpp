@@ -1,3 +1,4 @@
+#include <type_traits>
 import std;
 import swtl_vector;
 import swtl_forward_list;
@@ -61,11 +62,29 @@ consteval auto does_it_work() {
   return values;
 }
 
+consteval auto get_constexpr_val() {
+  swtl::Vector<int> vec;
+  vec.push_back(69);
+  return vec.at(0);
+}
+
 } // namespace
 
 auto main() -> int {
   swtl::Vector<int> vec;
-  vec.push_back(69);
-  std::println(".at(0) -> {}", vec.at(0));
-  std::println(".at(1) -> {}", vec.at(1));
+  vec.push_back(42);
+  const auto const_vec{vec};
+
+  std::println("Pointer should not be const: {}",
+               std::is_const_v<std::remove_reference_t<decltype(vec.data())>>);
+  std::println(
+      "Pointer should not be const: {}",
+      std::is_const_v<std::remove_reference_t<decltype(const_vec.data())>>);
+
+  std::println(
+      "Should not be const: {}",
+      std::is_const_v<std::remove_reference_t<decltype(vec.data()[0])>>);
+  std::println(
+      "Should be const: {}",
+      std::is_const_v<std::remove_reference_t<decltype(const_vec.data()[0])>>);
 }
