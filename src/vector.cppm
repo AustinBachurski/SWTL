@@ -273,11 +273,24 @@ public:
   }
 
   template <typename Self>
+  [[nodiscard]] constexpr auto at(this Self &&self, size_type position) {
+    if (position >= self.size_) {
+      throw std::out_of_range(
+          std::format("Vector Range Check: position (which is {}) >= "
+                      "this->size() (which is {})",
+                      position, self.size_));
+    }
+    using CorrectConstness =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           T const, T>;
+    return const_cast<CorrectConstness>(self.data_[position]);
+  }
+
+  template <typename Self>
   [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
     using CorrectConstness =
         std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
                            T const *, T *>;
-
     return const_cast<CorrectConstness>(self.data_);
   }
 
