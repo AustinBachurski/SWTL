@@ -233,40 +233,51 @@ public:
     }
   }
 
-  [[nodiscard]] constexpr auto begin() noexcept -> iterator {
-    return iterator{data_};
+  template <typename Self>
+  [[nodiscard]] constexpr auto begin(this Self &&self) noexcept {
+    using const_correct_iterator =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_iterator, iterator>;
+    return static_cast<const_correct_iterator>(self.data_);
   }
-  [[nodiscard]] constexpr auto end() noexcept -> iterator {
-    return iterator{data_ + size_};
+
+  template <typename Self>
+  [[nodiscard]] constexpr auto end(this Self &&self) noexcept {
+    using const_correct_iterator =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_iterator, iterator>;
+    return static_cast<const_correct_iterator>(self.data_ + self.size_);
   }
-  [[nodiscard]] constexpr auto begin() const noexcept -> const_iterator {
-    return const_iterator{data_};
-  }
-  [[nodiscard]] constexpr auto end() const noexcept -> const_iterator {
-    return const_iterator{data_ + size_};
-  }
+
   [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
     return begin();
   }
+
   [[nodiscard]] constexpr auto cend() const noexcept -> const_iterator {
     return end();
   }
-  [[nodiscard]] constexpr auto rbegin() noexcept -> reverse_iterator {
-    return reverse_iterator{end()};
+
+  template <typename Self>
+  [[nodiscard]] constexpr auto rbegin(this Self &&self) noexcept {
+    using const_correct_reverse_iterator =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_reverse_iterator, reverse_iterator>;
+    return static_cast<const_correct_reverse_iterator>(self.end());
   }
-  [[nodiscard]] constexpr auto rend() noexcept -> reverse_iterator {
-    return reverse_iterator{begin()};
+
+  template <typename Self>
+  [[nodiscard]] constexpr auto rend(this Self &&self) noexcept {
+    using const_correct_reverse_iterator =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_reverse_iterator, reverse_iterator>;
+    return static_cast<const_correct_reverse_iterator>(self.begin());
   }
-  [[nodiscard]] constexpr auto rbegin() const noexcept -> reverse_iterator {
-    return reverse_iterator{end()};
-  }
-  [[nodiscard]] constexpr auto rend() const noexcept -> reverse_iterator {
-    return reverse_iterator{begin()};
-  }
+
   [[nodiscard]] constexpr auto crbegin() const noexcept
       -> const_reverse_iterator {
     return rbegin();
   }
+
   [[nodiscard]] constexpr auto crend() const noexcept
       -> const_reverse_iterator {
     return rend();
