@@ -15,9 +15,8 @@ public:
   template <typename U> friend class VectorIterator;
 
   template <typename U>
-  constexpr VectorIterator(VectorIterator<U> const &other)
     requires(std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>)
-      : ptr_{other.ptr_} {}
+  constexpr VectorIterator(VectorIterator<U> const &other) : ptr_{other.ptr_} {}
 
   constexpr VectorIterator() = default;
   constexpr explicit VectorIterator(pointer ptr) : ptr_{ptr} {}
@@ -151,7 +150,7 @@ public:
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_copy_assignment::value) {
       if (allocator_ != other.allocator_) {
-        std::ranges::destroy(begin(), end());
+        destroy_all_objects();
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
         data_ = nullptr;
@@ -183,7 +182,7 @@ public:
     }
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_move_assignment::value) {
-      std::ranges::destroy(begin(), end());
+      destroy_all_objects();
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
       allocator_ = std::move(other.allocator_);
@@ -194,7 +193,7 @@ public:
       other.capacity_ = 0UZ;
       other.size_ = 0UZ;
     } else if (allocator_ == other.allocator_) {
-      std::ranges::destroy(begin(), end());
+      destroy_all_objects();
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
       data_ = other.data_;
@@ -209,7 +208,7 @@ public:
       try {
         std::uninitialized_move(other.begin(), other.end(),
                                 VectorIterator{new_data});
-        std::ranges::destroy(begin(), end());
+        destroy_all_objects();
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
         data_ = new_data;
@@ -226,7 +225,7 @@ public:
   }
 
   constexpr ~Vector() {
-    std::ranges::destroy(VectorIterator{data_}, VectorIterator{data_ + size_});
+    destroy_all_objects();
     if (data_ != nullptr) {
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
@@ -360,8 +359,7 @@ public:
       // the error - not the originals.  So on successful reallocation:
       // destroy the old objects, give the memory back to the allocator, and
       // update our internals.
-      std::ranges::destroy(VectorIterator{data_},
-                           VectorIterator{data_ + size_});
+      destroy_all_objects();
       if (data_ != nullptr) {
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
@@ -380,6 +378,14 @@ public:
   }
 
 private:
+  constexpr auto destroy_all_objects() -> void {
+    for (auto &element : *this) {
+      std::allocator_traits<Allocator>::destroy(allocator_, &element);
+    }
+  } // TODO: this needs to go away, should be moved into an `allocator_aware?`
+    // namespace of utilities, need to do the same with uninitialized_move/_copy
+    // too as those aren't allocator aware.
+
   [[no_unique_address]] Allocator allocator_;
   T *data_{};
   std::size_t capacity_{};
