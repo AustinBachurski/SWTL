@@ -1,5 +1,3 @@
-module;
-#include <memory>
 export module swtl_memory;
 
 import std;
@@ -18,13 +16,24 @@ concept AllocatorType = requires(
   std::allocator_traits<Allocator>::deallocate(allocator, ptr, 1);
 };
 
-template <typename Allocator, typename SourceIterator,
-          typename DestinationIterator>
+export template <typename Allocator, typename SourceIterator,
+                 typename DestinationIterator>
   requires std::input_iterator<SourceIterator> &&
            std::input_or_output_iterator<DestinationIterator> &&
            AllocatorType<Allocator, std::iter_value_t<SourceIterator>>
-auto uninitialized_copy(Allocator allocator, SourceIterator src_begin,
-                        SourceIterator src_end, DestinationIterator dest_begin)
-    -> void {}
+constexpr auto uninitialized_copy(Allocator allocator, SourceIterator src_begin,
+                                  SourceIterator src_end,
+                                  DestinationIterator dest_begin) -> void {}
+
+export template <typename Allocator, typename Iterator>
+  requires std::input_or_output_iterator<Iterator> &&
+           AllocatorType<Allocator, std::iter_value_t<Iterator>>
+constexpr auto destroy_range(Allocator allocator, Iterator begin,
+                             Iterator end) noexcept -> void {
+  for (; begin != end; ++begin) {
+    std::allocator_traits<Allocator>::destroy(allocator,
+                                              std::to_address(begin));
+  }
+}
 
 } // namespace swtl::allocator_aware

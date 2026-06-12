@@ -1,6 +1,7 @@
 export module swtl_vector;
 
 import std;
+import swtl_memory;
 
 namespace swtl {
 
@@ -150,7 +151,7 @@ public:
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_copy_assignment::value) {
       if (allocator_ != other.allocator_) {
-        destroy_all_objects();
+        allocator_aware::destroy_range(allocator_, begin(), end());
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
         data_ = nullptr;
@@ -182,7 +183,7 @@ public:
     }
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_move_assignment::value) {
-      destroy_all_objects();
+      allocator_aware::destroy_range(allocator_, begin(), end());
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
       allocator_ = std::move(other.allocator_);
@@ -193,7 +194,7 @@ public:
       other.capacity_ = 0UZ;
       other.size_ = 0UZ;
     } else if (allocator_ == other.allocator_) {
-      destroy_all_objects();
+      allocator_aware::destroy_range(allocator_, begin(), end());
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
       data_ = other.data_;
@@ -208,7 +209,7 @@ public:
       try {
         std::uninitialized_move(other.begin(), other.end(),
                                 VectorIterator{new_data});
-        destroy_all_objects();
+        allocator_aware::destroy_range(allocator_, begin(), end());
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
         data_ = new_data;
@@ -225,7 +226,7 @@ public:
   }
 
   constexpr ~Vector() {
-    destroy_all_objects();
+    allocator_aware::destroy_range(allocator_, begin(), end());
     if (data_ != nullptr) {
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
@@ -359,7 +360,7 @@ public:
       // the error - not the originals.  So on successful reallocation:
       // destroy the old objects, give the memory back to the allocator, and
       // update our internals.
-      destroy_all_objects();
+      allocator_aware::destroy_range(allocator_, begin(), end());
       if (data_ != nullptr) {
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
@@ -378,14 +379,6 @@ public:
   }
 
 private:
-  constexpr auto destroy_all_objects() -> void {
-    for (auto &element : *this) {
-      std::allocator_traits<Allocator>::destroy(allocator_, &element);
-    }
-  } // TODO: this needs to go away, should be moved into an `allocator_aware?`
-    // namespace of utilities, need to do the same with uninitialized_move/_copy
-    // too as those aren't allocator aware.
-
   [[no_unique_address]] Allocator allocator_;
   T *data_{};
   std::size_t capacity_{};
