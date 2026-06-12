@@ -15,7 +15,7 @@ public:
   template <typename U> friend class VectorIterator;
 
   template <typename U>
-    requires(std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>)
+    requires std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>
   constexpr VectorIterator(VectorIterator<U> const &other) : ptr_{other.ptr_} {}
 
   constexpr VectorIterator() = default;

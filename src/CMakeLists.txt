@@ -8,6 +8,7 @@ target_sources(swtl PUBLIC
   FILES
   "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
   "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
+  "${PROJECT_SOURCE_DIR}/src/core/memory.cppm"
 )
 
 add_executable(example)
