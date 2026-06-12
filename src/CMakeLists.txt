@@ -6,8 +6,8 @@ target_sources(swtl PUBLIC
   "${PROJECT_SOURCE_DIR}/src"
 
   FILES
-  "${PROJECT_SOURCE_DIR}/src/vector.cppm"
-  "${PROJECT_SOURCE_DIR}/src/forward_list.cppm"
+  "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
+  "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
 )
 
 add_executable(example)
