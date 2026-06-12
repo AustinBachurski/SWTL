@@ -21,9 +21,32 @@ export template <typename Allocator, typename SourceIterator,
   requires std::input_iterator<SourceIterator> &&
            std::input_or_output_iterator<DestinationIterator> &&
            AllocatorType<Allocator, std::iter_value_t<SourceIterator>>
+constexpr auto uninitialized_move(Allocator allocator, SourceIterator src_begin,
+                                  SourceIterator src_end,
+                                  DestinationIterator dest_begin) -> void {
+  using value_type = std::iter_value_t<SourceIterator>;
+  if constexpr (std::is_nothrow_move_constructible<value_type>) {
+    // No need to track.
+  } else {
+    // Track construction and backtrack on failure.
+  }
+}
+
+export template <typename Allocator, typename SourceIterator,
+                 typename DestinationIterator>
+  requires std::input_iterator<SourceIterator> &&
+           std::input_or_output_iterator<DestinationIterator> &&
+           AllocatorType<Allocator, std::iter_value_t<SourceIterator>>
 constexpr auto uninitialized_copy(Allocator allocator, SourceIterator src_begin,
                                   SourceIterator src_end,
-                                  DestinationIterator dest_begin) -> void {}
+                                  DestinationIterator dest_begin) -> void {
+  using value_type = std::iter_value_t<SourceIterator>;
+  if constexpr (std::is_nothrow_copy_constructible<value_type>) {
+    // No need to track.
+  } else {
+    // Track construction and backtrack on failure.
+  }
+}
 
 export template <typename Allocator, typename Iterator>
   requires std::input_or_output_iterator<Iterator> &&
