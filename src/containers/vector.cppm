@@ -131,9 +131,8 @@ public:
     data_ =
         std::allocator_traits<Allocator>::allocate(allocator_, other.capacity_);
     try {
-      std::ranges::uninitialized_copy(other.begin(), other.end(),
-                                      VectorIterator{data_},
-                                      VectorIterator{data_ + other.size_});
+      allocator_aware::uninitialized_copy_range(
+          allocator_, other.begin(), other.end(), VectorIterator{data_});
       capacity_ = other.capacity_;
       size_ = other.size_;
     } catch (...) {
@@ -181,8 +180,12 @@ public:
     if (this == std::addressof(other)) {
       return *this;
     }
+
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_move_assignment::value) {
+      // Allocator can be moved, with the container.  Move over the allocator,
+      // pointer, and invariants.
+
       allocator_aware::destroy_range(allocator_, begin(), end());
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
@@ -194,6 +197,10 @@ public:
       other.capacity_ = 0UZ;
       other.size_ = 0UZ;
     } else if (allocator_ == other.allocator_) {
+      // Allocator can't be moved over, but the destination and source
+      // allocators compare equal.  Ignore the allocator, move over the pointer
+      // and invariants.
+
       allocator_aware::destroy_range(allocator_, begin(), end());
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
@@ -204,11 +211,33 @@ public:
       other.capacity_ = 0UZ;
       other.size_ = 0UZ;
     } else {
+      // Worst case scenario, can't transfer memory at all since the allocator
+      // can't be moved and is not equal to the existing one.  Allocate new
+      // memory with the current allocator and move the elements over.  On
+      // success, destroy the destination container's existing objects, free the
+      // memory, and swap the pointer from the newly allocated memory into
+      // `data_`, then copy the size and capacity from the source.
+      //
+      // Once that's done, we have two options depending on how consistent we
+      // want to be:
+      // - Should the source wind up in the same state as the other cases?  If
+      // so, then destroy moved from elements, free the memory, and reset the
+      // invariants.
+      // - Or should we leave the source as is, with moved from elements left in
+      // allocated memory?  If that's the case, we're done.  I'm opting for this
+      // option because I believe there's two cases here:
+      // 1. The moved from container is about to die anyway, so let the
+      // destructor destroy the elements and free the memory.
+      // 2. If the container is going to be reused, that previously allocated
+      // memory can also be reused, saving an allocation.  The user just has to
+      // be aware of the fact.  Extra documentation for the move assignment
+      // operator, but I believe this to be the correct choice.
+
       auto *new_data{std::allocator_traits<Allocator>::allocate(
           allocator_, other.capacity_)};
       try {
-        std::uninitialized_move(other.begin(), other.end(),
-                                VectorIterator{new_data});
+        allocator_aware::uninitialized_move_range(
+            allocator_, other.begin(), other.end(), VectorIterator{new_data});
         allocator_aware::destroy_range(allocator_, begin(), end());
         std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                      capacity_);
@@ -333,18 +362,18 @@ public:
           std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
 
       if constexpr (std::is_nothrow_move_constructible_v<T>) {
-        std::ranges::uninitialized_move(
-            VectorIterator{data_}, VectorIterator{data_ + size_},
-            VectorIterator{new_data}, VectorIterator{new_data + size_});
+        allocator_aware::uninitialized_move_range(
+            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+            VectorIterator{new_data});
       } else if constexpr (std::is_nothrow_copy_constructible_v<T>) {
-        std::ranges::uninitialized_copy(
-            VectorIterator{data_}, VectorIterator{data_ + size_},
-            VectorIterator{new_data}, VectorIterator{new_data + size_});
+        allocator_aware::uninitialized_copy_range(
+            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+            VectorIterator{new_data});
       } else {
         try {
-          std::ranges::uninitialized_copy(
-              VectorIterator{data_}, VectorIterator{data_ + size_},
-              VectorIterator{new_data}, VectorIterator{new_data + size_});
+          allocator_aware::uninitialized_copy_range(
+              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+              VectorIterator{new_data});
         } catch (...) {
           // The ununitialized_copy function takes care of destroying the new
           // objects that it created during attempted migration, just have to
