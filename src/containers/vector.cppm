@@ -357,6 +357,10 @@ public:
   }
 
   constexpr auto reserve(size_type new_capacity) -> void {
+    if (new_capacity <= capacity_) {
+      return;
+    }
+
     if (new_capacity > max_size()) {
       std::string reason{"Vector::reserve: new_capacity (which is "};
       reason += format::integral_to_string(new_capacity);
@@ -365,6 +369,11 @@ public:
       reason += ").";
       throw std::length_error(reason);
     }
+
+    auto *new_buffer{
+        std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
+
+    migrate_data_to_new_memory(new_buffer, new_capacity);
   }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
@@ -387,11 +396,11 @@ public:
           std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
 
       migrate_data_to_new_memory(new_data, new_capacity);
-
-      std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
-                                                  value);
-      ++size_;
     }
+
+    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
+                                                value);
+    ++size_;
   }
 
   // TODO: emplace_back()
