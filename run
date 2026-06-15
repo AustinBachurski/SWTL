@@ -2,6 +2,8 @@
 
 binary="example"
 
+clear
+
 if [[ ! -d "build" ]]; then
   cmake --preset dev
 fi && cmake --build --preset dev && ctest --preset test-dev && ./out/bin/dev/"${binary}"
