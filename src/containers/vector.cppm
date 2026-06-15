@@ -109,6 +109,7 @@ static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 export template <typename T, typename Allocator = std::allocator<T>>
 class Vector {
 public:
+  // ** MEMBER TYPES **
   using value_type = std::remove_cv_t<T>;
   using allocator_type = Allocator;
   using size_type = std::size_t;
@@ -122,6 +123,7 @@ public:
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
+  // ** SPECIAL MEMBER FUNCTIONS **
   Vector() = default;
 
   Vector(Vector const &other)
@@ -262,6 +264,7 @@ public:
     }
   }
 
+  // ** ITERATORS **
   template <typename Self>
   [[nodiscard]] constexpr auto begin(this Self &&self) noexcept {
     using const_correct_iterator =
@@ -312,14 +315,7 @@ public:
     return rend();
   }
 
-  template <typename Self>
-  [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
-    using const_correct_pointer =
-        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
-                           const_pointer, pointer>;
-    return static_cast<const_correct_pointer>(self.data_);
-  }
-
+  // ** ELEMENT ACCESS **
   template <typename Self>
   [[nodiscard]] constexpr auto at(this Self &&self, size_type position)
       -> decltype(auto) {
@@ -332,17 +328,64 @@ public:
     return std::forward_like<Self>(self.data_[position]);
   }
 
+  // TODO: operator[]
+  // TODO: front()
+  // TODO: back()
+
+  template <typename Self>
+  [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
+    using const_correct_pointer =
+        std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
+                           const_pointer, pointer>;
+    return static_cast<const_correct_pointer>(self.data_);
+  }
+
+  // ** CAPACITY **
+  [[nodiscard]] constexpr auto is_empty() const noexcept -> bool {
+    return size_ == 0UZ;
+  }
+
   [[nodiscard]] constexpr auto size() const noexcept -> size_type {
     return size_;
   }
+
+  [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
+    return std::numeric_limits<size_type>::max() / sizeof(value_type);
+  }
+
+  // TODO: reserve()
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
     return capacity_;
   }
 
-  [[nodiscard]] constexpr auto is_empty() const noexcept -> bool {
-    return size_ == 0UZ;
+  // shrink_to_fit()
+
+  // ** MODIFIERS **
+  // TODO: clear()
+  // TODO: insert()
+  // TODO: insert_range()
+  // TODO: emplace()
+  // TODO: erase()
+  constexpr auto push_back(T const &value) -> void {
+    if (size_ == capacity_) {
+      size_type new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
+
+      auto new_data{
+          std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
+
+      migrate_data_to_new_memory(new_data, new_capacity);
+
+      std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
+                                                  value);
+      ++size_;
+    }
   }
+
+  // TODO: emplace_back()
+  // TODO: append_range()
+  // TODO: pop_back()
+  // TODO: resize()
 
   constexpr auto swap(Vector &other) noexcept -> void {
     if constexpr (std::allocator_traits<
@@ -354,60 +397,50 @@ public:
     std::swap(capacity_, other.capacity_);
   }
 
-  constexpr auto push_back(T const &value) -> void {
-    if (size_ == capacity_) {
-      std::size_t new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
-
-      auto new_data{
-          std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
-
-      if constexpr (std::is_nothrow_move_constructible_v<T>) {
-        allocator_aware::uninitialized_move_range(
-            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-            VectorIterator{new_data});
-      } else if constexpr (std::is_nothrow_copy_constructible_v<T>) {
-        allocator_aware::uninitialized_copy_range(
-            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-            VectorIterator{new_data});
-      } else {
-        try {
-          allocator_aware::uninitialized_copy_range(
-              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-              VectorIterator{new_data});
-        } catch (...) {
-          // The ununitialized_copy function takes care of destroying the new
-          // objects that it created during attempted migration, just have to
-          // free the memory before rethrowing.
-          std::allocator_traits<Allocator>::deallocate(allocator_, new_data,
-                                                       new_capacity);
-          throw;
-        }
-      }
-
-      // The uninitialized_ functions don't destroy objects unless the copy
-      // fails, and even then it's only the objects that were created prior to
-      // the error - not the originals.  So on successful reallocation:
-      // destroy the old objects, give the memory back to the allocator, and
-      // update our internals.
-      allocator_aware::destroy_range(allocator_, begin(), end());
-      if (data_ != nullptr) {
-        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                     capacity_);
-      }
-      data_ = new_data;
-      capacity_ = new_capacity;
-    }
-
-    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
-                                                value);
-    ++size_;
-  }
-
   constexpr friend auto swap(Vector &lhs, Vector &rhs) noexcept -> void {
     lhs.swap(rhs);
   }
 
 private:
+  constexpr auto migrate_data_to_new_memory(pointer destination,
+                                            size_type new_capacity) -> void {
+    if constexpr (std::is_nothrow_move_constructible_v<T>) {
+      allocator_aware::uninitialized_move_range(
+          allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+          VectorIterator{destination});
+    } else if constexpr (std::is_nothrow_copy_constructible_v<T>) {
+      allocator_aware::uninitialized_copy_range(
+          allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+          VectorIterator{destination});
+    } else {
+      try {
+        allocator_aware::uninitialized_copy_range(
+            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+            VectorIterator{destination});
+      } catch (...) {
+        // The ununitialized_copy function takes care of destroying the new
+        // objects that it created during attempted migration, just have to
+        // free the memory before rethrowing.
+        std::allocator_traits<Allocator>::deallocate(allocator_, destination,
+                                                     new_capacity);
+        throw;
+      }
+    }
+
+    // The uninitialized_ functions don't destroy objects unless the copy
+    // fails, and even then it's only the objects that were created prior to
+    // the error - not the originals.  So on successful reallocation:
+    // destroy the old objects, give the memory back to the allocator, and
+    // update our internals.
+    allocator_aware::destroy_range(allocator_, begin(), end());
+    if (data_ != nullptr) {
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+    }
+    data_ = destination;
+    capacity_ = new_capacity;
+  }
+
   [[no_unique_address]] Allocator allocator_;
   T *data_{};
   std::size_t capacity_{};
