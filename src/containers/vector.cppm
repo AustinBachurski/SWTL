@@ -1,5 +1,6 @@
 module;
 #include <initializer_list>
+#include <stdexcept>
 export module swtl_vector;
 
 import std;
@@ -129,13 +130,30 @@ public:
   // ** CONSTRUCTORS **
   Vector() = default;
 
-  Vector(std::initializer_list<T> const &init_list) {
-    data_ = std::allocator_traits<Allocator>::allocate(allocator_,
-                                                       init_list.size());
-
+  Vector(std::initializer_list<T> const &init_list)
+      : data_{std::allocator_traits<Allocator>::allocate(allocator_,
+                                                         init_list.size())} {
     allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
                                               init_list.end(), begin());
     size_ = init_list.size();
+  }
+
+  template <std::input_iterator InputIterator,
+            std::sentinel_for<InputIterator> Sentinel>
+  Vector(InputIterator in_begin, Sentinel in_end) {
+    auto const distance{std::ranges::distance(in_begin, in_end)};
+
+    if (distance < 0) {
+      throw std::invalid_argument(
+          "Vector constructor: 'in_end' must be reachable from 'in_begin'");
+    }
+
+    auto const count{static_cast<size_type>(distance)};
+    reserve(count);
+
+    allocator_aware::uninitialized_copy_range(allocator_, in_begin, in_end,
+                                              begin());
+    size_ = count;
   }
 
   // ** SPECIAL MEMBER FUNCTIONS **
@@ -497,5 +515,10 @@ private:
   std::size_t capacity_{};
   std::size_t size_{};
 };
+
+// Explicit Deduction Guide for CTAD.
+template <std::input_iterator InputIterator,
+          std::sentinel_for<InputIterator> Sentinel>
+Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
 
 } // namespace swtl
