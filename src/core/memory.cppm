@@ -1,3 +1,5 @@
+module;
+#include <iterator>
 export module swtl_memory;
 
 import std;
@@ -18,13 +20,12 @@ concept AllocatorType = requires(
       std::declval<typename std::allocator_traits<Allocator>::pointer>(), n);
 };
 
-export template <AllocatorType Allocator, typename SourceIterator,
-                 typename DestinationIterator>
-  requires std::input_iterator<SourceIterator> &&
-           std::input_or_output_iterator<DestinationIterator>
+export template <AllocatorType Allocator, std::input_iterator SourceIterator,
+                 std::sentinel_for<SourceIterator> Sentinel,
+                 std::input_or_output_iterator DestinationIterator>
 constexpr auto
 uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
-                         SourceIterator src_end, DestinationIterator dest_begin)
+                         Sentinel src_end, DestinationIterator dest_begin)
     -> DestinationIterator {
   using value_type = std::iter_value_t<SourceIterator>;
 
@@ -52,13 +53,12 @@ uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
   }
 }
 
-export template <AllocatorType Allocator, typename SourceIterator,
-                 typename DestinationIterator>
-  requires std::input_iterator<SourceIterator> &&
-           std::input_or_output_iterator<DestinationIterator>
+export template <AllocatorType Allocator, std::input_iterator SourceIterator,
+                 std::sentinel_for<SourceIterator> Sentinel,
+                 std::input_or_output_iterator DestinationIterator>
 constexpr auto
 uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
-                         SourceIterator src_end, DestinationIterator dest_begin)
+                         Sentinel src_end, DestinationIterator dest_begin)
     -> DestinationIterator {
   using value_type = std::iter_value_t<SourceIterator>;
 
