@@ -1,7 +1,7 @@
 add_executable(tests)
 
 target_sources(tests PRIVATE
-  test_main.cpp
+  vector_tests.cpp
 )
 
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
