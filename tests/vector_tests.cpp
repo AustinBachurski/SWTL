@@ -26,18 +26,29 @@ TEST_CASE("Vector initialization.", "[vector]") {
 TEST_CASE("Special member functions.", "[vector]") {}
 
 TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
-                   swtl::Vector<int>, swtl::Vector<int> const) {
-  TestType vec{1, 2, 3, 4, 5};
-
+                   swtl::Vector<int>, swtl::Vector<int> const,
+                   swtl::Vector<std::string>, swtl::Vector<std::string> const) {
+  using VectorType = std::remove_const_t<TestType>;
+  using T = typename VectorType::value_type;
   using ExpectedQualifiedRef =
-      std::conditional_t<std::is_const_v<TestType>, int const &, int &>;
+      std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
+
+  auto expected = []() {
+    if constexpr (std::is_same_v<T, int>) {
+      return std::array<int, 5>{1, 2, 3, 4, 5};
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      return std::array<std::string, 5>{"one", "two", "three", "four", "five"};
+    }
+  }();
+
+  TestType vec(expected.begin(), expected.end());
 
   SECTION("Vector::at returns a reference to the element at position.") {
-    REQUIRE(vec.at(0) == 1);
-    REQUIRE(vec.at(1) == 2);
-    REQUIRE(vec.at(2) == 3);
-    REQUIRE(vec.at(3) == 4);
-    REQUIRE(vec.at(4) == 5);
+    REQUIRE(vec.at(0) == expected[0]);
+    REQUIRE(vec.at(1) == expected[1]);
+    REQUIRE(vec.at(2) == expected[2]);
+    REQUIRE(vec.at(3) == expected[3]);
+    REQUIRE(vec.at(4) == expected[4]);
     STATIC_REQUIRE(std::is_same_v<decltype(vec.at(0)), ExpectedQualifiedRef>);
   }
 
@@ -52,23 +63,23 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
             MessageMatches(ContainsSubstring(std::to_string(vec.size()))));
   }
 
-  SECTION(
-      "Vector::operator[] returns a reference to the element at position.") {
-    REQUIRE(vec[0] == 1);
-    REQUIRE(vec[1] == 2);
-    REQUIRE(vec[2] == 3);
-    REQUIRE(vec[3] == 4);
-    REQUIRE(vec[4] == 5);
+  SECTION("Vector::operator[] returns a reference to the element at "
+          "position.") {
+    REQUIRE(vec[0] == expected[0]);
+    REQUIRE(vec[1] == expected[1]);
+    REQUIRE(vec[2] == expected[2]);
+    REQUIRE(vec[3] == expected[3]);
+    REQUIRE(vec[4] == expected[4]);
     STATIC_REQUIRE(std::is_same_v<decltype(vec[0]), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::front returns a reference to the first element.") {
-    REQUIRE(vec.front() == 1);
+    REQUIRE(vec.front() == expected[0]);
     STATIC_REQUIRE(std::is_same_v<decltype(vec.front()), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::back returns a reference to the last element.") {
-    REQUIRE(vec.back() == 5);
+    REQUIRE(vec.back() == expected[4]);
     STATIC_REQUIRE(std::is_same_v<decltype(vec.back()), ExpectedQualifiedRef>);
   }
 }
