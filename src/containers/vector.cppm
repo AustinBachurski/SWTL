@@ -331,6 +331,7 @@ public:
     return std::forward_like<Self>(self.data_[position]);
   }
 
+  // TODO: Add contract precondition.
   template <typename Self>
   [[nodiscard]] constexpr auto operator[](this Self &&self,
                                           size_type position) noexcept
@@ -338,8 +339,19 @@ public:
     return std::forward_like<Self>(self.data_[position]);
   }
 
-  // TODO: front()
-  // TODO: back()
+  // TODO: Add contract precondition.
+  template <typename Self>
+  [[nodiscard]] constexpr auto front(this Self &&self) noexcept
+      -> decltype(auto) {
+    return std::forward_like<Self>(self.data_[0]);
+  }
+
+  // TODO: Add contract precondition.
+  template <typename Self>
+  [[nodiscard]] constexpr auto back(this Self &&self) noexcept
+      -> decltype(auto) {
+    return std::forward_like<Self>(self.data_[size_ - 1]);
+  }
 
   template <typename Self>
   [[nodiscard]] constexpr auto data(this Self &&self) noexcept {
