@@ -1,6 +1,7 @@
 export module swtl_vector;
 
 import std;
+import swtl_format;
 import swtl_memory;
 
 namespace swtl {
@@ -320,10 +321,12 @@ public:
   [[nodiscard]] constexpr auto at(this Self &&self, size_type position)
       -> decltype(auto) {
     if (position >= self.size_) {
-      throw std::out_of_range(
-          std::format("Vector Range Check: position (which is {}) >= "
-                      "this->size() (which is {})",
-                      position, self.size_));
+      std::string reason{"Vector Range Check: position (which is "};
+      reason += format::integral_to_string(position);
+      reason += ") >= this->size() (which is ";
+      reason += format::integral_to_string(self.size_);
+      reason += ")";
+      throw std::out_of_range(reason);
     }
     return std::forward_like<Self>(self.data_[position]);
   }
@@ -353,7 +356,16 @@ public:
     return std::numeric_limits<size_type>::max() / sizeof(value_type);
   }
 
-  // TODO: reserve()
+  constexpr auto reserve(size_type new_capacity) -> void {
+    if (new_capacity > max_size()) {
+      std::string reason{"Vector::reserve: new_capacity (which is "};
+      reason += format::integral_to_string(new_capacity);
+      reason += ") is greater than max_size() (which is ";
+      reason += format::integral_to_string(max_size());
+      reason += ").";
+      throw std::length_error(reason);
+    }
+  }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
     return capacity_;
