@@ -331,7 +331,13 @@ public:
     return std::forward_like<Self>(self.data_[position]);
   }
 
-  // TODO: operator[]
+  template <typename Self>
+  [[nodiscard]] constexpr auto operator[](this Self &&self,
+                                          size_type position) noexcept
+      -> decltype(auto) {
+    return std::forward_like<Self>(self.data_[position]);
+  }
+
   // TODO: front()
   // TODO: back()
 
