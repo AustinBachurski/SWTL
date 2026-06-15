@@ -1,3 +1,5 @@
+module;
+#include <initializer_list>
 export module swtl_vector;
 
 import std;
@@ -124,9 +126,19 @@ public:
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
-  // ** SPECIAL MEMBER FUNCTIONS **
+  // ** CONSTRUCTORS **
   Vector() = default;
 
+  Vector(std::initializer_list<T> const &init_list) {
+    data_ = std::allocator_traits<Allocator>::allocate(allocator_,
+                                                       init_list.size());
+
+    allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
+                                              init_list.end(), begin());
+    size_ = init_list.size();
+  }
+
+  // ** SPECIAL MEMBER FUNCTIONS **
   Vector(Vector const &other)
       : allocator_{
             std::allocator_traits<Allocator>::
@@ -350,7 +362,7 @@ public:
   template <typename Self>
   [[nodiscard]] constexpr auto back(this Self &&self) noexcept
       -> decltype(auto) {
-    return std::forward_like<Self>(self.data_[size_ - 1]);
+    return std::forward_like<Self>(self.data_[self.size_ - 1]);
   }
 
   template <typename Self>
