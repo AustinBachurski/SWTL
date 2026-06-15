@@ -10,7 +10,7 @@ template <typename T> auto printAll(swtl::Vector<T> const &vec) -> void {
     return;
   }
 
-  for (auto const &element : vec | std::views::reverse) {
+  for (auto const &element : vec) {
     std::print("{}, ", element);
   }
   std::println();
@@ -36,22 +36,6 @@ consteval auto does_it_work() {
 } // namespace
 
 auto main() -> int {
-  swtl::Vector<int> vec;
-  vec.reserve(4);
-
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
-  vec.push_back(42);
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
-  vec.push_back(42);
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
-  vec.push_back(42);
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
-  vec.push_back(42);
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
-
+  swtl::Vector<int> vec({1, 2, 3, 4, 5});
   printAll(vec);
-
-  vec.push_back(42);
-  std::println("Should Resize Here!");
-  std::println("Size: {}, Capacity: {}", vec.size(), vec.capacity());
 }
