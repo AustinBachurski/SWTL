@@ -470,6 +470,27 @@ public:
     lhs.swap(rhs);
   }
 
+  // ** NON-MEMBER FUNCTIONS **
+  constexpr friend auto operator==(Vector const &lhs,
+                                   Vector const &rhs) noexcept -> bool {
+    if (rhs.size_ != lhs.size_) {
+      return false;
+    }
+    return std::ranges::equal(lhs, rhs);
+  }
+
+  constexpr friend auto operator<=>(Vector const &lhs,
+                                    Vector const &rhs) noexcept
+      -> std::compare_three_way_result_t<T> {
+    for (auto const pair : std::views::zip(lhs, rhs)) {
+      if (auto const comparison{std::get<0>(pair) <=> std::get<1>(pair)};
+          comparison != 0) {
+        return comparison;
+      }
+    }
+    return lhs.size_ <=> rhs.size_;
+  }
+
 private:
   constexpr auto migrate_data_to_new_memory(pointer destination,
                                             size_type new_capacity) -> void {

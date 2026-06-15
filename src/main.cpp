@@ -36,9 +36,14 @@ consteval auto does_it_work() {
 } // namespace
 
 auto main() -> int {
-  std::array values{1, 2, 3, 4, 5};
+  std::puts("");
+  swtl::Vector a{1, 2, 3, 4, 5};
+  swtl::Vector b{1, 2, 3, 4, 5};
+  swtl::Vector c{2, 2, 3, 4, 5};
+  swtl::Vector d{1, 2, 3, 4, 5, 6};
 
-  swtl::Vector vec(values.begin(), values.end());
-
-  printAll(vec);
+  std::println("a==b: {}", a == b);
+  std::println("a!=b: {}", a != b);
+  std::println("c<d: {}", c < d);
+  std::println("c>d: {}", c > d);
 }
