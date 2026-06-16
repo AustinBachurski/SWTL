@@ -14,6 +14,126 @@
 
 import swtl_vector;
 
+TEST_CASE("VectorIterator for user defined types.", "[vector_iterator]") {
+  struct CustomObject {
+    int part_number{1042};
+    std::string_view name{"Oil Filter"};
+    double price{12.99};
+  };
+
+  CustomObject base;
+
+  SECTION("VectorIterator::operator* accesses members correctly.") {
+    swtl::Vector<CustomObject> vec(1);
+    auto iter{vec.begin()};
+
+    REQUIRE((*iter).part_number == base.part_number);
+    REQUIRE(std::is_same_v<decltype((*iter).part_number),
+                           decltype(base.part_number)>);
+    REQUIRE((*iter).name == base.name);
+    REQUIRE(std::is_same_v<decltype((*iter).name), decltype(base.name)>);
+    REQUIRE((*iter).price == base.price);
+    REQUIRE(std::is_same_v<decltype((*iter).price), decltype(base.price)>);
+  }
+
+  SECTION("VectorIterator::operator-> accesses members correctly.") {
+    swtl::Vector<CustomObject> vec(1);
+    auto iter{vec.begin()};
+
+    REQUIRE(iter->part_number == base.part_number);
+    REQUIRE(std::is_same_v<decltype(iter->part_number),
+                           decltype(base.part_number)>);
+    REQUIRE(iter->name == base.name);
+    REQUIRE(std::is_same_v<decltype(iter->name), decltype(base.name)>);
+    REQUIRE(iter->price == base.price);
+    REQUIRE(std::is_same_v<decltype(iter->price), decltype(base.price)>);
+  }
+
+  SECTION("VectorIterator::operator[] accesses members correctly.") {
+    swtl::Vector<CustomObject> vec(3);
+    auto iter{vec.begin()};
+
+    REQUIRE(iter[0].part_number == base.part_number);
+    REQUIRE(std::is_same_v<decltype((*iter).part_number),
+                           decltype(base.part_number)>);
+    REQUIRE(iter[1].name == base.name);
+    REQUIRE(std::is_same_v<decltype((*iter).name), decltype(base.name)>);
+    REQUIRE(iter[2].price == base.price);
+    REQUIRE(std::is_same_v<decltype((*iter).price), decltype(base.price)>);
+  }
+}
+
+TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
+  std::array values{1, 2, 3, 4, 5};
+  swtl::Vector vec(values.begin(), values.end());
+
+  SECTION("VectorIterator::operator++.") {
+    auto iter{vec.begin()};
+
+    REQUIRE(*iter++ == values.front());
+    REQUIRE(*iter == values[1]);
+    REQUIRE(*++iter == values[2]);
+  }
+
+  SECTION("VectorIterator::operator--.") {
+    auto iter{vec.end()};
+
+    REQUIRE(*--iter == values.back());
+    REQUIRE(*iter-- == values.back());
+    REQUIRE(*iter == values[3]);
+  }
+
+  SECTION("VectorIterator::operator+=.") {
+    auto iter{vec.begin()};
+
+    REQUIRE(*(iter += 1) == values[1]);
+    REQUIRE(*(iter += 2) == values[3]);
+  }
+
+  SECTION("VectorIterator::operator-=.") {
+    auto iter{vec.end()};
+
+    REQUIRE(*(iter -= 1) == values.back());
+    REQUIRE(*(iter -= 2) == values[2]);
+  }
+
+  SECTION("VectorIterator::operator+.") {
+    auto iter{vec.begin()};
+
+    REQUIRE(*(iter + 2) == values[2]);
+    REQUIRE(*iter == values.front());
+    REQUIRE(*(iter + values.size() - 1) == values.back());
+  }
+
+  SECTION("VectorIterator::operator-(iterator, difference_type).") {
+    auto iter{vec.end()};
+
+    REQUIRE(*(iter - 2) == values[3]);
+    REQUIRE(iter == vec.end());
+    REQUIRE(*(iter - values.size()) == values.front());
+  }
+
+  SECTION("VectorIterator::operator-(iterator, iterator).") {
+    auto lhs{vec.end()};
+    auto rhs{vec.begin() + 2};
+
+    REQUIRE(vec.begin() - vec.end() == -5);
+    REQUIRE(lhs - rhs == 3);
+    REQUIRE(rhs - vec.begin() == 2);
+  }
+
+  SECTION("VectorIterator::operator<=>.") {
+    auto first{vec.begin()};
+    auto middle{vec.begin() + 2};
+    auto last{vec.end()};
+
+    REQUIRE(first != last);
+    REQUIRE(first < middle);
+    REQUIRE(last > middle);
+    REQUIRE(++first == --middle);
+  }
+}
+
 TEST_CASE("Vector initialization.", "[vector]") {
   SECTION("Default construction should result in a valid container.") {
     swtl::Vector<int> vec;
