@@ -35,15 +35,4 @@ consteval auto does_it_work() {
 
 } // namespace
 
-auto main() -> int {
-  std::puts("");
-  swtl::Vector a{1, 2, 3, 4, 5};
-  swtl::Vector b{1, 2, 3, 4, 5};
-  swtl::Vector c{2, 2, 3, 4, 5};
-  swtl::Vector d{1, 2, 3, 4, 5, 6};
-
-  std::println("a==b: {}", a == b);
-  std::println("a!=b: {}", a != b);
-  std::println("c<d: {}", c < d);
-  std::println("c>d: {}", c > d);
-}
+auto main() -> int { std::puts(""); }

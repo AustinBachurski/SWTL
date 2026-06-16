@@ -5,6 +5,7 @@
 #include "catch2/matchers/catch_matchers_string.hpp"
 
 #include <cstddef>
+#include <initializer_list>
 #include <limits>
 #include <numeric>
 #include <ranges>
@@ -14,189 +15,314 @@
 import swtl_vector;
 
 TEST_CASE("Vector initialization.", "[vector]") {
-  SECTION("A default constructed Vector should be empty with a size and "
-          "capacity of zero.") {
+  SECTION("Default construction should result in a valid container.") {
     swtl::Vector<int> vec;
     REQUIRE(vec.is_empty());
     REQUIRE(vec.size() == 0UZ);
     REQUIRE(vec.capacity() == 0UZ);
+    REQUIRE(vec.data() == nullptr);
+  }
+
+  SECTION("Initializer list constructor.") {
+    std::initializer_list<int> init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    swtl::Vector<int> vec(init_list);
+
+    REQUIRE(!vec.is_empty());
+    REQUIRE(vec.size() == init_list.size());
+    REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(std::ranges::equal(vec, init_list));
+  }
+
+  SECTION("Iterator constructor.") {
+    std::initializer_list<int> init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    swtl::Vector<int> vec(init_list.begin(), init_list.end());
+
+    REQUIRE(!vec.is_empty());
+    REQUIRE(vec.size() == init_list.size());
+    REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(std::ranges::equal(vec, init_list));
   }
 }
 
-TEMPLATE_TEST_CASE("Special member functions.", "[vector]", swtl::Vector<int>,
-                   swtl::Vector<double>, swtl::Vector<bool>,
-                   swtl::Vector<std::string>, swtl::Vector<int> const,
-                   swtl::Vector<double> const, swtl::Vector<bool> const,
-                   swtl::Vector<std::string> const) {
+TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
+                   char const *, std::string) {
+  SECTION("CTAD.") {
+    TestType init{};
+    swtl::Vector vec{init};
+
+    STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+  }
+}
+
+TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
+                   swtl::Vector<int>, swtl::Vector<double>, swtl::Vector<bool>,
+                   swtl::Vector<std::string>) {
+  using T = typename std::remove_const_t<TestType>::value_type;
+
+  [[maybe_unused]] TestType initial;
+
+  TestType source{[]() {
+    if constexpr (std::same_as<T, int>) {
+      return TestType{0, 1, 2, 3, 4, 5};
+    } else if constexpr (std::same_as<T, double>) {
+      return TestType{0.0, 1.1, 2.2, 3.3, 4.4, 5.5};
+    } else if constexpr (std::same_as<T, bool>) {
+      return TestType{true, false, false, false, true, true,
+                      true, false, true,  false, true};
+    } else if constexpr (std::same_as<T, std::string>) {
+      return TestType{
+          "one zero, zero zero one one, one zero one zero one",
+          "three point one four one five nine two six five three five",
+          "eighty-two eighty-two eighty-two, two hundred and forty-six total",
+          "we've been trying to reach you about your car's extended warranty"};
+    }
+  }()};
+
+  SECTION("Copy constructor from non-const source.", "[vector]") {
+    auto copied{source};
+
+    REQUIRE(source == copied);
+    REQUIRE(source.data() != copied.data());
+  }
+
+  SECTION("Copy assignment operator from non-const source.", "[vector]") {
+    initial = source;
+
+    REQUIRE(initial == source);
+    REQUIRE(initial.data() != source.data());
+  }
+
+  SECTION("Copy constructor from const source.", "[vector]") {
+    auto const &const_reference_source{source};
+    auto copied{const_reference_source};
+
+    REQUIRE(source == copied);
+    REQUIRE(source.data() != copied.data());
+  }
+
+  SECTION("Copy assignment operator from const source.", "[vector]") {
+    auto const &const_reference_to_source{source};
+    initial = const_reference_to_source;
+
+    REQUIRE(initial == source);
+    REQUIRE(initial.data() != source.data());
+  }
+
+  SECTION("Move constructor from non-const source.", "[vector]") {
+    auto known_good_copy{source};
+    auto data_ptr_before_move{source.data()};
+    auto moved{std::move(source)};
+
+    REQUIRE(known_good_copy == moved);
+    REQUIRE(source != moved);
+    REQUIRE(moved.data() == data_ptr_before_move);
+
+    REQUIRE(source.data() == nullptr);
+    REQUIRE(source.size() == 0UZ);
+    REQUIRE(source.capacity() == 0UZ);
+  }
+
+  SECTION("Move assignment operator from non-const source.", "[vector]") {
+    auto known_good_copy{source};
+    auto data_ptr_before_move{source.data()};
+    initial = std::move(source);
+
+    REQUIRE(initial == known_good_copy);
+    REQUIRE(initial != source);
+    REQUIRE(initial.data() == data_ptr_before_move);
+
+    REQUIRE(source.data() == nullptr);
+    REQUIRE(source.size() == 0UZ);
+    REQUIRE(source.capacity() == 0UZ);
+  }
+
+  SECTION("Move constructor from const source.", "[vector]") {
+    auto known_good_copy{source};
+    auto data_ptr_before_move{source.data()};
+    auto const &const_reference_to_source{source};
+    auto moved{std::move(const_reference_to_source)};
+
+    REQUIRE(known_good_copy == moved);
+    REQUIRE(source == moved);
+    REQUIRE(moved.data() != data_ptr_before_move);
+
+    REQUIRE(source.data() != nullptr);
+    REQUIRE(source.size() != 0UZ);
+    REQUIRE(source.capacity() != 0UZ);
+  }
+
+  SECTION("Move assignment operator from const source.", "[vector]") {
+    auto known_good_copy{source};
+    auto data_ptr_before_move{source.data()};
+    auto const &const_reference_to_source{source};
+    initial = std::move(const_reference_to_source);
+
+    REQUIRE(initial == known_good_copy);
+    REQUIRE(initial == source);
+    REQUIRE(initial.data() != data_ptr_before_move);
+
+    REQUIRE(source.data() != nullptr);
+    REQUIRE(source.size() != 0UZ);
+    REQUIRE(source.capacity() != 0UZ);
+  }
+}
+
+TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
+                   swtl::Vector<int>, swtl::Vector<int> const,
+                   swtl::Vector<std::string>, swtl::Vector<std::string> const) {
   using T = typename std::remove_const_t<TestType>::value_type;
   using ExpectedQualifiedRef =
       std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-  TestType initial;
-
-  auto source{}; // TODO: Working Here! - initialize source data by type.
-
-  TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
-                     swtl::Vector<int>, swtl::Vector<int> const,
-                     swtl::Vector<std::string>,
-                     swtl::Vector<std::string> const) {
-    using T = typename std::remove_const_t<TestType>::value_type;
-    using ExpectedQualifiedRef =
-        std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
-
-    auto expected{[]() {
-      if constexpr (std::is_same_v<T, int>) {
-        return std::array<int, 5>{1, 2, 3, 4, 5};
-      } else if constexpr (std::is_same_v<T, std::string>) {
-        return std::array<std::string, 5>{"one", "two", "three", "four",
-                                          "five"};
-      }
-    }()};
-
-    TestType vec(expected.begin(), expected.end());
-
-    SECTION("Vector::at returns a reference to the element at position.") {
-      REQUIRE(vec.at(0) == expected[0]);
-      REQUIRE(vec.at(1) == expected[1]);
-      REQUIRE(vec.at(2) == expected[2]);
-      REQUIRE(vec.at(3) == expected[3]);
-      REQUIRE(vec.at(4) == expected[4]);
-      STATIC_REQUIRE(std::is_same_v<decltype(vec.at(0)), ExpectedQualifiedRef>);
+  auto expected{[]() {
+    if constexpr (std::is_same_v<T, int>) {
+      return std::array<int, 5>{1, 2, 3, 4, 5};
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      return std::array<std::string, 5>{"one", "two", "three", "four", "five"};
     }
+  }()};
 
-    SECTION("Vector::at throws when accessing an element out of bounds.") {
-      using Catch::Matchers::ContainsSubstring;
-      using Catch::Matchers::MessageMatches;
-      auto const invalid_index{42UZ};
+  TestType vec(expected.begin(), expected.end());
 
-      REQUIRE_THROWS_MATCHES(
-          vec.at(invalid_index), std::out_of_range,
-          MessageMatches(ContainsSubstring(std::to_string(invalid_index))) &&
-              MessageMatches(ContainsSubstring(std::to_string(vec.size()))));
-    }
-
-    SECTION("Vector::operator[] returns a reference to the element at "
-            "position.") {
-      REQUIRE(vec[0] == expected[0]);
-      REQUIRE(vec[1] == expected[1]);
-      REQUIRE(vec[2] == expected[2]);
-      REQUIRE(vec[3] == expected[3]);
-      REQUIRE(vec[4] == expected[4]);
-      STATIC_REQUIRE(std::is_same_v<decltype(vec[0]), ExpectedQualifiedRef>);
-    }
-
-    SECTION("Vector::front returns a reference to the first element.") {
-      REQUIRE(vec.front() == expected[0]);
-      STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.front()), ExpectedQualifiedRef>);
-    }
-
-    SECTION("Vector::back returns a reference to the last element.") {
-      REQUIRE(vec.back() == expected[4]);
-      STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.back()), ExpectedQualifiedRef>);
-    }
+  SECTION("Vector::at returns a reference to the element at position.") {
+    REQUIRE(vec.at(0) == expected[0]);
+    REQUIRE(vec.at(1) == expected[1]);
+    REQUIRE(vec.at(2) == expected[2]);
+    REQUIRE(vec.at(3) == expected[3]);
+    REQUIRE(vec.at(4) == expected[4]);
+    STATIC_REQUIRE(std::is_same_v<decltype(vec.at(0)), ExpectedQualifiedRef>);
   }
 
-  TEST_CASE("Reservation on empty vectors.", "[vector]") {
-    swtl::Vector<int> vec;
+  SECTION("Vector::at throws when accessing an element out of bounds.") {
+    using Catch::Matchers::ContainsSubstring;
+    using Catch::Matchers::MessageMatches;
+    auto const invalid_index{42UZ};
 
-    SECTION("Reservation increases capacity but does not affect size.") {
-      auto const initial_capacity{10UZ};
-      vec.reserve(initial_capacity);
+    REQUIRE_THROWS_MATCHES(
+        vec.at(invalid_index), std::out_of_range,
+        MessageMatches(ContainsSubstring(std::to_string(invalid_index))) &&
+            MessageMatches(ContainsSubstring(std::to_string(vec.size()))));
+  }
 
-      REQUIRE(vec.is_empty());
-      REQUIRE(vec.size() == 0UZ);
-      REQUIRE(vec.capacity() == initial_capacity);
+  SECTION("Vector::operator[] returns a reference to the element at "
+          "position.") {
+    REQUIRE(vec[0] == expected[0]);
+    REQUIRE(vec[1] == expected[1]);
+    REQUIRE(vec[2] == expected[2]);
+    REQUIRE(vec[3] == expected[3]);
+    REQUIRE(vec[4] == expected[4]);
+    STATIC_REQUIRE(std::is_same_v<decltype(vec[0]), ExpectedQualifiedRef>);
+  }
 
-      SECTION("Continued reservation grows capacity.") {
-        auto const final_capacity{20UZ};
-        vec.reserve(final_capacity);
+  SECTION("Vector::front returns a reference to the first element.") {
+    REQUIRE(vec.front() == expected[0]);
+    STATIC_REQUIRE(std::is_same_v<decltype(vec.front()), ExpectedQualifiedRef>);
+  }
+
+  SECTION("Vector::back returns a reference to the last element.") {
+    REQUIRE(vec.back() == expected[4]);
+    STATIC_REQUIRE(std::is_same_v<decltype(vec.back()), ExpectedQualifiedRef>);
+  }
+}
+
+TEST_CASE("Reservation on empty vectors.", "[vector]") {
+  swtl::Vector<int> vec;
+
+  SECTION("Reservation increases capacity but does not affect size.") {
+    auto const initial_capacity{10UZ};
+    vec.reserve(initial_capacity);
+
+    REQUIRE(vec.is_empty());
+    REQUIRE(vec.size() == 0UZ);
+    REQUIRE(vec.capacity() == initial_capacity);
+
+    SECTION("Continued reservation grows capacity.") {
+      auto const final_capacity{20UZ};
+      vec.reserve(final_capacity);
+
+      REQUIRE(vec.capacity() == final_capacity);
+
+      SECTION("Reserving less than the current capacity does nothing.") {
+        vec.reserve(initial_capacity);
 
         REQUIRE(vec.capacity() == final_capacity);
-
-        SECTION("Reserving less than the current capacity does nothing.") {
-          vec.reserve(initial_capacity);
-
-          REQUIRE(vec.capacity() == final_capacity);
-        }
-      }
-    }
-
-    SECTION("Reserving more than the maximum number of elements throws.") {
-      REQUIRE_THROWS_AS(vec.reserve(std::numeric_limits<std::size_t>::max()),
-                        std::length_error);
-    }
-  }
-
-  TEST_CASE("Vector size growth", "[vector]") {
-    swtl::Vector<int> vec;
-
-    SECTION(
-        "Element insertion increases size to match the number of elements.") {
-      vec.push_back(1);
-
-      REQUIRE(vec.size() == 1UZ);
-
-      SECTION("Again...") {
-        vec.push_back(2);
-
-        REQUIRE(vec.size() == 2UZ);
-
-        SECTION("And again...") {
-          for (auto const value : std::views::iota(0, 40)) {
-            vec.push_back(value);
-          }
-
-          REQUIRE(vec.size() == 42UZ);
-        }
       }
     }
   }
 
-  TEST_CASE("Vector memory growth.", "[vector]") {
-    swtl::Vector<std::size_t> vec;
+  SECTION("Reserving more than the maximum number of elements throws.") {
+    REQUIRE_THROWS_AS(vec.reserve(std::numeric_limits<std::size_t>::max()),
+                      std::length_error);
+  }
+}
 
-    SECTION("When filling a vector...") {
-      auto const initial_capacity{40UZ};
-      vec.reserve(initial_capacity);
+TEST_CASE("Vector size growth", "[vector]") {
+  swtl::Vector<int> vec;
 
-      for (auto const value : std::views::iota(0UZ, initial_capacity)) {
-        vec.push_back(value);
-      }
+  SECTION("Element insertion increases size to match the number of elements.") {
+    vec.push_back(1);
 
-      SECTION("Insertion up to capacity does not trigger growth.") {
-        REQUIRE(vec.size() == initial_capacity);
-        REQUIRE(vec.capacity() == initial_capacity);
-      }
+    REQUIRE(vec.size() == 1UZ);
 
-      SECTION("Insertion beyond capacity does trigger growth.") {
-        vec.push_back(42UZ);
+    SECTION("Again...") {
+      vec.push_back(2);
 
-        REQUIRE(vec.size() == initial_capacity + 1UZ);
-        REQUIRE(vec.capacity() > initial_capacity);
+      REQUIRE(vec.size() == 2UZ);
+
+      SECTION("And again...") {
+        for (auto const value : std::views::iota(0, 40)) {
+          vec.push_back(value);
+        }
+
+        REQUIRE(vec.size() == 42UZ);
       }
     }
+  }
+}
 
-    SECTION("Growth preserves elements previously inserted.") {
-      auto const initial_capacity{100UZ};
-      vec.reserve(initial_capacity);
+TEST_CASE("Vector memory growth.", "[vector]") {
+  swtl::Vector<std::size_t> vec;
 
-      for (auto const value : std::views::iota(0UZ, initial_capacity)) {
-        vec.push_back(value);
-      }
+  SECTION("When filling a vector...") {
+    auto const initial_capacity{40UZ};
+    vec.reserve(initial_capacity);
 
-      auto before_growth{vec};
+    for (auto const value : std::views::iota(0UZ, initial_capacity)) {
+      vec.push_back(value);
+    }
+
+    SECTION("Insertion up to capacity does not trigger growth.") {
+      REQUIRE(vec.size() == initial_capacity);
+      REQUIRE(vec.capacity() == initial_capacity);
+    }
+
+    SECTION("Insertion beyond capacity does trigger growth.") {
       vec.push_back(42UZ);
 
-      bool old_values_intact{true};
-
-      for (auto const idx : std::views::iota(0UZ, initial_capacity)) {
-        if (before_growth[idx] != vec[idx]) {
-          old_values_intact = false;
-        }
-      }
-
-      REQUIRE(old_values_intact);
+      REQUIRE(vec.size() == initial_capacity + 1UZ);
+      REQUIRE(vec.capacity() > initial_capacity);
     }
   }
+
+  SECTION("Growth preserves elements previously inserted.") {
+    auto const initial_capacity{100UZ};
+    vec.reserve(initial_capacity);
+
+    for (auto const value : std::views::iota(0UZ, initial_capacity)) {
+      vec.push_back(value);
+    }
+
+    auto before_growth{vec};
+    vec.push_back(42UZ);
+
+    bool old_values_intact{true};
+
+    for (auto const idx : std::views::iota(0UZ, initial_capacity)) {
+      if (before_growth[idx] != vec[idx]) {
+        old_values_intact = false;
+      }
+    }
+
+    REQUIRE(old_values_intact);
+  }
+}
