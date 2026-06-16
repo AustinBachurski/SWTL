@@ -1,6 +1,3 @@
-module;
-#include <initializer_list>
-#include <stdexcept>
 export module swtl_vector;
 
 import std;
@@ -132,10 +129,10 @@ public:
 
   Vector(std::initializer_list<T> const &init_list)
       : data_{std::allocator_traits<Allocator>::allocate(allocator_,
-                                                         init_list.size())} {
+                                                         init_list.size())},
+        capacity_{init_list.size()}, size_{init_list.size()} {
     allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
                                               init_list.end(), begin());
-    size_ = init_list.size();
   }
 
   template <std::input_iterator InputIterator,
