@@ -198,21 +198,28 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     }
   }()};
 
-  SECTION("Copy constructor from non-const source.", "[vector]") {
+  SECTION("Copy constructor from non-const source.") {
     auto copied{source};
 
     REQUIRE(source == copied);
     REQUIRE(source.data() != copied.data());
   }
 
-  SECTION("Copy assignment operator from non-const source.", "[vector]") {
+  SECTION("Self copy assignment.") {
+    auto data_ptr_before_copy{source.data()};
+    source = source;
+
+    REQUIRE(source.data() == data_ptr_before_copy);
+  }
+
+  SECTION("Copy assignment operator from non-const source.") {
     initial = source;
 
     REQUIRE(initial == source);
     REQUIRE(initial.data() != source.data());
   }
 
-  SECTION("Copy constructor from const source.", "[vector]") {
+  SECTION("Copy constructor from const source.") {
     auto const &const_reference_source{source};
     auto copied{const_reference_source};
 
@@ -220,7 +227,7 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(source.data() != copied.data());
   }
 
-  SECTION("Copy assignment operator from const source.", "[vector]") {
+  SECTION("Copy assignment operator from const source.") {
     auto const &const_reference_to_source{source};
     initial = const_reference_to_source;
 
@@ -228,7 +235,7 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(initial.data() != source.data());
   }
 
-  SECTION("Move constructor from non-const source.", "[vector]") {
+  SECTION("Move constructor from non-const source.") {
     auto known_good_copy{source};
     auto data_ptr_before_move{source.data()};
     auto moved{std::move(source)};
@@ -242,7 +249,21 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(source.capacity() == 0UZ);
   }
 
-  SECTION("Move assignment operator from non-const source.", "[vector]") {
+  SECTION("Self move assignment.") {
+    auto known_good_copy{source};
+    auto data_ptr_before_move{source.data()};
+    auto size_before_move{source.size()};
+    auto capacity_before_move{source.capacity()};
+    auto &ref_to_self{source}; // To bypass -Wself-move.
+    source = std::move(ref_to_self);
+
+    REQUIRE(source == known_good_copy);
+    REQUIRE(source.data() == data_ptr_before_move);
+    REQUIRE(source.size() == size_before_move);
+    REQUIRE(source.capacity() == capacity_before_move);
+  }
+
+  SECTION("Move assignment operator from non-const source.") {
     auto known_good_copy{source};
     auto data_ptr_before_move{source.data()};
     initial = std::move(source);
@@ -256,7 +277,7 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(source.capacity() == 0UZ);
   }
 
-  SECTION("Move constructor from const source.", "[vector]") {
+  SECTION("Move constructor from const source.") {
     auto known_good_copy{source};
     auto data_ptr_before_move{source.data()};
     auto const &const_reference_to_source{source};
@@ -271,7 +292,7 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(source.capacity() != 0UZ);
   }
 
-  SECTION("Move assignment operator from const source.", "[vector]") {
+  SECTION("Move assignment operator from const source.") {
     auto known_good_copy{source};
     auto data_ptr_before_move{source.data()};
     auto const &const_reference_to_source{source};
