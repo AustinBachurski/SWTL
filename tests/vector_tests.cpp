@@ -174,6 +174,74 @@ TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
   }
 }
 
+TEST_CASE("Iterator validation.", "[vector]") {
+  swtl::Vector vec{1, 2, 3, 4, 5};
+
+  SECTION("Non-const forward iteration.") {
+    auto previous_element{std::numeric_limits<int>::lowest()};
+
+    for (auto &current_element : vec) {
+      REQUIRE(previous_element < current_element);
+      STATIC_REQUIRE(
+          !std::is_const_v<std::remove_reference_t<decltype(current_element)>>);
+      previous_element = current_element;
+    }
+  }
+
+  SECTION("Const forward iteration.") {
+    auto previous_element{std::numeric_limits<int>::lowest()};
+
+    for (auto &current_element : std::as_const(vec)) {
+      REQUIRE(previous_element < current_element);
+      STATIC_REQUIRE(
+          std::is_const_v<std::remove_reference_t<decltype(current_element)>>);
+      previous_element = current_element;
+    }
+  }
+
+  SECTION("Non-const reverse iteration.") {
+    auto previous_element{std::numeric_limits<int>::max()};
+
+    for (auto &current_element : vec | std::views::reverse) {
+      REQUIRE(previous_element > current_element);
+      STATIC_REQUIRE(
+          !std::is_const_v<std::remove_reference_t<decltype(current_element)>>);
+      previous_element = current_element;
+    }
+  }
+
+  SECTION("Const reverse iteration.") {
+    auto previous_element{std::numeric_limits<int>::max()};
+
+    for (auto &current_element : std::as_const(vec) | std::views::reverse) {
+      REQUIRE(previous_element > current_element);
+      STATIC_REQUIRE(
+          std::is_const_v<std::remove_reference_t<decltype(current_element)>>);
+      previous_element = current_element;
+    }
+  }
+
+  SECTION("Non-const forward iterator mutability.") {
+    auto mutated_vec{vec};
+
+    for (auto &element : mutated_vec) {
+      ++element;
+    }
+
+    REQUIRE(mutated_vec != vec);
+  }
+
+  SECTION("Non-const reverse iterator mutability.") {
+    auto mutated_vec{vec};
+
+    for (auto &element : mutated_vec | std::views::reverse) {
+      ++element;
+    }
+
+    REQUIRE(mutated_vec != vec);
+  }
+}
+
 TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
                    swtl::Vector<int>, swtl::Vector<double>, swtl::Vector<bool>,
                    swtl::Vector<std::string>) {
