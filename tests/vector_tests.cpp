@@ -721,3 +721,50 @@ TEST_CASE("Element inseration.", "[vector]") {
     REQUIRE(std::addressof(vec.back()) == std::addressof(inserted));
   }
 }
+
+TEST_CASE("Element modification.", "[vector]") {
+  SECTION("Vector::operator[] modifies correct element.") {
+    swtl::Vector<int> actual{1, 4, 3, 4};
+    swtl::Vector<int> const expected{1, 2, 3, 4};
+
+    actual[1] = 2;
+
+    REQUIRE(actual == expected);
+  }
+
+  SECTION("Vector::at modifies correct element.") {
+    swtl::Vector<int> actual{1, 2, 4, 4};
+    swtl::Vector<int> const expected{1, 2, 3, 4};
+
+    actual.at(2) = 3;
+
+    REQUIRE(actual == expected);
+  }
+
+  SECTION("Vector::front modifies correct element.") {
+    swtl::Vector<int> actual{2, 2, 3, 4};
+    swtl::Vector<int> const expected{1, 2, 3, 4};
+
+    actual.front() = 1;
+
+    REQUIRE(actual == expected);
+  }
+
+  SECTION("Vector::back modifies correct element.") {
+    swtl::Vector<int> actual{1, 2, 3, 5};
+    swtl::Vector<int> const expected{1, 2, 3, 4};
+
+    actual.back() = 4;
+
+    REQUIRE(actual == expected);
+  }
+
+  SECTION("Vector::data modifies internal data.") {
+    swtl::Vector<int> actual{1, 3, 3, 4};
+    swtl::Vector<int> const expected{1, 2, 3, 4};
+
+    actual.data()[1] = 2;
+
+    REQUIRE(actual == expected);
+  }
+}
