@@ -14,6 +14,30 @@
 
 import swtl_vector;
 
+TEST_CASE("VectorIterator initialization.", "[vector_iterator]") {
+  SECTION("Valid initalization.") {
+    swtl::Vector<int> empty_vec;
+    swtl::Vector<int> non_empty_vec{1, 2, 3};
+    swtl::VectorIterator empty_iter{empty_vec.data()};
+    swtl::VectorIterator populated_iter{non_empty_vec.data()};
+
+    REQUIRE(empty_vec.data() == std::to_address(empty_iter));
+    REQUIRE(non_empty_vec.data() == std::to_address(populated_iter));
+    REQUIRE(std::addressof(non_empty_vec.front()) ==
+            std::to_address(populated_iter));
+  }
+}
+
+TEST_CASE("VectorIterator const conversion.", "[vector_iterator]") {
+  SECTION("Non-const to const.") {
+    swtl::Vector<int> vec{1, 2, 3};
+    auto iter{vec.begin()};
+    auto const_iter{vec.cbegin()};
+
+    STATIC_REQUIRE(std::is_convertible_v<decltype(iter), decltype(const_iter)>);
+  }
+}
+
 TEST_CASE("VectorIterator for user defined types.", "[vector_iterator]") {
   struct CustomObject {
     int part_number{1042};
