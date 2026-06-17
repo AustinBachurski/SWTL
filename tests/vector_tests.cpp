@@ -445,8 +445,7 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     float y{};
     std::string z{"Enough text so that we heap allocate the data."};
 
-    auto
-    operator<=>(ThrowingCopyConstructor const &other) const noexcept = default;
+    auto operator<=>(ThrowingCopyConstructor const &other) const = default;
 
     ThrowingCopyConstructor() = default;
     ThrowingCopyConstructor(
@@ -462,8 +461,7 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     float y{};
     std::string z{"Enough text so that we heap allocate the data."};
 
-    auto
-    operator<=>(ThrowingMoveConstructor const &other) const noexcept = default;
+    auto operator<=>(ThrowingMoveConstructor const &other) const = default;
 
     ThrowingMoveConstructor() = default;
     ThrowingMoveConstructor(ThrowingMoveConstructor const &other) = default;
@@ -477,8 +475,7 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     float y{};
     std::string z{"Enough text so that we heap allocate the data."};
 
-    auto
-    operator<=>(ThrowingMoveOnlyObject const &other) const noexcept = default;
+    auto operator<=>(ThrowingMoveOnlyObject const &other) const = default;
 
     ThrowingMoveOnlyObject() = default;
     ThrowingMoveOnlyObject(ThrowingMoveOnlyObject const &other) = delete;
