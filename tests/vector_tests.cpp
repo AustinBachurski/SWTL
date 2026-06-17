@@ -129,6 +129,14 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*(iter + values.size() - 1) == values.back());
   }
 
+  SECTION("VectorIterator::operator+.") {
+    auto iter{vec.begin()};
+
+    REQUIRE(*(2 + iter) == values[2]);
+    REQUIRE(*iter == values.front());
+    REQUIRE(*(values.size() - 1 + iter) == values.back());
+  }
+
   SECTION("VectorIterator::operator-(iterator, difference_type).") {
     auto iter{vec.end()};
 
@@ -144,6 +152,7 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(vec.begin() - vec.end() == -5);
     REQUIRE(lhs - rhs == 3);
     REQUIRE(rhs - vec.begin() == 2);
+    REQUIRE(vec.end() - vec.begin() == static_cast<std::ptrdiff_t>(vec.size()));
   }
 
   SECTION("VectorIterator::operator<=>.") {
@@ -213,6 +222,14 @@ TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
 
 TEST_CASE("Iterator validation.", "[vector]") {
   swtl::Vector vec{1, 2, 3, 4, 5};
+
+  SECTION("Const correctness.") {
+    STATIC_REQUIRE(std::is_same_v<decltype(vec.cbegin()),
+                                  swtl::VectorIterator<int const>>);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.crbegin()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+  }
 
   SECTION("Non-const forward iteration.") {
     auto previous_element{std::numeric_limits<int>::lowest()};
