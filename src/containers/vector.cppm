@@ -442,7 +442,7 @@ public:
   // TODO: emplace()
   // TODO: erase()
   constexpr auto push_back(T const &value) -> void { emplace_back(value); }
-  constexpr auto push_back(T const &&value) -> void {
+  constexpr auto push_back(T &&value) -> void {
     emplace_back(std::move(value));
   }
 
