@@ -1,5 +1,3 @@
-module;
-#include <iterator>
 export module swtl_memory;
 
 import std;
@@ -88,7 +86,7 @@ uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
 
 export template <AllocatorType Allocator, typename Iterator>
   requires std::input_or_output_iterator<Iterator>
-constexpr auto destroy_range(Allocator allocator, Iterator begin,
+constexpr auto destroy_range(Allocator &allocator, Iterator begin,
                              Iterator end) noexcept -> void {
   for (; begin != end; ++begin) {
     std::allocator_traits<Allocator>::destroy(allocator,
