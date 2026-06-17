@@ -472,9 +472,25 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     }
   };
 
+  struct ThrowingMoveOnlyObject {
+    int x{};
+    float y{};
+    std::string z{"Enough text so that we heap allocate the data."};
+
+    auto
+    operator<=>(ThrowingMoveOnlyObject const &other) const noexcept = default;
+
+    ThrowingMoveOnlyObject() = default;
+    ThrowingMoveOnlyObject(ThrowingMoveOnlyObject const &other) = delete;
+    ThrowingMoveOnlyObject([[maybe_unused]] ThrowingMoveOnlyObject &&other) {
+      throw std::runtime_error("Oh noes, I throws!");
+    }
+  };
+
   SECTION("Object with throwing copy constructor.") {
     swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);
     swtl::Vector<ThrowingCopyConstructor> const expected(3);
+
     REQUIRE_THROWS_AS(throws_on_copy.emplace_back(), std::runtime_error);
     REQUIRE(throws_on_copy == expected);
     // Insertion fails, but the container remains in it's previous state.
@@ -483,9 +499,22 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
   SECTION("Object with throwing move constructor.") {
     swtl::Vector<ThrowingMoveConstructor> throws_on_move(3);
     swtl::Vector<ThrowingMoveConstructor> const expected(4);
+
     REQUIRE_NOTHROW(throws_on_move.emplace_back());
     REQUIRE(throws_on_move == expected);
     // Insertion succeeds because migration falls back to the copy constructor.
+  }
+
+  SECTION("Move only object with throwing move constructor.") {
+    swtl::Vector<ThrowingMoveOnlyObject> throws_on_move(3);
+    swtl::Vector<ThrowingMoveOnlyObject> const expected(3);
+
+    // Insertion will fail, but no memory should be leaked and invariants should
+    // hold.  Cannot guarantee the state of the contained elements.
+    REQUIRE_THROWS_AS(throws_on_move.emplace_back(), std::runtime_error);
+    REQUIRE(throws_on_move.size() == expected.size());
+    REQUIRE(throws_on_move.capacity() == expected.capacity());
+    REQUIRE(throws_on_move.data() != nullptr);
   }
 }
 

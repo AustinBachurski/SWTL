@@ -1,3 +1,5 @@
+module;
+#include <type_traits>
 export module swtl_vector;
 
 import std;
@@ -531,13 +533,29 @@ private:
           VectorIterator{destination});
     } else {
       try {
-        allocator_aware::uninitialized_copy_range(
-            allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-            VectorIterator{destination});
+        if constexpr (std::is_copy_constructible_v<T>) {
+          allocator_aware::uninitialized_copy_range(
+              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+              VectorIterator{destination});
+        } else if constexpr (std::is_move_constructible_v<T>) {
+          // Strong Exception Safety is NOT guaranteed in this block. Move
+          // construction may throw and there is no copy constructor available.
+          // Only Basic Exception Safety can be offered at this point.
+
+          allocator_aware::uninitialized_move_range(
+              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
+              VectorIterator{destination});
+        } else {
+          static_assert(std::is_copy_constructible_v<T> ||
+                            std::is_move_constructible_v<T>,
+                        "Object type 'T' is neither moveable nor copyable, "
+                        "making Vector reallication impossible.");
+        }
       } catch (...) {
-        // The ununitialized_copy function takes care of destroying the new
-        // objects that it created during attempted migration, just have to
-        // free the memory before rethrowing.
+        // The ununitialized_copy/_move functions takes care of destroying the
+        // new objects that were created during attempted migration, just have
+        // to free the memory before rethrowing.
+
         std::allocator_traits<Allocator>::deallocate(allocator_, destination,
                                                      new_capacity);
         throw;
@@ -549,11 +567,14 @@ private:
     // the error - not the originals.  So on successful reallocation:
     // destroy the old objects, give the memory back to the allocator, and
     // update our internals.
+
     allocator_aware::destroy_range(allocator_, begin(), end());
+
     if (data_ != nullptr) {
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
                                                    capacity_);
     }
+
     data_ = destination;
     capacity_ = new_capacity;
   }
