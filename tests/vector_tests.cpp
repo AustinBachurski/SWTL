@@ -186,6 +186,16 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(vec.capacity() == init_list.size());
     REQUIRE(std::ranges::equal(vec, init_list));
   }
+
+  SECTION("Count constructor.") {
+    swtl::Vector<int> expected{0, 0, 0, 0, 0};
+    swtl::Vector<int> vec(expected.size());
+
+    REQUIRE(!vec.is_empty());
+    REQUIRE(vec.size() == expected.size());
+    REQUIRE(vec.capacity() == expected.capacity());
+    REQUIRE(vec == expected);
+  }
 }
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,

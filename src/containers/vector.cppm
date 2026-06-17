@@ -1,3 +1,6 @@
+module;
+#include <concepts>
+#include <memory>
 export module swtl_vector;
 
 import std;
@@ -126,6 +129,14 @@ public:
 
   // ** CONSTRUCTORS **
   Vector() = default;
+
+  explicit Vector(size_type count) {
+    reserve(count);
+
+    for (auto const _ : std::views::iota(0UZ, count)) {
+      emplace_back();
+    }
+  }
 
   Vector(std::initializer_list<T> const &init_list)
       : data_{std::allocator_traits<Allocator>::allocate(allocator_,
@@ -451,7 +462,6 @@ public:
     return data_[++size_];
   }
 
-  // TODO: emplace_back()
   // TODO: append_range()
   // TODO: pop_back()
   // TODO: resize()
