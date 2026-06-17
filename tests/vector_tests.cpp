@@ -518,7 +518,7 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   }
 }
 
-TEST_CASE("Reservation on empty vectors.", "[vector]") {
+TEST_CASE("Reservation on an empty vector.", "[vector]") {
   swtl::Vector<int> vec;
 
   SECTION("Reservation increases capacity but does not affect size.") {
@@ -529,7 +529,7 @@ TEST_CASE("Reservation on empty vectors.", "[vector]") {
     REQUIRE(vec.size() == 0UZ);
     REQUIRE(vec.capacity() == initial_capacity);
 
-    SECTION("Continued reservation grows capacity.") {
+    SECTION("Continued reservation grows capacity again.") {
       auto const final_capacity{20UZ};
       vec.reserve(final_capacity);
 
@@ -546,6 +546,36 @@ TEST_CASE("Reservation on empty vectors.", "[vector]") {
   SECTION("Reserving more than the maximum number of elements throws.") {
     REQUIRE_THROWS_AS(vec.reserve(std::numeric_limits<std::size_t>::max()),
                       std::length_error);
+  }
+}
+
+TEST_CASE("Reservation on a populated vector.", "[vector]") {
+  swtl::Vector<int> vec{1, 2, 3};
+  swtl::Vector<int> const expected{vec};
+  auto const initial_capacity{vec.capacity()};
+
+  SECTION("Reservation grows capacity but does not modify elements.") {
+    auto new_capacity{10UZ};
+    vec.reserve(new_capacity);
+
+    REQUIRE(vec == expected);
+    REQUIRE(vec.size() == expected.size());
+    REQUIRE(vec.capacity() == new_capacity);
+
+    SECTION("Continued reservation grows capacity again.") {
+      auto const final_capacity{20UZ};
+      vec.reserve(final_capacity);
+
+      REQUIRE(vec == expected);
+      REQUIRE(vec.size() == expected.size());
+      REQUIRE(vec.capacity() == final_capacity);
+
+      SECTION("Reserving less than the current capacity does nothing.") {
+        vec.reserve(initial_capacity);
+
+        REQUIRE(vec.capacity() == final_capacity);
+      }
+    }
   }
 }
 
