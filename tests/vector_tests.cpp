@@ -212,9 +212,16 @@ TEST_CASE("Vector initialization.", "[vector]") {
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
                    char const *, std::string) {
-  SECTION("CTAD.") {
+  SECTION("Braced initialization.") {
     TestType init{};
     swtl::Vector vec{init};
+
+    STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+  }
+
+  SECTION("Iterator initialization.") {
+    std::vector<TestType> init(4);
+    swtl::Vector vec(init.begin(), init.end());
 
     STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
   }
