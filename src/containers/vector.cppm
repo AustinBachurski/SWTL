@@ -1,6 +1,3 @@
-module;
-#include <concepts>
-#include <memory>
 export module swtl_vector;
 
 import std;
@@ -445,6 +442,9 @@ public:
   // TODO: emplace()
   // TODO: erase()
   constexpr auto push_back(T const &value) -> void { emplace_back(value); }
+  constexpr auto push_back(T const &&value) -> void {
+    emplace_back(std::move(value));
+  }
 
   template <typename... Args>
   constexpr auto emplace_back(Args &&...args) -> reference {
@@ -459,7 +459,7 @@ public:
 
     std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
                                                 std::forward<Args>(args)...);
-    return data_[++size_];
+    return data_[size_++];
   }
 
   // TODO: append_range()
