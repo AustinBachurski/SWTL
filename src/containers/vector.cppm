@@ -433,7 +433,10 @@ public:
   // TODO: insert_range()
   // TODO: emplace()
   // TODO: erase()
-  constexpr auto push_back(T const &value) -> void {
+  constexpr auto push_back(T const &value) -> void { emplace_back(value); }
+
+  template <typename... Args>
+  constexpr auto emplace_back(Args &&...args) -> reference {
     if (size_ == capacity_) {
       size_type new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
 
@@ -444,8 +447,8 @@ public:
     }
 
     std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
-                                                value);
-    ++size_;
+                                                std::forward<Args>(args)...);
+    return data_[++size_];
   }
 
   // TODO: emplace_back()
