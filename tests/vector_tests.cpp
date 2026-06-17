@@ -673,3 +673,51 @@ TEST_CASE("Comparing vectors.", "[vector]") {
   REQUIRE(baseline_vec <= equal_vec);
   REQUIRE(baseline_vec >= equal_vec);
 }
+
+TEST_CASE("Element inseration.", "[vector]") {
+  SECTION("Vector::push_back of lvalue.") {
+    swtl::Vector vec{0, 1, 2};
+    swtl::Vector const expected{0, 1, 2, 3};
+
+    vec.push_back(3);
+
+    REQUIRE(vec == expected);
+  }
+
+  SECTION("Vector::push_back of rvalue.") {
+    swtl::Vector<std::unique_ptr<int>> vec;
+    auto ptr{std::make_unique<int>(42)};
+
+    vec.push_back(std::move(ptr));
+
+    REQUIRE(*vec.back() == 42);
+    REQUIRE(vec.back() != ptr);
+  }
+
+  SECTION("Vector::emplace_back default constructs an element.") {
+    swtl::Vector<std::string> vec;
+    vec.emplace_back();
+
+    REQUIRE(vec.back() == "");
+  }
+
+  SECTION("Vector::emplace_back forwards arguments.") {
+    struct Point {
+      int x;
+      int y;
+    };
+    swtl::Vector<Point> vec;
+    auto &inserted{vec.emplace_back(3, 4)};
+
+    REQUIRE(inserted.x == 3);
+    REQUIRE(inserted.y == 4);
+  }
+
+  SECTION("Vector::emplace_back returns a reference to inserted.") {
+    swtl::Vector<std::string> vec;
+    auto &inserted{vec.emplace_back()};
+
+    REQUIRE(vec.back() == inserted);
+    REQUIRE(std::addressof(vec.back()) == std::addressof(inserted));
+  }
+}
