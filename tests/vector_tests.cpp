@@ -842,3 +842,13 @@ TEST_CASE("Vector swap works correctly.", "[vector]") {
     REQUIRE(a.data() == b_ptr);
   }
 }
+
+TEST_CASE("Vector::max_size correctness.", "[vector]") {
+  SECTION("Vector::max_size.") {
+    swtl::Vector<char> char_vec;
+    swtl::Vector<int> int_vec;
+
+    REQUIRE(char_vec.max_size() > int_vec.max_size());
+    REQUIRE(int_vec.max_size() > 0UZ);
+  }
+}

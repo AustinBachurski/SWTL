@@ -412,7 +412,8 @@ public:
   }
 
   [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-    return std::numeric_limits<size_type>::max() / sizeof(value_type);
+    return std::min(std::allocator_traits<Allocator>::max_size(allocator_),
+                    std::numeric_limits<size_type>::max() / sizeof(value_type));
   }
 
   constexpr auto reserve(size_type new_capacity) -> void {
@@ -455,7 +456,14 @@ public:
   template <typename... Args>
   constexpr auto emplace_back(Args &&...args) -> reference {
     if (size_ == capacity_) {
-      size_type new_capacity = capacity_ == 0 ? 1 : capacity_ * 2;
+      size_type new_capacity{};
+      if (capacity_ == 0) {
+        new_capacity = 1;
+      } else if (capacity_ > max_size() / 2) {
+        new_capacity = max_size();
+      } else {
+        new_capacity = capacity_ * 2;
+      }
 
       auto new_data{
           std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
