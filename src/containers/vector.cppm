@@ -472,7 +472,9 @@ public:
 
   // ** NON-MEMBER FUNCTIONS **
   constexpr friend auto operator==(Vector const &lhs,
-                                   Vector const &rhs) noexcept -> bool {
+                                   Vector const &rhs) noexcept -> bool
+    requires std::equality_comparable<T>
+  {
     if (rhs.size_ != lhs.size_) {
       return false;
     }
@@ -481,7 +483,8 @@ public:
 
   constexpr friend auto operator<=>(Vector const &lhs,
                                     Vector const &rhs) noexcept
-      -> std::compare_three_way_result_t<T> {
+    requires std::three_way_comparable<T>
+  {
     for (auto const pair : std::views::zip(lhs, rhs)) {
       if (auto const comparison{std::get<0>(pair) <=> std::get<1>(pair)};
           comparison != 0) {
