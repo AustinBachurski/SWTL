@@ -199,9 +199,11 @@ TEST_CASE("Vector initialization.", "[vector]") {
   }
 
   SECTION("Count constructor.") {
+    swtl::Vector<int> should_be_empty(0);
     swtl::Vector<int> expected{0, 0, 0, 0, 0};
     swtl::Vector<int> vec(expected.size());
 
+    REQUIRE(should_be_empty.is_empty());
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == expected.size());
     REQUIRE(vec.capacity() == expected.capacity());
