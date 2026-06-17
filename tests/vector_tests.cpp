@@ -768,3 +768,39 @@ TEST_CASE("Element modification.", "[vector]") {
     REQUIRE(actual == expected);
   }
 }
+
+TEST_CASE("Vector swap works correctly.", "[vector]") {
+  SECTION("Swap primitives") {
+    swtl::Vector<int> a{1, 2, 3};
+    swtl::Vector<int> b{4, 5};
+    auto *a_ptr{a.data()};
+    auto a_size{a.size()};
+    auto *b_ptr{b.data()};
+    auto b_size{b.size()};
+    swap(a, b);
+
+    REQUIRE(a.size() == b_size);
+    REQUIRE(b.size() == a_size);
+    REQUIRE(b.data() == a_ptr);
+    REQUIRE(a.data() == b_ptr);
+  }
+
+  SECTION("Swap objects.") {
+    swtl::Vector<std::string> a{"Stop right there criminal scum!",
+                                "Nobody breaks the law on my watch!",
+                                "I'm confiscating your stolen goods.",
+                                "Now pay the fine or it's off to jail."};
+    swtl::Vector<std::string> b{"I used to be an adventurer like you, ",
+                                "but I took an arrow to the knee..."};
+    auto *a_ptr{a.data()};
+    auto a_size{a.size()};
+    auto *b_ptr{b.data()};
+    auto b_size{b.size()};
+    swap(a, b);
+
+    REQUIRE(a.size() == b_size);
+    REQUIRE(b.size() == a_size);
+    REQUIRE(b.data() == a_ptr);
+    REQUIRE(a.data() == b_ptr);
+  }
+}
