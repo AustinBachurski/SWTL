@@ -376,6 +376,56 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
   }
 }
 
+TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
+  struct ThrowingCopyConstructor {
+    int x{};
+    float y{};
+    std::string z{"Enough text so that we heap allocate the data."};
+
+    auto
+    operator<=>(ThrowingCopyConstructor const &other) const noexcept = default;
+
+    ThrowingCopyConstructor() = default;
+    ThrowingCopyConstructor(
+        [[maybe_unused]] ThrowingCopyConstructor const &other) {
+      throw std::runtime_error("Oh noes, I throws!");
+    }
+    ThrowingCopyConstructor(ThrowingCopyConstructor &&other) =
+        delete ("Testing throwing copy constructor, don't move me.");
+  };
+
+  struct ThrowingMoveConstructor {
+    int x{};
+    float y{};
+    std::string z{"Enough text so that we heap allocate the data."};
+
+    auto
+    operator<=>(ThrowingMoveConstructor const &other) const noexcept = default;
+
+    ThrowingMoveConstructor() = default;
+    ThrowingMoveConstructor(ThrowingMoveConstructor const &other) = default;
+    ThrowingMoveConstructor([[maybe_unused]] ThrowingMoveConstructor &&other) {
+      throw std::runtime_error("Oh noes, I throws!");
+    }
+  };
+
+  SECTION("Object with throwing copy constructor.") {
+    swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);
+    swtl::Vector<ThrowingCopyConstructor> const expected(3);
+    REQUIRE_THROWS_AS(throws_on_copy.emplace_back(), std::runtime_error);
+    REQUIRE(throws_on_copy == expected);
+    // Insertion fails, but the container remains in it's previous state.
+  }
+
+  SECTION("Object with throwing move constructor.") {
+    swtl::Vector<ThrowingMoveConstructor> throws_on_move(3);
+    swtl::Vector<ThrowingMoveConstructor> const expected(4);
+    REQUIRE_NOTHROW(throws_on_move.emplace_back());
+    REQUIRE(throws_on_move == expected);
+    // Insertion succeeds because migration falls back to the copy constructor.
+  }
+}
+
 TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
                    swtl::Vector<int>, swtl::Vector<int> const,
                    swtl::Vector<std::string>, swtl::Vector<std::string> const) {
