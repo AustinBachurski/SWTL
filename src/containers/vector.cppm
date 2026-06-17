@@ -497,8 +497,10 @@ public:
   }
 
   // ** NON-MEMBER FUNCTIONS **
-  constexpr friend auto operator==(Vector const &lhs,
-                                   Vector const &rhs) noexcept -> bool
+  constexpr friend auto
+  operator==(Vector const &lhs,
+             Vector const &rhs) noexcept(noexcept(std::declval<T>() ==
+                                                  std::declval<T>())) -> bool
     requires std::equality_comparable<T>
   {
     if (rhs.size_ != lhs.size_) {
@@ -507,8 +509,10 @@ public:
     return std::ranges::equal(lhs, rhs);
   }
 
-  constexpr friend auto operator<=>(Vector const &lhs,
-                                    Vector const &rhs) noexcept
+  constexpr friend auto
+  operator<=>(Vector const &lhs,
+              Vector const &rhs) noexcept(noexcept(std::declval<T>() <=>
+                                                   std::declval<T>()))
     requires std::three_way_comparable<T>
   {
     for (auto const pair : std::views::zip(lhs, rhs)) {
