@@ -174,6 +174,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
     REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(vec.data() != nullptr);
     REQUIRE(std::ranges::equal(vec, init_list));
   }
 
@@ -184,6 +185,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
     REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(vec.data() != nullptr);
     REQUIRE(std::ranges::equal(vec, init_list));
   }
 
@@ -194,6 +196,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == expected.size());
     REQUIRE(vec.capacity() == expected.capacity());
+    REQUIRE(vec.data() != nullptr);
     REQUIRE(vec == expected);
   }
 }
