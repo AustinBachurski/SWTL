@@ -678,24 +678,36 @@ TEST_CASE("Vector memory growth.", "[vector]") {
 }
 
 TEST_CASE("Comparing vectors.", "[vector]") {
-  swtl::Vector<int> const baseline_vec{0, 1, 2, 3, 4, 5};
-  swtl::Vector<int> const equal_vec{baseline_vec};
-  swtl::Vector<int> const greater_vec{0, 1, 2, 3, 4, 6};
-  swtl::Vector<int> const lesser_vec{0, 1, 2, 3, 4, 4};
-  swtl::Vector<int> const bigger_vec_with_lesser_values{0, 0, 1, 2, 3, 4, 5};
-  swtl::Vector<int> const smaller_vec_with_greater_values{9, 8, 7};
+  SECTION("Comparing values.") {
+    swtl::Vector<int> const baseline_vec{0, 1, 2, 3, 4, 5};
+    swtl::Vector<int> const equal_vec{baseline_vec};
+    swtl::Vector<int> const greater_vec{0, 1, 2, 3, 4, 6};
+    swtl::Vector<int> const lesser_vec{0, 1, 2, 3, 4, 4};
 
-  REQUIRE(baseline_vec == equal_vec);
-  REQUIRE(baseline_vec != greater_vec);
-  REQUIRE(baseline_vec != lesser_vec);
-  REQUIRE(baseline_vec < greater_vec);
-  REQUIRE(baseline_vec > lesser_vec);
-  REQUIRE(baseline_vec > bigger_vec_with_lesser_values);
-  REQUIRE(baseline_vec < smaller_vec_with_greater_values);
-  REQUIRE(baseline_vec <= greater_vec);
-  REQUIRE(baseline_vec >= lesser_vec);
-  REQUIRE(baseline_vec <= equal_vec);
-  REQUIRE(baseline_vec >= equal_vec);
+    REQUIRE(baseline_vec == equal_vec);
+    REQUIRE(baseline_vec != greater_vec);
+    REQUIRE(baseline_vec != lesser_vec);
+    REQUIRE(baseline_vec < greater_vec);
+    REQUIRE(baseline_vec > lesser_vec);
+    REQUIRE(baseline_vec <= greater_vec);
+    REQUIRE(baseline_vec >= lesser_vec);
+    REQUIRE(baseline_vec <= equal_vec);
+    REQUIRE(baseline_vec >= equal_vec);
+  }
+
+  SECTION("Ensure size and capacity doesn't influence correctness.") {
+    swtl::Vector<int> const baseline_vec{0, 1, 2, 3, 4, 5};
+    swtl::Vector<int> const bigger_vec_with_lesser_values{0, 0, 1, 2, 3, 4, 5};
+    swtl::Vector<int> const smaller_vec_with_greater_values{9, 8, 7};
+    swtl::Vector<int> const different_elements_but_same_size{1, 2, 3, 4, 5, 6};
+    swtl::Vector<int> same_elements_different_capacity{0, 1, 2, 3, 4, 5};
+    same_elements_different_capacity.reserve(100);
+
+    REQUIRE(baseline_vec > bigger_vec_with_lesser_values);
+    REQUIRE(baseline_vec < smaller_vec_with_greater_values);
+    REQUIRE(baseline_vec != different_elements_but_same_size);
+    REQUIRE(baseline_vec == same_elements_different_capacity);
+  }
 }
 
 TEST_CASE("Element inseration.", "[vector]") {
