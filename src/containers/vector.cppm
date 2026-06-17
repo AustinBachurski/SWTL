@@ -161,6 +161,12 @@ public:
     size_ = count;
   }
 
+  // TODO: (count, value)
+  // TODO: container-compatible-range
+  // TODO: operator=
+  // TODO: assign_range
+  // TODO: get_allocator
+
   // ** SPECIAL MEMBER FUNCTIONS **
   Vector(Vector const &other)
       : allocator_{
@@ -545,7 +551,7 @@ private:
   }
 
   [[no_unique_address]] Allocator allocator_;
-  T *data_{};
+  pointer data_{};
   std::size_t capacity_{};
   std::size_t size_{};
 };
