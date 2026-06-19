@@ -4,7 +4,9 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
 
+#include <contracts>
 #include <cstddef>
+#include <format>
 #include <initializer_list>
 #include <limits>
 #include <numeric>
@@ -13,6 +15,13 @@
 #include <type_traits>
 
 import swtl_vector;
+
+void handle_contract_violation(
+    std::contracts::contract_violation const &violation) {
+  throw std::logic_error(std::format(
+      "Contract Violation: {}\nLocation: {}:{}", violation.comment(),
+      violation.location().file_name(), violation.location().line()));
+}
 
 TEST_CASE("VectorIterator initialization.", "[vector_iterator]") {
   SECTION("Valid initalization.") {

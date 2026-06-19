@@ -558,8 +558,17 @@ public:
   constexpr auto swap(Vector &other) noexcept -> void {
     if constexpr (std::allocator_traits<
                       Allocator>::propagate_on_container_swap::value) {
-      std::swap(allocator_, other.allocator_);
+      using std::swap;
+      swap(allocator_, other.allocator_);
+    } else if constexpr (!std::allocator_traits<
+                             Allocator>::is_always_equal::value) {
+      contract_assert(
+          allocator_ == other.allocator_ &&
+          "If propagate_on_container_swap is not provided or is derived from "
+          "std::false_type and the allocators of the two containers do not "
+          "compare equal, the behavior of container swap is undefined.");
     }
+
     std::swap(data_, other.data_);
     std::swap(size_, other.size_);
     std::swap(capacity_, other.capacity_);
@@ -616,8 +625,9 @@ private:
               VectorIterator{destination});
         } else if constexpr (std::is_move_constructible_v<T>) {
           // Strong Exception Safety is NOT guaranteed in this block. Move
-          // construction may throw and there is no copy constructor available.
-          // Only Basic Exception Safety can be offered at this point.
+          // construction may throw and there is no copy constructor
+          // available. Only Basic Exception Safety can be offered at this
+          // point.
 
           allocator_aware::uninitialized_move_range(
               allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
