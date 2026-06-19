@@ -1,5 +1,3 @@
-module;
-#include <type_traits>
 export module swtl_vector;
 
 import std;
@@ -165,7 +163,6 @@ public:
 
   // TODO: (count, value)
   // TODO: container-compatible-range
-  // TODO: operator=
   // TODO: assign_range
   // TODO: get_allocator
 
@@ -174,41 +171,117 @@ public:
       : allocator_{
             std::allocator_traits<Allocator>::
                 select_on_container_copy_construction(other.allocator_)} {
-    data_ =
-        std::allocator_traits<Allocator>::allocate(allocator_, other.capacity_);
+    data_ = std::allocator_traits<Allocator>::allocate(allocator_, other.size_);
     try {
       allocator_aware::uninitialized_copy_range(
           allocator_, other.begin(), other.end(), VectorIterator{data_});
-      capacity_ = other.capacity_;
+      capacity_ = other.size_;
       size_ = other.size_;
     } catch (...) {
       std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                   other.capacity_);
+                                                   other.size_);
       throw;
     }
   }
 
-  Vector &operator=(Vector const &other) {
+  auto operator=(Vector const &other) -> Vector & {
     if (this == std::addressof(other)) {
       return *this;
     }
 
     if constexpr (std::allocator_traits<Allocator>::
                       propagate_on_container_copy_assignment::value) {
+      // If propagate is true, the source allocator must be copied into the
+      // destination.
+
       if (allocator_ != other.allocator_) {
-        allocator_aware::destroy_range(allocator_, begin(), end());
-        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                     capacity_);
-        data_ = nullptr;
-        size_ = 0UZ;
-        capacity_ = 0UZ;
+        // If allocators do not compare as equal, the source allocator cannot
+        // manage the memory allocated by the destination allocator and must
+        // allocate new memory for the elements in the destination instance
+        // using the source allocator, then the destination allocator must free
+        // it's memory before being replaced with a copy of the source
+        // allocator.
+
+        Allocator new_alloc{other.allocator_};
+        auto *new_data{
+            std::allocator_traits<Allocator>::allocate(new_alloc, other.size_)};
+
+        try {
+          allocator_aware::uninitialized_copy_range(new_alloc, other.begin(),
+                                                    other.end(), new_data);
+
+          allocator_aware::destroy_range(allocator_, begin(), end());
+          std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                       capacity_);
+
+          allocator_ = new_alloc;
+          data_ = new_data;
+          size_ = other.size_;
+          capacity_ = other.size_;
+          return *this;
+        } catch (...) {
+          std::allocator_traits<Allocator>::deallocate(new_alloc, new_data,
+                                                       other.size_);
+          throw;
+        }
+      } else {
+        // If allocators do compare equal, the source allocator can manage the
+        // memory of the destination allocator, but the allocator must be copied
+        // per the propagate_on_container_copy_assignment condition.
+
+        allocator_ = other.allocator_;
       }
-      allocator_ = other.allocator_;
     }
 
-    Vector temp{other};
-    swap(temp);
-    return *this;
+    // If propagate is false, copying of the allocator is not necessary, no need
+    // to worry about which allocator can manage which memory since the
+    // destination retains it's allocator. Simply copy over the elements from
+    // source.
+
+    if constexpr (std::is_nothrow_copy_assignable_v<T>) {
+      // If copy assignment is nothrow, the existing memory may be able to be
+      // reused.
+
+      if (capacity_ >= other.size_) {
+        auto end_of_copied_data{begin()};
+
+        for (auto pair : std::views::zip(*this, other)) {
+          std::get<0>(pair) = std::get<1>(pair);
+          ++end_of_copied_data;
+        }
+
+        // After data is copied, destroy the existing elements that were not
+        // overwritten with the copied data so there's no phantom elements
+        // hanging around.
+        allocator_aware::destroy_range(allocator_, end_of_copied_data, end());
+
+        size_ = other.size_;
+        return *this;
+      }
+    }
+
+    // If copy assignment may throw, allocate new memory to maintain strong
+    // exception safety guarantees.
+
+    auto *new_data{
+        std::allocator_traits<Allocator>::allocate(allocator_, other.size_)};
+
+    try {
+      allocator_aware::uninitialized_copy_range(allocator_, other.begin(),
+                                                other.end(), new_data);
+
+      allocator_aware::destroy_range(allocator_, begin(), end());
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                   capacity_);
+      data_ = new_data;
+      size_ = other.size_;
+      capacity_ = other.size_;
+      return *this;
+    } catch (...) {
+      std::allocator_traits<Allocator>::deallocate(allocator_, new_data,
+                                                   other.size_);
+      throw;
+    }
   }
 
   Vector(Vector &&other) noexcept
@@ -219,10 +292,10 @@ public:
     other.size_ = 0UZ;
   }
 
-  Vector &operator=(Vector &&other) noexcept(
+  auto operator=(Vector &&other) noexcept(
       std::allocator_traits<
           Allocator>::propagate_on_container_move_assignment::value ||
-      std::allocator_traits<Allocator>::is_always_equal::value) {
+      std::allocator_traits<Allocator>::is_always_equal::value) -> Vector & {
     if (this == std::addressof(other)) {
       return *this;
     }
@@ -279,8 +352,8 @@ public:
       // be aware of the fact.  Extra documentation for the move assignment
       // operator, but I believe this to be the correct choice.
 
-      auto *new_data{std::allocator_traits<Allocator>::allocate(
-          allocator_, other.capacity_)};
+      auto *new_data{
+          std::allocator_traits<Allocator>::allocate(allocator_, other.size_)};
       try {
         allocator_aware::uninitialized_move_range(
             allocator_, other.begin(), other.end(), VectorIterator{new_data});
@@ -290,10 +363,10 @@ public:
         data_ = new_data;
         new_data = nullptr;
         size_ = other.size_;
-        capacity_ = other.capacity_;
+        capacity_ = other.size_;
       } catch (...) {
         std::allocator_traits<Allocator>::deallocate(allocator_, new_data,
-                                                     other.capacity_);
+                                                     other.size_);
         throw;
       }
     }
