@@ -562,11 +562,12 @@ public:
       swap(allocator_, other.allocator_);
     } else if constexpr (!std::allocator_traits<
                              Allocator>::is_always_equal::value) {
-      contract_assert(
-          allocator_ == other.allocator_ &&
-          "If propagate_on_container_swap is not provided or is derived from "
-          "std::false_type and the allocators of the two containers do not "
-          "compare equal, the behavior of container swap is undefined.");
+      contract_assert(allocator_ != other.allocator_
+                      /*"If propagate_on_container_swap is not provided or is
+                        derived from std::false_type and the allocators of the
+                        two containers do not compare equal, the behavior of
+                        container swap is undefined."*/
+                      && "You are invoking undefined behavior here.");
     }
 
     std::swap(data_, other.data_);
