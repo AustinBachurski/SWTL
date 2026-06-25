@@ -6,6 +6,11 @@ import swtl_memory;
 
 namespace swtl {
 
+template <typename Range, typename T>
+concept container_compatible_range =
+    std::ranges::input_range<Range> &&
+    std::convertible_to<std::ranges::range_reference_t<Range>, T>;
+
 export template <typename T> class VectorIterator {
 public:
   using iterator_category = std::contiguous_iterator_tag;
@@ -233,6 +238,28 @@ public:
 
     for (auto const _ : std::views::iota(0UZ, count)) {
       emplace_back(value);
+    }
+  }
+
+  template <container_compatible_range<T> Range>
+  Vector(std::from_range_t, Range &&range) {
+    if constexpr (std::ranges::sized_range<Range>) {
+      auto count{static_cast<size_type>(std::ranges::size(range))};
+      reserve(count);
+
+      try {
+        allocator_aware::uninitialized_copy_range(allocator_, range.begin(),
+                                                  range.end(), begin());
+        size_ = count;
+      } catch (...) {
+        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
+                                                     capacity_);
+        throw;
+      }
+    } else {
+      for (auto &&element : range) {
+        emplace_back(element);
+      }
     }
   }
 
@@ -715,9 +742,13 @@ private:
   }
 };
 
-// Explicit Deduction Guide for CTAD.
+// Explicit Deduction Guides for CTAD.
 template <std::input_iterator InputIterator,
           std::sentinel_for<InputIterator> Sentinel>
 Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
+
+template <std::ranges::input_range Range>
+Vector(std::from_range_t, Range &&)
+    -> Vector<std::ranges::range_value_t<Range>>;
 
 } // namespace swtl

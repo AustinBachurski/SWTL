@@ -13,6 +13,7 @@
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 import swtl_vector;
 
@@ -229,6 +230,16 @@ TEST_CASE("Vector initialization.", "[vector]") {
                                  "four",
                                  "four",
                              });
+  }
+
+  SECTION("Range constructor.") {
+    std::vector init_list_of_int{1, 2, 3, 4, 5};
+    std::vector<std::string> init_list_of_string{"one", "two", "three"};
+    swtl::Vector vec_of_int(std::from_range, init_list_of_int);
+    swtl::Vector vec_of_string(std::from_range, init_list_of_string);
+
+    REQUIRE(std::ranges::equal(init_list_of_int, vec_of_int));
+    REQUIRE(std::ranges::equal(init_list_of_string, vec_of_string));
   }
 }
 
