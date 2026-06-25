@@ -219,6 +219,17 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(vec.data() != nullptr);
     REQUIRE(vec == expected);
   }
+
+  SECTION("Count, Value constructor.") {
+    swtl::Vector<int> vec_of_int(4, 2);
+    swtl::Vector<std::string> vec_of_string(2, "four");
+
+    REQUIRE(vec_of_int == swtl::Vector{2, 2, 2, 2});
+    REQUIRE(vec_of_string == swtl::Vector<std::string>{
+                                 "four",
+                                 "four",
+                             });
+  }
 }
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,

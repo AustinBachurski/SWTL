@@ -228,6 +228,14 @@ public:
                                    init_list.end(), this->data_begin_);
   }
 
+  Vector(size_type count, T const &value) {
+    reserve(count);
+
+    for (auto const _ : std::views::iota(0UZ, count)) {
+      emplace_back(value);
+    }
+  }
+
   template <std::input_iterator InputIterator>
   constexpr Vector(InputIterator src_begin, InputIterator src_end,
                    Allocator const &allocator = Allocator())
