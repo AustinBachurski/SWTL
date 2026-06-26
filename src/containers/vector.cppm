@@ -233,8 +233,8 @@ public:
                                    init_list.end(), this->data_begin_);
   }
 
-  Vector(size_type count, T const &value) {
-    reserve(count);
+  constexpr Vector(size_type count, T const &value) {
+    this->create_storage(count);
 
     for (auto const _ : std::views::iota(0UZ, count)) {
       emplace_back(value);
@@ -242,7 +242,7 @@ public:
   }
 
   template <container_compatible_range<T> Range>
-  Vector(std::from_range_t, Range &&range) {
+  constexpr Vector(std::from_range_t, Range &&range) {
     if constexpr (std::ranges::sized_range<Range>) {
       auto count{static_cast<size_type>(std::ranges::size(range))};
       reserve(count);
@@ -263,6 +263,14 @@ public:
     }
   }
 
+  constexpr explicit Vector(std::initializer_list<T> const &init_list)
+      : data_{std::allocator_traits<Allocator>::allocate(allocator_,
+                                                         init_list.size())},
+        capacity_{init_list.size()}, size_{init_list.size()} {
+    allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
+                                              init_list.end(), begin());
+  }
+
   template <std::input_iterator InputIterator>
   constexpr Vector(InputIterator src_begin, InputIterator src_end,
                    Allocator const &allocator = Allocator())
@@ -281,8 +289,6 @@ public:
                                                  src_end, this->data_begin_);
   }
 
-  // TODO: (count, value)
-  // TODO: container-compatible-range
   // TODO: assign_range
   // TODO: get_allocator
 
@@ -308,8 +314,8 @@ public:
         // If allocators do not compare as equal, the source allocator cannot
         // manage the memory allocated by the destination allocator and must
         // allocate new memory for the elements in the destination instance
-        // using the source allocator, then the destination allocator must free
-        // it's memory before being replaced with a copy of the source
+        // using the source allocator, then the destination allocator must
+        // free it's memory before being replaced with a copy of the source
         // allocator.
 
         Allocator new_alloc{other.allocator_};
@@ -449,7 +455,7 @@ public:
       this->capacity_end_ = this->data_begin_ + count;
       return *this;
     }
-  }
+  } // namespace swtl
 
   constexpr ~Vector() {
     clear();
