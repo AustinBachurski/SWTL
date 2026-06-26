@@ -473,6 +473,12 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
 }
 
 TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
+  struct ThrowingConstructor {
+    int x{};
+
+    ThrowingConstructor() { throw std::runtime_error("Do you leak?"); };
+  };
+
   struct ThrowingCopyConstructor {
     int x{};
     float y{};
@@ -516,6 +522,20 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
       throw std::runtime_error("Oh noes, I throws!");
     }
   };
+
+  // TODO: FIX! - What happens if element construction throws after reservation?
+  // Memory leaks abound currently, update to follow/use libstdc++'s pattern of
+  // VectorBase and Guard objects instead of having try/catch all over the
+  // place.
+  //
+  // Test section below will begin testing for this, currently failing.
+
+  /*
+    SECTION("Object with throwing constructor.") {
+      REQUIRE_THROWS_AS(swtl::Vector<ThrowingConstructor>(10),
+                        std::runtime_error);
+    }
+  */
 
   SECTION("Object with throwing copy constructor.") {
     swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);

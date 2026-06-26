@@ -39,24 +39,17 @@ struct CustomObject {
   std::unique_ptr<int> p = std::make_unique<int>(42);
 };
 
-struct ThrowingMoveConstructor {
+struct ThrowingObject {
   int x{};
-  float y{};
-  std::string z{"Enough text so that we heap allocate the data."};
 
-  auto
-  operator<=>(ThrowingMoveConstructor const &other) const noexcept = default;
-
-  ThrowingMoveConstructor() = default;
-  ThrowingMoveConstructor([[maybe_unused]] ThrowingMoveConstructor &&other) {
-    throw std::runtime_error("Oh noes, I throws!");
-  }
+  ThrowingObject() { throw std::exception(); }
 };
 
 auto main() -> int {
   std::puts("");
   std::puts("");
 
+<<<<<<< HEAD
   swtl::Vector<int> vec;
   std::println("Before: {}", vec.capacity());
   vec.reserve(10);
@@ -69,4 +62,7 @@ auto main() -> int {
 
   std::println("After: {}", vec.capacity());
   vec.reserve(100);
+=======
+  swtl::Vector<ThrowingObject> vec(10);
+>>>>>>> cc0dc39 (Exception concerns and implementation refactor TODOs.)
 }
