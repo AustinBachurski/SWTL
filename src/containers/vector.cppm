@@ -107,17 +107,41 @@ private:
 static_assert(std::contiguous_iterator<VectorIterator<int>>);
 static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 
+template <typename T, typename Allocator> struct VectorBase {
+  using allocator_type = Allocator;
+  using pointer = std::allocator_traits<Allocator>::pointer;
+
+  VectorBase() = default;
+  VectorBase(Allocator const &allocator) : allocator_{allocator} {}
+
+  ~VectorBase() {
+    if (data_start_ != nullptr) {
+      std::allocator_traits<Allocator>::deallocate(allocator_, data_start_,
+                                                   capacity_end_ - data_start_);
+    }
+  }
+
+  [[no_unique_address]] Allocator allocator_;
+  pointer data_begin_{};
+  pointer data_end_{};
+  pointer capacity_end_{};
+};
+
 export template <typename T, typename Allocator = std::allocator<T>>
-class Vector {
+class Vector : public VectorBase<T, Allocator> {
+private:
+  using Base = VectorBase<T, Allocator>;
+  using alloc_traits = std::allocator_traits<Allocator>;
+
 public:
   // ** MEMBER TYPES **
   using value_type = std::remove_cv_t<T>;
-  using allocator_type = Allocator;
+  using allocator_type = Base::allocator_type;
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using reference = value_type &;
   using const_reference = value_type const &;
-  using pointer = std::allocator_traits<Allocator>::pointer;
+  using pointer = Base::pointer;
   using const_pointer = std::allocator_traits<Allocator>::const_pointer;
   using iterator = VectorIterator<T>;
   using const_iterator = VectorIterator<T const>;
@@ -126,6 +150,7 @@ public:
 
   // ** CONSTRUCTORS **
   Vector() = default;
+  Vector(Allocator const &allocator = Allocator()) : Base(allocator) {}
 
   explicit Vector(size_type count) {
     reserve(count);
@@ -666,11 +691,6 @@ private:
     data_ = destination;
     capacity_ = new_capacity;
   }
-
-  [[no_unique_address]] Allocator allocator_;
-  pointer data_{};
-  std::size_t capacity_{};
-  std::size_t size_{};
 };
 
 // Explicit Deduction Guide for CTAD.
