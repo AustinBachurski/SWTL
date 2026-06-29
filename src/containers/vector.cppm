@@ -691,11 +691,19 @@ private:
     data_ = destination;
     capacity_ = new_capacity;
   }
+
+  // TODO: Working Here - Add wrappers for allocate and create storage, then
+  // start converting the constructors.  Don't forget resize and migrate.
+  [[nodiscard]] constexpr auto allocate_at_least(size_type n) -> 
+
+  constexpr auto create_storage(size_type n) -> void {
+    auto result{ alloc_traits::allocate_at_least(
+  }
 };
 
-// Explicit Deduction Guide for CTAD.
-template <std::input_iterator InputIterator,
-          std::sentinel_for<InputIterator> Sentinel>
-Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
+  // Explicit Deduction Guide for CTAD.
+  template <std::input_iterator InputIterator,
+            std::sentinel_for<InputIterator> Sentinel>
+  Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
 
 } // namespace swtl
