@@ -2,7 +2,7 @@ export module swtl_memory;
 
 import std;
 
-namespace swtl::allocator_aware {
+namespace swtl::memory {
 
 template <typename Allocator>
 concept AllocatorType = requires(
@@ -18,80 +18,64 @@ concept AllocatorType = requires(
       std::declval<typename std::allocator_traits<Allocator>::pointer>(), n);
 };
 
-export template <AllocatorType Allocator, std::input_iterator SourceIterator,
-                 std::sentinel_for<SourceIterator> Sentinel,
-                 std::input_or_output_iterator DestinationIterator>
-constexpr auto
-uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
-                         Sentinel src_end, DestinationIterator dest_begin)
-    -> DestinationIterator {
-  using value_type = std::iter_value_t<SourceIterator>;
+export template <AllocatorType Allocator> struct AllocationGuard {
+  using pointer = std::allocator_traits<Allocator>::pointer;
+  using size_type = std::allocator_traits<Allocator>::size_type;
 
-  if constexpr (std::is_nothrow_move_constructible_v<value_type>) {
-    for (; src_begin != src_end; ++src_begin, ++dest_begin) {
-      std::allocator_traits<Allocator>::construct(
-          allocator, std::to_address(dest_begin), std::move(*src_begin));
-    }
-    return dest_begin;
-  } else {
-    auto position{dest_begin};
-    try {
-      for (; src_begin != src_end; ++src_begin, ++position) {
-        std::allocator_traits<Allocator>::construct(
-            allocator, std::to_address(position), std::move(*src_begin));
-      }
-      return position;
-    } catch (...) {
-      for (; dest_begin != position; ++dest_begin) {
-        std::allocator_traits<Allocator>::destroy(allocator,
-                                                  std::to_address(dest_begin));
-      }
-      throw;
+  AllocationGuard() = delete ("Must provide a reference to an allocator.");
+  constexpr AllocationGuard(Allocator const &allocator, pointer ptr_to_guard,
+                            size_type element_count)
+      : alloc{allocator}, ptr{ptr_to_guard}, count{element_count} {}
+  constexpr ~AllocationGuard() {
+    if (ptr != nullptr) {
+      std::allocator_traits<Allocator>::deallocate(alloc, ptr, count);
     }
   }
-}
 
-export template <AllocatorType Allocator, std::input_iterator SourceIterator,
-                 std::sentinel_for<SourceIterator> Sentinel,
-                 std::input_or_output_iterator DestinationIterator>
-constexpr auto
-uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
-                         Sentinel src_end, DestinationIterator dest_begin)
-    -> DestinationIterator {
-  using value_type = std::iter_value_t<SourceIterator>;
+  constexpr auto dismiss() -> void { ptr = nullptr; }
 
-  if constexpr (std::is_nothrow_copy_constructible_v<value_type>) {
-    for (; src_begin != src_end; ++src_begin, ++dest_begin) {
-      std::allocator_traits<Allocator>::construct(
-          allocator, std::to_address(dest_begin), *src_begin);
-    }
-    return dest_begin;
-  } else {
-    auto position{dest_begin};
-    try {
-      for (; src_begin != src_end; ++src_begin, ++position) {
-        std::allocator_traits<Allocator>::construct(
-            allocator, std::to_address(position), *src_begin);
-      }
-      return position;
-    } catch (...) {
-      for (; dest_begin != position; ++dest_begin) {
-        std::allocator_traits<Allocator>::destroy(allocator,
-                                                  std::to_address(dest_begin));
-      }
-      throw;
-    }
+  constexpr auto reassign(pointer ptr_to_guard, size_type element_count)
+      -> void {
+    ptr = ptr_to_guard;
+    count = element_count;
   }
-}
 
-export template <AllocatorType Allocator, typename Iterator>
-  requires std::input_or_output_iterator<Iterator>
-constexpr auto destroy_range(Allocator &allocator, Iterator begin,
-                             Iterator end) noexcept -> void {
+  Allocator &alloc;
+  pointer ptr;
+  size_type count;
+};
+
+export template <AllocatorType Allocator> struct ElementGuard {
+  using value_type = std::allocator_traits<Allocator>::value_type;
+  using pointer = std::allocator_traits<Allocator>::pointer;
+
+  ElementGuard() = delete ("Must provide a reference to an allocator.");
+  constexpr ElementGuard(Allocator const &allocator, pointer begin_ptr,
+                         pointer end_ptr)
+      : alloc{allocator}, begin{begin_ptr}, end{end_ptr} {}
+  constexpr ~ElementGuard() { destroy_range(alloc, begin, end); }
+
+  constexpr auto dismiss() -> void { begin, end = nullptr };
+
+  constexpr auto reassign(pointer begin_ptr, pointer end_ptr) -> void {
+    begin = begin_ptr;
+    end = end_ptr;
+  }
+
+  Allocator &alloc;
+  pointer begin;
+  pointer end;
+};
+
+export template <AllocatorType Allocator>
+constexpr auto
+destroy_range(Allocator &allocator,
+              std::allocator_traits<Allocator>::pointer begin,
+              std::allocator_traits<Allocator>::pointer end) noexcept -> void {
   for (; begin != end; ++begin) {
     std::allocator_traits<Allocator>::destroy(allocator,
                                               std::to_address(begin));
   }
 }
 
-} // namespace swtl::allocator_aware
+} // namespace swtl::memory
