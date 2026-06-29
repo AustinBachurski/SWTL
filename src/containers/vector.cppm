@@ -110,14 +110,14 @@ static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 template <typename T, typename Allocator> struct VectorBase {
   using allocator_type = Allocator;
   using pointer = std::allocator_traits<Allocator>::pointer;
+  using size_type = std::allocator_traits<Alloctaor>::size_type;
 
-  VectorBase() = default;
-  VectorBase(Allocator const &allocator) : allocator_{allocator} {}
-
-  ~VectorBase() {
-    if (data_start_ != nullptr) {
-      std::allocator_traits<Allocator>::deallocate(allocator_, data_start_,
-                                                   capacity_end_ - data_start_);
+  constexpr VectorBase() = default;
+  constexpr VectorBase(Allocator const &allocator) : allocator_{allocator} {}
+  constexpr ~VectorBase() {
+    if (data_begin_ != nullptr) {
+      a_traits::deallocate(allocator_, data_begin_,
+                           static_cast<size_type>(capacity_end_ - data_begin_));
     }
   }
 
@@ -131,7 +131,8 @@ export template <typename T, typename Allocator = std::allocator<T>>
 class Vector : public VectorBase<T, Allocator> {
 private:
   using Base = VectorBase<T, Allocator>;
-  using alloc_traits = std::allocator_traits<Allocator>;
+  using AllocResult = std::allocation_result<pointer, size_type>;
+  using a_traits = std::allocator_traits<Allocator>;
 
 public:
   // ** MEMBER TYPES **
@@ -153,17 +154,14 @@ public:
   Vector(Allocator const &allocator = Allocator()) : Base(allocator) {}
 
   explicit Vector(size_type count) {
-    reserve(count);
+    create_storage(count);
 
     for (auto const _ : std::views::iota(0UZ, count)) {
       emplace_back();
     }
   }
 
-  Vector(std::initializer_list<T> const &init_list)
-      : data_{std::allocator_traits<Allocator>::allocate(allocator_,
-                                                         init_list.size())},
-        capacity_{init_list.size()}, size_{init_list.size()} {
+  Vector(std::initializer_list<T> const &init_list) {
     allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
                                               init_list.end(), begin());
   }
@@ -399,11 +397,8 @@ public:
   }
 
   constexpr ~Vector() {
-    allocator_aware::destroy_range(allocator_, begin(), end());
-    if (data_ != nullptr) {
-      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                   capacity_);
-    }
+    memory::destroy_range(allocator_, begin(), end());
+    // Deallocation is handled by VectorBase.
   }
 
   // ** ITERATORS **
@@ -412,7 +407,7 @@ public:
     using const_correct_iterator =
         std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
                            const_iterator, iterator>;
-    return static_cast<const_correct_iterator>(self.data_);
+    return static_cast<const_correct_iterator>(self.data_begin_);
   }
 
   template <typename Self>
@@ -420,7 +415,7 @@ public:
     using const_correct_iterator =
         std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
                            const_iterator, iterator>;
-    return static_cast<const_correct_iterator>(self.data_ + self.size_);
+    return static_cast<const_correct_iterator>(self.data_end_);
   }
 
   [[nodiscard]] constexpr auto cbegin() const noexcept -> const_iterator {
@@ -461,15 +456,15 @@ public:
   template <typename Self>
   [[nodiscard]] constexpr auto at(this Self &&self, size_type position)
       -> decltype(auto) {
-    if (position >= self.size_) {
+    if (position >= self.size()) {
       std::string reason{"Vector Range Check: position (which is "};
       reason += format::integral_to_string(position);
       reason += ") >= this->size() (which is ";
-      reason += format::integral_to_string(self.size_);
+      reason += format::integral_to_string(self.size());
       reason += ")";
       throw std::out_of_range(reason);
     }
-    return std::forward_like<Self>(self.data_[position]);
+    return std::forward_like<Self>(*(self.data_begin_ + position));
   }
 
   // TODO: Add contract precondition.
@@ -477,21 +472,21 @@ public:
   [[nodiscard]] constexpr auto operator[](this Self &&self,
                                           size_type position) noexcept
       -> decltype(auto) {
-    return std::forward_like<Self>(self.data_[position]);
+    return std::forward_like<Self>(*(self.data_begin_ + position));
   }
 
   // TODO: Add contract precondition.
   template <typename Self>
   [[nodiscard]] constexpr auto front(this Self &&self) noexcept
       -> decltype(auto) {
-    return std::forward_like<Self>(self.data_[0]);
+    return std::forward_like<Self>(*self.data_begin_);
   }
 
   // TODO: Add contract precondition.
   template <typename Self>
   [[nodiscard]] constexpr auto back(this Self &&self) noexcept
       -> decltype(auto) {
-    return std::forward_like<Self>(self.data_[self.size_ - 1]);
+    return std::forward_like<Self>(*(self.data_end_ - 1));
   }
 
   template <typename Self>
@@ -499,28 +494,24 @@ public:
     using const_correct_pointer =
         std::conditional_t<std::is_const_v<std::remove_reference_t<Self>>,
                            const_pointer, pointer>;
-    return static_cast<const_correct_pointer>(self.data_);
+    return static_cast<const_correct_pointer>(self.data_begin_);
   }
 
   // ** CAPACITY **
   [[nodiscard]] constexpr auto is_empty() const noexcept -> bool {
-    return size_ == 0UZ;
+    return data_begin_ == data_end_;
   }
 
   [[nodiscard]] constexpr auto size() const noexcept -> size_type {
-    return size_;
+    return static_cast<size_type>(data_end_ - data_begin_);
   }
 
   [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-    return std::min(std::allocator_traits<Allocator>::max_size(allocator_),
+    return std::min(a_traits::max_size(allocator_),
                     std::numeric_limits<size_type>::max() / sizeof(value_type));
   }
 
   constexpr auto reserve(size_type new_capacity) -> void {
-    if (new_capacity <= capacity_) {
-      return;
-    }
-
     if (new_capacity > max_size()) {
       std::string reason{"Vector::reserve: new_capacity (which is "};
       reason += format::integral_to_string(new_capacity);
@@ -530,14 +521,32 @@ public:
       throw std::length_error(reason);
     }
 
-    auto *new_buffer{
-        std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
+    if (new_capacity <= capacity()) {
+      return;
+    }
 
-    migrate_data_to_new_memory(new_buffer, new_capacity);
+    if (data_begin_ == capacity_end_) {
+      create_storage(new_capacity);
+      return;
+    }
+
+    auto new_storage{allocate_at_least(calculate_growth_size(new_capacity))};
+
+    memory::AllocationGuard mem_guard{allocator_, new_storage.ptr,
+                                      new_storage.size};
+
+    migrate_to_new_storage(new_storage.ptr);
+
+    // Let the guard free the old memory.
+    mem_guard.reassign(data_begin_, capacity());
+
+    data_begin_ = new_storage.ptr;
+    data_end_ = data_begin_ + size();
+    capacity_end_ = data_begin_ + new_storage.count;
   }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return capacity_;
+    return static_cast<size_type>(capacity_end_ - data_begin_);
   }
 
   // shrink_to_fit()
@@ -555,25 +564,17 @@ public:
 
   template <typename... Args>
   constexpr auto emplace_back(Args &&...args) -> reference {
-    if (size_ == capacity_) {
+    if (data_end_ == capacity_end_) {
       size_type new_capacity{};
-      if (capacity_ == 0) {
-        new_capacity = 1;
-      } else if (capacity_ > max_size() / 2) {
-        new_capacity = max_size();
+      if (capacity_end_ == nullptr) {
+        create_storage(1);
       } else {
-        new_capacity = capacity_ * 2;
+        return realloc_emplace(std::forward<Args>(args)...)
       }
-
-      auto new_data{
-          std::allocator_traits<Allocator>::allocate(allocator_, new_capacity)};
-
-      migrate_data_to_new_memory(new_data, new_capacity);
     }
 
-    std::allocator_traits<Allocator>::construct(allocator_, data_ + size_,
-                                                std::forward<Args>(args)...);
-    return data_[size_++];
+    a_traits::construct(allocator_, data_end_, std::forward<Args>(args)...);
+    return *data_end_++;
   }
 
   // TODO: append_range()
@@ -595,9 +596,9 @@ public:
                       && "You are invoking undefined behavior here.");
     }
 
-    std::swap(data_, other.data_);
-    std::swap(size_, other.size_);
-    std::swap(capacity_, other.capacity_);
+    std::swap(data_begin_, other.data_begin_);
+    std::swap(data_end_, other.data_end_);
+    std::swap(capacity_end_, other.capacity_end_);
   }
 
   constexpr friend auto swap(Vector &lhs, Vector &rhs) noexcept -> void {
@@ -633,77 +634,118 @@ public:
   }
 
 private:
-  constexpr auto migrate_data_to_new_memory(pointer destination,
-                                            size_type new_capacity) -> void {
-    if constexpr (std::is_nothrow_move_constructible_v<T>) {
-      allocator_aware::uninitialized_move_range(
-          allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-          VectorIterator{destination});
-    } else if constexpr (std::is_nothrow_copy_constructible_v<T>) {
-      allocator_aware::uninitialized_copy_range(
-          allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-          VectorIterator{destination});
+  [[nodiscard]] constexpr auto allocate_at_least(size_type n) -> AllocResult {
+    auto result{a_traits::allocate_at_least(allocator_, n)};
+
+    auto max{max_size()};
+    if (count > max) {
+      result.count = max
+    };
+
+    return result;
+  }
+
+  constexpr auto create_storage(size_type n) -> void {
+    auto result{allocate_at_least(n)};
+
+    data_begin_, data_end_ = result.ptr;
+    capacity_end_ = data_begin_ + result.count;
+  }
+
+  constexpr auto calculate_growth_size(size_type target_growth = 1UZ)
+      -> size_type {
+    auto current_size{size()};
+    auto max_possible_growth{max_size() - current_size};
+
+    if (max_possible_growth < target_growth) {
+      throw std::length_error(
+          "Vector growth request exceeded maximum possible size.");
+    }
+
+    if (target_growth < current_size) {
+      target_growth = current_size;
+    }
+    if (target_growth > max_possible_growth) {
+      target_growth = max_possible_growth;
+    }
+    return current_size + target_growth;
+  }
+
+  constexpr auto migrate_to_new_storage(pointer new_storage) -> void {
+    static_assert(
+        std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>,
+        "Object type 'T' is neither moveable nor copyable, "
+        "making Vector reallocation impossible - use a different container.");
+
+    // Guard new elements as they are created, elements will be cleaned up
+    // automatically if an exception is thrown.
+    memory::ElementGuard elem_guard{allocator_, new_storage, new_storage};
+
+    auto source{data_begin_};
+
+    // By using the element guard's end member as the insertion point, we get
+    // cleanup tracking for free.
+    if constexpr (std::is_nothrow_move_constructible_v<T> ||
+                  !std::is_copy_constructible_v<T>) {
+      for (; source != data_end_; ++source, ++elem_guard.end) {
+        a_traits::construct(allocator_, std::to_address(elem_guard.end),
+                            std::move(*source));
+      }
     } else {
-      try {
-        if constexpr (std::is_copy_constructible_v<T>) {
-          allocator_aware::uninitialized_copy_range(
-              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-              VectorIterator{destination});
-        } else if constexpr (std::is_move_constructible_v<T>) {
-          // Strong Exception Safety is NOT guaranteed in this block. Move
-          // construction may throw and there is no copy constructor
-          // available. Only Basic Exception Safety can be offered at this
-          // point.
-
-          allocator_aware::uninitialized_move_range(
-              allocator_, VectorIterator{data_}, VectorIterator{data_ + size_},
-              VectorIterator{destination});
-        } else {
-          static_assert(std::is_copy_constructible_v<T> ||
-                            std::is_move_constructible_v<T>,
-                        "Object type 'T' is neither moveable nor copyable, "
-                        "making Vector reallication impossible.");
-        }
-      } catch (...) {
-        // The ununitialized_copy/_move functions takes care of destroying the
-        // new objects that were created during attempted migration, just have
-        // to free the memory before rethrowing.
-
-        std::allocator_traits<Allocator>::deallocate(allocator_, destination,
-                                                     new_capacity);
-        throw;
+      for (; source != data_end_; ++source, ++elem_guard.end) {
+        a_traits::construct(allocator_, std::to_address(elem_guard.end),
+                            *source);
       }
     }
 
-    // The uninitialized_ functions don't destroy objects unless the copy
-    // fails, and even then it's only the objects that were created prior to
-    // the error - not the originals.  So on successful reallocation:
-    // destroy the old objects, give the memory back to the allocator, and
-    // update our internals.
-
-    allocator_aware::destroy_range(allocator_, begin(), end());
-
-    if (data_ != nullptr) {
-      std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                   capacity_);
-    }
-
-    data_ = destination;
-    capacity_ = new_capacity;
+    // Migration successful, use the guard to destroy the old elements.
+    elem_guard.reassign(data_begin_, data_end_);
   }
 
-  // TODO: Working Here - Add wrappers for allocate and create storage, then
-  // start converting the constructors.  Don't forget resize and migrate.
-  [[nodiscard]] constexpr auto allocate_at_least(size_type n) -> 
+  constexpr auto realloc_emplace(Args &&...args) -> reference {
+    auto new_storage{allocate_at_least(calculate_growth_size())};
 
-  constexpr auto create_storage(size_type n) -> void {
-    auto result{ alloc_traits::allocate_at_least(
+    { // Allocation guard in place here.
+
+      memory::AllocationGuard mem_guard{allocator, new_storage.ptr,
+                                        new_storage.count};
+
+      auto new_element_begin{new_storage.ptr + size()};
+      auto new_element_end{new_element_begin + 1};
+
+      // If this throws the guard will clean up the allocation and the original
+      // elements remain untouched.
+      a_traits::construct(allocator_, new_element_begin,
+                          std::forward<Args>(args)...);
+
+      { // Element guard in place here.
+
+        // A valid element exists in new memory and must be destroyed prior to
+        // deallocation if an exception is thrown during data migration.
+        memory::ElementGuard elem_guard{allocator, new_element_begin,
+                                        new_element_end};
+
+        migrate_to_new_storage(new_storage.ptr);
+        elem_guard.dismiss();
+
+      } // Element guard in place here.
+
+      // Let the guard free the old memory.
+      mem_guard.reassign(data_begin_, capacity());
+
+      data_begin_ = new_storage.ptr;
+      data_end_ = new_element_end;
+      capacity_end_ = data_begin_ + new_storage.count;
+
+    } // Allocation guard in place here.
+
+    return back();
   }
 };
 
-  // Explicit Deduction Guide for CTAD.
-  template <std::input_iterator InputIterator,
-            std::sentinel_for<InputIterator> Sentinel>
-  Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
+// Explicit Deduction Guide for CTAD.
+template <std::input_iterator InputIterator,
+          std::sentinel_for<InputIterator> Sentinel>
+Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
 
 } // namespace swtl
