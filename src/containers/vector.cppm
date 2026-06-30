@@ -110,14 +110,15 @@ static_assert(std::contiguous_iterator<VectorIterator<int const>>);
 template <typename T, typename Allocator> struct VectorBase {
   using allocator_type = Allocator;
   using pointer = std::allocator_traits<Allocator>::pointer;
-  using size_type = std::allocator_traits<Alloctaor>::size_type;
+  using size_type = std::allocator_traits<Allocator>::size_type;
 
   constexpr VectorBase() = default;
   constexpr VectorBase(Allocator const &allocator) : allocator_{allocator} {}
   constexpr ~VectorBase() {
     if (data_begin_ != nullptr) {
-      a_traits::deallocate(allocator_, data_begin_,
-                           static_cast<size_type>(capacity_end_ - data_begin_));
+      std::allocator_traits<Allocator>::deallocate(
+          allocator_, data_begin_,
+          static_cast<size_type>(capacity_end_ - data_begin_));
     }
   }
 
@@ -131,7 +132,6 @@ export template <typename T, typename Allocator = std::allocator<T>>
 class Vector : public VectorBase<T, Allocator> {
 private:
   using Base = VectorBase<T, Allocator>;
-  using AllocResult = std::allocation_result<pointer, size_type>;
   using a_traits = std::allocator_traits<Allocator>;
 
 public:
@@ -149,9 +149,13 @@ public:
   using reverse_iterator = std::reverse_iterator<iterator>;
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
+private:
+  using AllocResult = std::allocation_result<pointer, size_type>;
+
+public:
   // ** CONSTRUCTORS **
   Vector() = default;
-  Vector(Allocator const &allocator = Allocator()) : Base(allocator) {}
+  Vector(Allocator const &allocator = Allocator()) : Base{allocator} {}
 
   explicit Vector(size_type count) {
     create_storage(count);
@@ -162,26 +166,25 @@ public:
   }
 
   Vector(std::initializer_list<T> const &init_list) {
-    allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
-                                              init_list.end(), begin());
+    create_storage(init_list.size());
+    data_end_ = memory::uninitialized_copy_range(allocator_, init_list.begin(),
+                                                 init_list.end(), begin());
   }
 
-  template <std::input_iterator InputIterator,
-            std::sentinel_for<InputIterator> Sentinel>
-  Vector(InputIterator in_begin, Sentinel in_end) {
-    auto const distance{std::ranges::distance(in_begin, in_end)};
+  template <std::input_iterator InputIterator>
+  Vector(InputIterator src_begin, InputIterator src_end) {
+    auto const distance{std::ranges::distance(src_begin, src_end)};
 
     if (distance < 0) {
       throw std::invalid_argument(
-          "Vector constructor: 'in_end' must be reachable from 'in_begin'");
+          "Vector constructor: 'src_end' must be reachable from 'src_begin'");
     }
 
     auto const count{static_cast<size_type>(distance)};
-    reserve(count);
+    create_storage(count);
 
-    allocator_aware::uninitialized_copy_range(allocator_, in_begin, in_end,
-                                              begin());
-    size_ = count;
+    data_end_ = memory::uninitialized_copy_range(allocator_, src_begin, src_end,
+                                                 begin());
   }
 
   // TODO: (count, value)
@@ -191,9 +194,8 @@ public:
 
   // ** SPECIAL MEMBER FUNCTIONS **
   Vector(Vector const &other)
-      : allocator_{
-            std::allocator_traits<Allocator>::
-                select_on_container_copy_construction(other.allocator_)} {
+      : Base{std::allocator_traits<Allocator>::
+                 select_on_container_copy_construction(other.allocator_)} {
     data_ = std::allocator_traits<Allocator>::allocate(allocator_, other.size_);
     try {
       allocator_aware::uninitialized_copy_range(
@@ -677,70 +679,59 @@ private:
         "Object type 'T' is neither moveable nor copyable, "
         "making Vector reallocation impossible - use a different container.");
 
-    // Guard new elements as they are created, elements will be cleaned up
-    // automatically if an exception is thrown.
-    memory::ElementGuard elem_guard{allocator_, new_storage, new_storage};
-
-    auto source{data_begin_};
-
-    // By using the element guard's end member as the insertion point, we get
-    // cleanup tracking for free.
     if constexpr (std::is_nothrow_move_constructible_v<T> ||
                   !std::is_copy_constructible_v<T>) {
-      for (; source != data_end_; ++source, ++elem_guard.end) {
-        a_traits::construct(allocator_, std::to_address(elem_guard.end),
-                            std::move(*source));
-      }
+      memory::uninitialized_move_range(allocator_, begin(), end(),
+                                       VectorIterator{new_storage});
     } else {
-      for (; source != data_end_; ++source, ++elem_guard.end) {
-        a_traits::construct(allocator_, std::to_address(elem_guard.end),
-                            *source);
-      }
+      memory::uninitialized_copy_range(allocator_, begin(), end(),
+                                       VectorIterator{new_storage});
     }
-
-    // Migration successful, use the guard to destroy the old elements.
-    elem_guard.reassign(data_begin_, data_end_);
   }
 
-  constexpr auto realloc_emplace(Args &&...args) -> reference {
-    auto new_storage{allocate_at_least(calculate_growth_size())};
+  memory::destroy_range(allocator_, begin(), end());
+}
 
-    { // Allocation guard in place here.
+template <typename... Args>
+constexpr auto realloc_emplace(Args &&...args) -> reference {
+  auto new_storage{allocate_at_least(calculate_growth_size())};
 
-      memory::AllocationGuard mem_guard{allocator, new_storage.ptr,
-                                        new_storage.count};
+  { // Allocation guard in place here.
 
-      auto new_element_begin{new_storage.ptr + size()};
-      auto new_element_end{new_element_begin + 1};
+    memory::AllocationGuard mem_guard{allocator, new_storage.ptr,
+                                      new_storage.count};
 
-      // If this throws the guard will clean up the allocation and the original
-      // elements remain untouched.
-      a_traits::construct(allocator_, new_element_begin,
-                          std::forward<Args>(args)...);
+    auto new_element_begin{new_storage.ptr + size()};
+    auto new_element_end{new_element_begin + 1};
 
-      { // Element guard in place here.
+    // If this throws the guard will clean up the allocation and the original
+    // elements remain untouched.
+    a_traits::construct(allocator_, new_element_begin,
+                        std::forward<Args>(args)...);
 
-        // A valid element exists in new memory and must be destroyed prior to
-        // deallocation if an exception is thrown during data migration.
-        memory::ElementGuard elem_guard{allocator, new_element_begin,
-                                        new_element_end};
+    { // Element guard in place here.
 
-        migrate_to_new_storage(new_storage.ptr);
-        elem_guard.dismiss();
+      // A valid element exists in new memory and must be destroyed prior to
+      // deallocation if an exception is thrown during data migration.
+      memory::ElementGuard elem_guard{allocator, new_element_begin,
+                                      new_element_end};
 
-      } // Element guard in place here.
+      migrate_to_new_storage(new_storage.ptr);
+      elem_guard.dismiss();
 
-      // Let the guard free the old memory.
-      mem_guard.reassign(data_begin_, capacity());
+    } // Element guard in place here.
 
-      data_begin_ = new_storage.ptr;
-      data_end_ = new_element_end;
-      capacity_end_ = data_begin_ + new_storage.count;
+    // Let the guard free the old memory.
+    mem_guard.reassign(data_begin_, capacity());
 
-    } // Allocation guard in place here.
+    data_begin_ = new_storage.ptr;
+    data_end_ = new_element_end;
+    capacity_end_ = data_begin_ + new_storage.count;
 
-    return back();
-  }
+  } // Allocation guard in place here.
+
+  return back();
+}
 };
 
 // Explicit Deduction Guide for CTAD.
