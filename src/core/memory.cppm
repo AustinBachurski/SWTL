@@ -4,12 +4,6 @@ import std;
 
 namespace swtl::memory {
 
-constexpr auto
-destroy_range(Allocator &allocator,
-              typename std::allocator_traits<Allocator>::pointer begin,
-              typename std::allocator_traits<Allocator>::pointer end) noexcept
-    -> void;
-
 template <typename Allocator>
 concept AllocatorType = requires(
     Allocator allocator, std::allocator_traits<Allocator>::size_type n) {
@@ -24,19 +18,32 @@ concept AllocatorType = requires(
       std::declval<typename std::allocator_traits<Allocator>::pointer>(), n);
 };
 
+export template <AllocatorType Allocator>
+constexpr auto
+destroy_range(Allocator &allocator,
+              typename std::allocator_traits<Allocator>::pointer begin,
+              typename std::allocator_traits<Allocator>::pointer end) noexcept
+    -> void;
+
 export template <AllocatorType Allocator> struct AllocationGuard {
   using pointer = std::allocator_traits<Allocator>::pointer;
   using size_type = std::allocator_traits<Allocator>::size_type;
 
-  AllocationGuard() = delete ("Must provide a reference to an allocator.");
   constexpr AllocationGuard(Allocator &allocator, pointer ptr_to_guard,
                             size_type element_count)
       : alloc{allocator}, ptr{ptr_to_guard}, count{element_count} {}
+
   constexpr ~AllocationGuard() {
     if (ptr != nullptr) {
       std::allocator_traits<Allocator>::deallocate(alloc, ptr, count);
     }
   }
+
+  AllocationGuard() = delete ("Must provide a reference to an allocator.");
+  AllocationGuard(AllocationGuard const &other) = delete;
+  AllocationGuard(AllocationGuard &&other) = delete;
+  auto operator=(AllocationGuard const &other) = delete;
+  auto operator=(AllocationGuard &&other) = delete;
 
   constexpr auto dismiss() -> void { ptr = nullptr; }
 
@@ -55,11 +62,17 @@ export template <AllocatorType Allocator> struct ElementGuard {
   using value_type = std::allocator_traits<Allocator>::value_type;
   using pointer = std::allocator_traits<Allocator>::pointer;
 
-  ElementGuard() = delete ("Must provide a reference to an allocator.");
   constexpr ElementGuard(Allocator &allocator, pointer begin_ptr,
                          pointer end_ptr)
       : alloc{allocator}, begin{begin_ptr}, end{end_ptr} {}
+
   constexpr ~ElementGuard() { destroy_range(alloc, begin, end); }
+
+  ElementGuard() = delete ("Must provide a reference to an allocator.");
+  ElementGuard(ElementGuard const &other) = delete;
+  ElementGuard(ElementGuard &&other) = delete;
+  auto operator=(ElementGuard const &other) = delete;
+  auto operator=(ElementGuard &&other) = delete;
 
   constexpr auto dismiss() -> void { begin = end = nullptr; };
 
@@ -92,7 +105,7 @@ constexpr auto
 uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
                          Sentinel src_end, DestinationIterator dest_begin)
     -> DestinationIterator {
-  ElementGuard elem_guard{std::to_address(dest_begin),
+  ElementGuard elem_guard{allocator, std::to_address(dest_begin),
                           std::to_address(dest_begin)};
 
   // By using the element guard's end member as the insertion point, we get
@@ -104,7 +117,7 @@ uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
 
   auto last{elem_guard.end};
   elem_guard.dismiss();
-  return last;
+  return DestinationIterator{last};
 }
 
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
@@ -114,7 +127,7 @@ constexpr auto
 uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
                          Sentinel src_end, DestinationIterator dest_begin)
     -> DestinationIterator {
-  ElementGuard elem_guard{std::to_address(dest_begin),
+  ElementGuard elem_guard{allocator, std::to_address(dest_begin),
                           std::to_address(dest_begin)};
 
   // By using the element guard's end member as the insertion point, we get
@@ -126,7 +139,7 @@ uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
 
   auto last{elem_guard.end};
   elem_guard.dismiss();
-  return last;
+  return DestinationIterator{last};
 }
 
 } // namespace swtl::memory
