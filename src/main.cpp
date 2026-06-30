@@ -56,4 +56,17 @@ struct ThrowingMoveConstructor {
 auto main() -> int {
   std::puts("");
   std::puts("");
+
+  swtl::Vector<int> vec;
+  std::println("Before: {}", vec.capacity());
+  vec.reserve(10);
+
+  vec.push_back(1);
+  vec.push_back(2);
+  vec.push_back(3);
+  vec.push_back(4);
+  vec.push_back(5);
+
+  std::println("After: {}", vec.capacity());
+  vec.reserve(100);
 }

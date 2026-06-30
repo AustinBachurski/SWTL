@@ -74,7 +74,7 @@ export template <AllocatorType Allocator> struct ElementGuard {
   auto operator=(ElementGuard const &other) = delete;
   auto operator=(ElementGuard &&other) = delete;
 
-  constexpr auto dismiss() -> void { begin = end = nullptr; };
+  constexpr auto dismiss() -> void { begin = end; };
 
   constexpr auto reassign(pointer begin_ptr, pointer end_ptr) -> void {
     begin = begin_ptr;
@@ -98,12 +98,35 @@ destroy_range(Allocator &allocator,
   }
 }
 
+export template <AllocatorType Allocator>
+constexpr auto uninitialized_copy(
+    Allocator &allocator,
+    typename std::allocator_traits<Allocator>::pointer src_begin,
+    typename std::allocator_traits<Allocator>::pointer src_end,
+    typename std::allocator_traits<Allocator>::pointer dest_begin)
+    -> std::allocator_traits<Allocator>::pointer {
+  ElementGuard elem_guard{allocator, std::to_address(dest_begin),
+                          std::to_address(dest_begin)};
+
+  // By using the element guard's end member as the insertion point, we get
+  // cleanup tracking for free.
+  for (; src_begin != src_end; ++src_begin, ++elem_guard.end) {
+    std::allocator_traits<Allocator>::construct(allocator, elem_guard.end,
+                                                *src_begin);
+  }
+
+  elem_guard.dismiss();
+  return elem_guard.end;
+}
+
+// TODO: Working here, ^v These two calls are ambiguous.
+
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
                  std::sentinel_for<SourceIterator> Sentinel,
                  std::input_or_output_iterator DestinationIterator>
-constexpr auto
-uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
-                         Sentinel src_end, DestinationIterator dest_begin)
+constexpr auto uninitialized_copy(Allocator &allocator,
+                                  SourceIterator src_begin, Sentinel src_end,
+                                  DestinationIterator dest_begin)
     -> DestinationIterator {
   ElementGuard elem_guard{allocator, std::to_address(dest_begin),
                           std::to_address(dest_begin)};
@@ -115,18 +138,17 @@ uninitialized_copy_range(Allocator &allocator, SourceIterator src_begin,
                                                 *src_begin);
   }
 
-  auto last{elem_guard.end};
   elem_guard.dismiss();
-  return DestinationIterator{last};
+  return DestinationIterator{elem_guard.end};
 }
 
-export template <AllocatorType Allocator, std::input_iterator SourceIterator,
-                 std::sentinel_for<SourceIterator> Sentinel,
-                 std::input_or_output_iterator DestinationIterator>
-constexpr auto
-uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
-                         Sentinel src_end, DestinationIterator dest_begin)
-    -> DestinationIterator {
+export template <AllocatorType Allocator>
+constexpr auto uninitialized_move(
+    Allocator &allocator,
+    typename std::allocator_traits<Allocator>::pointer src_begin,
+    typename std::allocator_traits<Allocator>::pointer src_end,
+    typename std::allocator_traits<Allocator>::pointer dest_begin)
+    -> std::allocator_traits<Allocator>::pointer {
   ElementGuard elem_guard{allocator, std::to_address(dest_begin),
                           std::to_address(dest_begin)};
 
@@ -137,9 +159,25 @@ uninitialized_move_range(Allocator &allocator, SourceIterator src_begin,
                                                 std::move(*src_begin));
   }
 
-  auto last{elem_guard.end};
   elem_guard.dismiss();
-  return DestinationIterator{last};
+  return elem_guard.end;
+}
+
+export template <AllocatorType Allocator>
+constexpr auto uninitialized_move_if_noexcept(
+    Allocator &allocator,
+    typename std::allocator_traits<Allocator>::pointer src_begin,
+    typename std::allocator_traits<Allocator>::pointer src_end,
+    typename std::allocator_traits<Allocator>::pointer dest_begin)
+    -> std::allocator_traits<Allocator>::pointer {
+  using value_type = std::allocator_traits<Allocator>::value_type;
+
+  if constexpr (std::is_nothrow_move_constructible_v<value_type> ||
+                !std::is_copy_constructible_v<value_type>) {
+    return uninitialized_move(allocator, src_begin, src_end, dest_begin);
+  } else {
+    return uninitialized_copy(allocator, src_begin, src_end, dest_begin);
+  }
 }
 
 } // namespace swtl::memory

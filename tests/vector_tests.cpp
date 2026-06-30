@@ -582,6 +582,8 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   }
 }
 
+// TODO: Add test case for double reserve to prevent the bug we just had to fix!
+// TODO: Add test case for pointer overflow is max_size() + ptr > ptr max?
 TEST_CASE("Reservation on an empty vector.", "[vector]") {
   swtl::Vector<int> vec;
 

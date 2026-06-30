@@ -223,8 +223,9 @@ public:
                    Allocator const &allocator = Allocator())
       : Base{allocator} {
     this->create_storage(init_list.size());
-    this->data_end_ = std::to_address(memory::uninitialized_copy_range(
-        this->allocator_, init_list.begin(), init_list.end(), begin()));
+    this->data_end_ = std::to_address(
+        memory::uninitialized_copy(this->allocator_, init_list.begin(),
+                                   init_list.end(), this->data_begin_));
   }
 
   template <std::input_iterator InputIterator>
@@ -241,8 +242,8 @@ public:
     auto const count{static_cast<size_type>(distance)};
     this->create_storage(count);
 
-    this->data_end_ = std::to_address(memory::uninitialized_copy_range(
-        this->allocator_, src_begin, src_end, begin()));
+    this->data_end_ = std::to_address(memory::uninitialized_copy(
+        this->allocator_, src_begin, src_end, this->data_begin_));
   }
 
   // TODO: (count, value)
@@ -253,8 +254,9 @@ public:
   // ** SPECIAL MEMBER FUNCTIONS **
   constexpr Vector(Vector const &other) : Base{other} {
     this->create_storage(other.size());
-    this->data_end_ = std::to_address(memory::uninitialized_copy_range(
-        this->allocator_, other.begin(), other.end(), begin()));
+    this->data_end_ =
+        memory::uninitialized_copy(this->allocator_, other.data_begin_,
+                                   other.data_end_, this->data_begin_);
   }
 
   constexpr auto operator=(Vector const &other) -> Vector & {
@@ -279,15 +281,15 @@ public:
         auto [ptr, count]{a_traits::allocate_at_least(new_alloc, other.size())};
 
         memory::AllocationGuard mem_guard{new_alloc, ptr, count};
-        auto new_end{memory::uninitialized_copy_range(
-            new_alloc, other.begin(), other.end(), VectorIterator{ptr})};
+        auto const new_end{memory::uninitialized_copy(
+            new_alloc, other.data_begin_, other.data_end_, ptr)};
         mem_guard.dismiss();
         destroy_elements_of_this();
         this->deallocate_memory_of_this();
 
         this->allocator_ = new_alloc;
         this->data_begin_ = ptr;
-        this->data_end_ = std::to_address(new_end);
+        this->data_end_ = new_end;
         this->capacity_end_ = this->data_begin_ + count;
         return *this;
       } else {
@@ -333,8 +335,8 @@ public:
     auto [ptr, count]{this->allocate_at_least(other.size())};
 
     memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-    auto new_end{memory::uninitialized_copy_range(
-        this->allocator_, other.begin(), other.end(), VectorIterator{ptr})};
+    auto new_end{memory::uninitialized_copy(this->allocator_, other.data_begin_,
+                                            other.data_end_, ptr)};
     mem_guard.dismiss();
     destroy_elements_of_this();
     this->deallocate_memory_of_this();
@@ -402,8 +404,8 @@ public:
 
       auto [ptr, count]{this->allocate_at_least(other.size())};
       memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-      auto new_end{memory::uninitialized_move_range(
-          this->allocator_, other.begin(), other.end(), VectorIterator{ptr})};
+      auto new_end{memory::uninitialized_move(
+          this->allocator_, other.data_begin_, other.data_end_, ptr)};
       mem_guard.dismiss();
       destroy_elements_of_this();
       this->deallocate_memory_of_this();
@@ -543,7 +545,7 @@ public:
       return;
     }
 
-    if (this->data_begin_ == this->capacity_end_) {
+    if (this->capacity_end_ == nullptr) {
       this->create_storage(new_capacity);
       return;
     }
@@ -552,15 +554,15 @@ public:
           count]{this->allocate_at_least(calculate_growth_size(new_capacity))};
 
     memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-
-    migrate_to_new_storage(ptr);
-
-    // Let the guard free the old memory.
-    mem_guard.reassign(this->data_begin_, capacity());
+    auto const new_end{memory::uninitialized_move_if_noexcept(
+        this->allocator_, this->data_begin_, this->data_end_, ptr)};
+    mem_guard.dismiss();
+    destroy_elements_of_this();
+    this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
-    this->data_end_ = this->data_begin_ + size();
-    this->capacity_end_ = this->data_begin_ + count;
+    this->data_end_ = new_end;
+    this->capacity_end_ = ptr + count;
   }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
@@ -676,23 +678,6 @@ private:
     this->data_end_ = this->data_begin_;
   }
 
-  constexpr auto migrate_to_new_storage(pointer new_storage) -> void {
-    static_assert(
-        std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>,
-        "Object type 'T' is neither moveable nor copyable, "
-        "making Vector reallocation impossible - use a different container.");
-
-    if constexpr (std::is_nothrow_move_constructible_v<T> ||
-                  !std::is_copy_constructible_v<T>) {
-      memory::uninitialized_move_range(this->allocator_, begin(), end(),
-                                       VectorIterator{new_storage});
-    } else {
-      memory::uninitialized_copy_range(this->allocator_, begin(), end(),
-                                       VectorIterator{new_storage});
-    }
-    destroy_elements_of_this();
-  }
-
   template <typename... Args>
   constexpr auto realloc_emplace(Args &&...args) -> reference {
     auto [ptr, count]{this->allocate_at_least(calculate_growth_size())};
@@ -710,7 +695,9 @@ private:
     // deallocation if an exception is thrown during data migration.
     memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
                                     new_element_end};
-    migrate_to_new_storage(ptr);
+    memory::uninitialized_move_if_noexcept(this->allocator_, this->data_begin_,
+                                           this->data_end_, ptr);
+    destroy_elements_of_this();
     elem_guard.dismiss();
     mem_guard.dismiss();
     this->deallocate_memory_of_this();
