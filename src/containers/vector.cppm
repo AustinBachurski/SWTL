@@ -284,7 +284,7 @@ public:
         auto const new_end{memory::uninitialized_copy(
             new_alloc, other.data_begin_, other.data_end_, ptr)};
         mem_guard.dismiss();
-        destroy_elements_of_this();
+        clear();
         this->deallocate_memory_of_this();
 
         this->allocator_ = new_alloc;
@@ -337,7 +337,7 @@ public:
     auto new_end{memory::uninitialized_copy(this->allocator_, other.data_begin_,
                                             other.data_end_, ptr)};
     mem_guard.dismiss();
-    destroy_elements_of_this();
+    clear();
     this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
@@ -358,7 +358,7 @@ public:
     if constexpr (a_traits::propagate_on_container_move_assignment::value) {
       // Allocator can be moved with the container - noexcept.
 
-      destroy_elements_of_this();
+      clear();
       this->deallocate_memory_of_this();
       this->allocator_ = std::move(other.allocator_);
       this->data_begin_ = other.data_begin_;
@@ -371,7 +371,7 @@ public:
       // allocators compare equal.  Ignore the allocator, move the rest -
       // noexcept.
 
-      destroy_elements_of_this();
+      clear();
       this->deallocate_memory_of_this();
       this->data_begin_ = other.data_begin_;
       this->data_end_ = other.data_end_;
@@ -406,7 +406,7 @@ public:
       auto new_end{memory::uninitialized_move(
           this->allocator_, other.data_begin_, other.data_end_, ptr)};
       mem_guard.dismiss();
-      destroy_elements_of_this();
+      clear();
       this->deallocate_memory_of_this();
 
       this->data_begin_ = ptr;
@@ -417,7 +417,7 @@ public:
   }
 
   constexpr ~Vector() {
-    destroy_elements_of_this();
+    clear();
     // Deallocation is handled by VectorBase.
   }
 
@@ -556,7 +556,7 @@ public:
     auto const new_end{memory::uninitialized_move_if_noexcept(
         this->allocator_, this->data_begin_, this->data_end_, ptr)};
     mem_guard.dismiss();
-    destroy_elements_of_this();
+    clear();
     this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
@@ -571,7 +571,11 @@ public:
   // shrink_to_fit()
 
   // ** MODIFIERS **
-  // TODO: clear()
+  constexpr auto clear() -> void {
+    memory::destroy(this->allocator_, begin(), end());
+    this->data_end_ = this->data_begin_;
+  }
+
   // TODO: insert()
   // TODO: insert_range()
   // TODO: emplace()
@@ -672,11 +676,6 @@ private:
     return current_size + target_growth;
   }
 
-  constexpr auto destroy_elements_of_this() -> void {
-    memory::destroy(this->allocator_, begin(), end());
-    this->data_end_ = this->data_begin_;
-  }
-
   template <typename... Args>
   constexpr auto realloc_emplace(Args &&...args) -> reference {
     auto [ptr, count]{this->allocate_at_least(calculate_growth_size())};
@@ -698,7 +697,7 @@ private:
                                            this->data_end_, ptr);
     elem_guard.dismiss();
     mem_guard.dismiss();
-    destroy_elements_of_this();
+    clear();
     this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
