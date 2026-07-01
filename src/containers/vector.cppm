@@ -6,6 +6,11 @@ import swtl_memory;
 
 namespace swtl {
 
+template <typename Range, typename T>
+concept container_compatible_range =
+    std::ranges::input_range<Range> &&
+    std::convertible_to<std::ranges::range_reference_t<Range>, T>;
+
 export template <typename T> class VectorIterator {
 public:
   using iterator_category = std::contiguous_iterator_tag;
@@ -228,6 +233,29 @@ public:
                                    init_list.end(), this->data_begin_);
   }
 
+  constexpr Vector(size_type count, T const &value) {
+    this->create_storage(count);
+
+    for (auto const _ : std::views::iota(0UZ, count)) {
+      emplace_back(value);
+    }
+  }
+
+  template <container_compatible_range<T> Range>
+  constexpr Vector(std::from_range_t, Range &&range) {
+    if constexpr (std::ranges::sized_range<Range>) {
+      auto count{static_cast<size_type>(std::ranges::size(range))};
+      this->create_storage(count);
+
+      this->data_end_ = memory::uninitialized_copy(
+          this->allocator_, range.begin(), range.end(), this->data_begin_);
+    } else {
+      for (auto &&element : range) {
+        emplace_back(element);
+      }
+    }
+  }
+
   template <std::input_iterator InputIterator>
   constexpr Vector(InputIterator src_begin, InputIterator src_end,
                    Allocator const &allocator = Allocator())
@@ -246,8 +274,6 @@ public:
                                                  src_end, this->data_begin_);
   }
 
-  // TODO: (count, value)
-  // TODO: container-compatible-range
   // TODO: assign_range
   // TODO: get_allocator
 
@@ -273,8 +299,8 @@ public:
         // If allocators do not compare as equal, the source allocator cannot
         // manage the memory allocated by the destination allocator and must
         // allocate new memory for the elements in the destination instance
-        // using the source allocator, then the destination allocator must free
-        // it's memory before being replaced with a copy of the source
+        // using the source allocator, then the destination allocator must
+        // free it's memory before being replaced with a copy of the source
         // allocator.
 
         Allocator new_alloc{other.allocator_};
@@ -414,7 +440,7 @@ public:
       this->capacity_end_ = this->data_begin_ + count;
       return *this;
     }
-  }
+  } // namespace swtl
 
   constexpr ~Vector() {
     clear();
@@ -707,9 +733,13 @@ private:
   }
 };
 
-// Explicit Deduction Guide for CTAD.
+// Explicit Deduction Guides for CTAD.
 template <std::input_iterator InputIterator,
           std::sentinel_for<InputIterator> Sentinel>
 Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
+
+template <std::ranges::input_range Range>
+Vector(std::from_range_t, Range &&)
+    -> Vector<std::ranges::range_value_t<Range>>;
 
 } // namespace swtl

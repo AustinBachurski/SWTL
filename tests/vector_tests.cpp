@@ -13,6 +13,7 @@
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
+#include <vector>
 
 import swtl_vector;
 
@@ -218,6 +219,27 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(vec.capacity() >= expected.size());
     REQUIRE(vec.data() != nullptr);
     REQUIRE(vec == expected);
+  }
+
+  SECTION("Count, Value constructor.") {
+    swtl::Vector<int> vec_of_int(4, 2);
+    swtl::Vector<std::string> vec_of_string(2, "four");
+
+    REQUIRE(vec_of_int == swtl::Vector{2, 2, 2, 2});
+    REQUIRE(vec_of_string == swtl::Vector<std::string>{
+                                 "four",
+                                 "four",
+                             });
+  }
+
+  SECTION("Range constructor.") {
+    std::vector init_list_of_int{1, 2, 3, 4, 5};
+    std::vector<std::string> init_list_of_string{"one", "two", "three"};
+    swtl::Vector vec_of_int(std::from_range, init_list_of_int);
+    swtl::Vector vec_of_string(std::from_range, init_list_of_string);
+
+    REQUIRE(std::ranges::equal(init_list_of_int, vec_of_int));
+    REQUIRE(std::ranges::equal(init_list_of_string, vec_of_string));
   }
 }
 
@@ -451,6 +473,12 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
 }
 
 TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
+  struct ThrowingConstructor {
+    int x{};
+
+    ThrowingConstructor() { throw std::runtime_error("Do you leak?"); };
+  };
+
   struct ThrowingCopyConstructor {
     int x{};
     float y{};
@@ -494,6 +522,10 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
       throw std::runtime_error("Oh noes, I throws!");
     }
   };
+
+  SECTION("Object with throwing constructor.") {
+    REQUIRE_THROWS_AS(swtl::Vector<ThrowingConstructor>(1), std::runtime_error);
+  }
 
   SECTION("Object with throwing copy constructor.") {
     swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);

@@ -114,7 +114,7 @@ constexpr auto uninitialized_copy(Allocator &allocator,
   }
 
   elem_guard.dismiss();
-  return elem_guard.end;
+  return DestinationIterator{elem_guard.end};
 }
 
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
@@ -135,7 +135,7 @@ constexpr auto uninitialized_move(Allocator &allocator,
   }
 
   elem_guard.dismiss();
-  return elem_guard.end;
+  return DestinationIterator{elem_guard.end};
 }
 
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
