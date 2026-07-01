@@ -48,52 +48,74 @@ TEST_CASE("VectorIterator const conversion.", "[vector_iterator]") {
   }
 }
 
-TEST_CASE("VectorIterator for user defined types.", "[vector_iterator]") {
+TEST_CASE("VectorIterator element access.", "[vector_iterator]") {
   struct CustomObject {
-    int part_number{1042};
-    std::string_view name{"Oil Filter"};
-    double price{12.99};
+    int value{};
+    std::string_view flavor{};
   };
 
-  CustomObject base;
+  CustomObject base{68, "speed limit"};
+  CustomObject const const_base{68, "cause at 69 you eat it"};
+  auto &ref_to_base{base};
+  auto &ref_to_const_base{const_base};
 
-  SECTION("VectorIterator::operator* accesses members correctly.") {
-    swtl::Vector<CustomObject> vec(1);
-    auto iter{vec.begin()};
+  swtl::Vector<CustomObject> vec{{1, "that"}, {2, "tasted"}, {3, "purple"}};
+  auto const const_vec{vec};
 
-    REQUIRE((*iter).part_number == base.part_number);
-    REQUIRE(std::is_same_v<decltype((*iter).part_number),
-                           decltype(base.part_number)>);
-    REQUIRE((*iter).name == base.name);
-    REQUIRE(std::is_same_v<decltype((*iter).name), decltype(base.name)>);
-    REQUIRE((*iter).price == base.price);
-    REQUIRE(std::is_same_v<decltype((*iter).price), decltype(base.price)>);
+  auto iter{vec.begin()};
+  auto const_iter{const_vec.begin()};
+
+  // TODO: Working Here, tests are likely invalid, references are always const.
+
+  SECTION("operator* returns a reference to the underlying element.") {
+    REQUIRE(std::is_same_v<decltype(*iter), decltype(ref_to_base)>);
+    REQUIRE(std::is_same_v<decltype((*iter).value), decltype(base.value)>);
+    REQUIRE(std::is_same_v<decltype((*iter).flavor), decltype(base.flavor)>);
+
+    REQUIRE((*iter).value == 1);
+    REQUIRE((*iter).flavor == "that");
+
+    REQUIRE(std::is_same_v<decltype(*const_iter), decltype(ref_to_const_base)>);
+    REQUIRE(std::is_same_v<decltype((*const_iter).value),
+                           decltype(const_base.value)>);
+    REQUIRE(std::is_same_v<decltype((*const_iter).flavor),
+                           decltype(const_base.flavor)>);
+
+    REQUIRE((*const_iter).value == 1);
+    REQUIRE((*const_iter).flavor == "that");
   }
 
-  SECTION("VectorIterator::operator-> accesses members correctly.") {
-    swtl::Vector<CustomObject> vec(1);
-    auto iter{vec.begin()};
+  SECTION("operator-> accesses the underlying object via pointer semantics.") {
+    REQUIRE(std::is_same_v<decltype(iter->value), decltype(base.value)>);
+    REQUIRE(std::is_same_v<decltype(iter->flavor), decltype(base.flavor)>);
 
-    REQUIRE(iter->part_number == base.part_number);
-    REQUIRE(std::is_same_v<decltype(iter->part_number),
-                           decltype(base.part_number)>);
-    REQUIRE(iter->name == base.name);
-    REQUIRE(std::is_same_v<decltype(iter->name), decltype(base.name)>);
-    REQUIRE(iter->price == base.price);
-    REQUIRE(std::is_same_v<decltype(iter->price), decltype(base.price)>);
+    REQUIRE(iter->value == 1);
+    REQUIRE(iter->flavor == "that");
   }
 
-  SECTION("VectorIterator::operator[] accesses members correctly.") {
-    swtl::Vector<CustomObject> vec(3);
-    auto iter{vec.begin()};
+  SECTION("operator[] returns a reference to the element at the specified "
+          "offset.") {
+    REQUIRE(std::is_same_v<decltype(iter[0]), decltype(ref_to_base)>);
+    REQUIRE(std::is_same_v<decltype(iter[0].value), decltype(base.value)>);
+    REQUIRE(std::is_same_v<decltype(iter[0].flavor), decltype(base.flavor)>);
 
-    REQUIRE(iter[0].part_number == base.part_number);
-    REQUIRE(std::is_same_v<decltype((*iter).part_number),
-                           decltype(base.part_number)>);
-    REQUIRE(iter[1].name == base.name);
-    REQUIRE(std::is_same_v<decltype((*iter).name), decltype(base.name)>);
-    REQUIRE(iter[2].price == base.price);
-    REQUIRE(std::is_same_v<decltype((*iter).price), decltype(base.price)>);
+    REQUIRE(iter[0].value == 1);
+    REQUIRE(iter[0].flavor == "that");
+
+    REQUIRE(iter[1].value == 2);
+    REQUIRE(iter[1].flavor == "tasted");
+
+    REQUIRE(iter[2].value == 3);
+    REQUIRE(iter[2].flavor == "purple");
+
+    REQUIRE(
+        std::is_same_v<decltype(const_iter[0]), decltype(ref_to_const_base)>);
+    REQUIRE(
+        // But this test isn't working as expected, need to understand this.
+        std::is_same_v<std::remove_reference_t<decltype(iter[0].value)>,
+                       std::remove_reference_t<decltype(const_base.value)>>);
+    REQUIRE(std::is_same_v<decltype(const_iter[0].flavor),
+                           decltype(const_base.flavor)>);
   }
 }
 
