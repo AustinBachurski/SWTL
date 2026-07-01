@@ -223,9 +223,9 @@ public:
                    Allocator const &allocator = Allocator())
       : Base{allocator} {
     this->create_storage(init_list.size());
-    this->data_end_ = std::to_address(
+    this->data_end_ =
         memory::uninitialized_copy(this->allocator_, init_list.begin(),
-                                   init_list.end(), this->data_begin_));
+                                   init_list.end(), this->data_begin_);
   }
 
   template <std::input_iterator InputIterator>
@@ -242,8 +242,8 @@ public:
     auto const count{static_cast<size_type>(distance)};
     this->create_storage(count);
 
-    this->data_end_ = std::to_address(memory::uninitialized_copy(
-        this->allocator_, src_begin, src_end, this->data_begin_));
+    this->data_end_ = memory::uninitialized_copy(this->allocator_, src_begin,
+                                                 src_end, this->data_begin_);
   }
 
   // TODO: (count, value)
@@ -323,7 +323,7 @@ public:
         // hanging around.
         memory::destroy(this->allocator_, end_of_copied_data, this->data_end_);
 
-        this->data_end_ = std::to_address(end_of_copied_data);
+        this->data_end_ = end_of_copied_data;
         return *this;
       }
     }
@@ -341,7 +341,7 @@ public:
     this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
-    this->data_end_ = std::to_address(new_end);
+    this->data_end_ = new_end;
     this->capacity_end_ = this->data_begin_ + count;
     return *this;
   }
@@ -410,7 +410,7 @@ public:
       this->deallocate_memory_of_this();
 
       this->data_begin_ = ptr;
-      this->data_end_ = std::to_address(new_end);
+      this->data_end_ = new_end;
       this->capacity_end_ = this->data_begin_ + count;
       return *this;
     }
@@ -685,8 +685,8 @@ private:
     auto new_element_begin{ptr + size()};
     auto new_element_end{new_element_begin + 1};
 
-    // If this throws the guard will clean up the allocation and the original
-    // elements remain untouched.
+    // If this throws the memory guard will clean up the allocation and the
+    // original elements remain untouched.
     a_traits::construct(this->allocator_, new_element_begin,
                         std::forward<Args>(args)...);
 
@@ -696,9 +696,9 @@ private:
                                     new_element_end};
     memory::uninitialized_move_if_noexcept(this->allocator_, this->data_begin_,
                                            this->data_end_, ptr);
-    destroy_elements_of_this();
     elem_guard.dismiss();
     mem_guard.dismiss();
+    destroy_elements_of_this();
     this->deallocate_memory_of_this();
 
     this->data_begin_ = ptr;
