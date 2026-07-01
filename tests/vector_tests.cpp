@@ -523,19 +523,9 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     }
   };
 
-  // TODO: FIX! - What happens if element construction throws after reservation?
-  // Memory leaks abound currently, update to follow/use libstdc++'s pattern of
-  // VectorBase and Guard objects instead of having try/catch all over the
-  // place.
-  //
-  // Test section below will begin testing for this, currently failing.
-
-  /*
-    SECTION("Object with throwing constructor.") {
-      REQUIRE_THROWS_AS(swtl::Vector<ThrowingConstructor>(10),
-                        std::runtime_error);
-    }
-  */
+  SECTION("Object with throwing constructor.") {
+    REQUIRE_THROWS_AS(swtl::Vector<ThrowingConstructor>(1), std::runtime_error);
+  }
 
   SECTION("Object with throwing copy constructor.") {
     swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);
