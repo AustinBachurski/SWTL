@@ -321,8 +321,7 @@ public:
         // After data is copied, destroy the existing elements that were not
         // overwritten with the copied data so there's no phantom elements
         // hanging around.
-        memory::destroy_range(this->allocator_, end_of_copied_data,
-                              this->data_end_);
+        memory::destroy(this->allocator_, end_of_copied_data, this->data_end_);
 
         this->data_end_ = std::to_address(end_of_copied_data);
         return *this;
@@ -674,7 +673,7 @@ private:
   }
 
   constexpr auto destroy_elements_of_this() -> void {
-    memory::destroy_range(this->allocator_, this->data_begin_, this->data_end_);
+    memory::destroy(this->allocator_, begin(), end());
     this->data_end_ = this->data_begin_;
   }
 
