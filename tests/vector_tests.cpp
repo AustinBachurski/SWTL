@@ -191,7 +191,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
 
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
-    REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(vec.capacity() >= init_list.size());
     REQUIRE(vec.data() != nullptr);
     REQUIRE(std::ranges::equal(vec, init_list));
   }
@@ -202,7 +202,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
 
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
-    REQUIRE(vec.capacity() == init_list.size());
+    REQUIRE(vec.capacity() >= init_list.size());
     REQUIRE(vec.data() != nullptr);
     REQUIRE(std::ranges::equal(vec, init_list));
   }
@@ -215,7 +215,7 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(should_be_empty.is_empty());
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == expected.size());
-    REQUIRE(vec.capacity() == expected.capacity());
+    REQUIRE(vec.capacity() >= expected.size());
     REQUIRE(vec.data() != nullptr);
     REQUIRE(vec == expected);
   }
@@ -412,6 +412,8 @@ TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
     REQUIRE(initial != source);
     REQUIRE(initial.data() == data_ptr_before_move);
 
+    // TODO: These might not be true depending on allocator propagation and
+    // equality.
     REQUIRE(source.data() == nullptr);
     REQUIRE(source.size() == 0UZ);
     REQUIRE(source.capacity() == 0UZ);
@@ -519,7 +521,7 @@ TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
     // hold.  Cannot guarantee the state of the contained elements.
     REQUIRE_THROWS_AS(throws_on_move.emplace_back(), std::runtime_error);
     REQUIRE(throws_on_move.size() == expected.size());
-    REQUIRE(throws_on_move.capacity() == expected.capacity());
+    REQUIRE(throws_on_move.capacity() >= expected.size());
     REQUIRE(throws_on_move.data() != nullptr);
   }
 }
@@ -582,6 +584,8 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   }
 }
 
+// TODO: Add test case for double reserve to prevent the bug we just had to fix!
+// TODO: Add test case for pointer overflow is max_size() + ptr > ptr max?
 TEST_CASE("Reservation on an empty vector.", "[vector]") {
   swtl::Vector<int> vec;
 
@@ -591,18 +595,19 @@ TEST_CASE("Reservation on an empty vector.", "[vector]") {
 
     REQUIRE(vec.is_empty());
     REQUIRE(vec.size() == 0UZ);
-    REQUIRE(vec.capacity() == initial_capacity);
+    REQUIRE(vec.capacity() >= initial_capacity);
 
     SECTION("Continued reservation grows capacity again.") {
       auto const final_capacity{20UZ};
       vec.reserve(final_capacity);
 
-      REQUIRE(vec.capacity() == final_capacity);
+      REQUIRE(vec.capacity() >= final_capacity);
 
       SECTION("Reserving less than the current capacity does nothing.") {
+        auto const before_resize_attempt{vec.capacity()};
         vec.reserve(initial_capacity);
 
-        REQUIRE(vec.capacity() == final_capacity);
+        REQUIRE(vec.capacity() == before_resize_attempt);
       }
     }
   }
@@ -618,13 +623,15 @@ TEST_CASE("Reservation on a populated vector.", "[vector]") {
   swtl::Vector<int> const expected{vec};
   auto const initial_capacity{vec.capacity()};
 
+  // Capacity may be greater than requested due to using allocate_at_least().
+
   SECTION("Reservation grows capacity but does not modify elements.") {
     auto new_capacity{10UZ};
     vec.reserve(new_capacity);
 
     REQUIRE(vec == expected);
     REQUIRE(vec.size() == expected.size());
-    REQUIRE(vec.capacity() == new_capacity);
+    REQUIRE(vec.capacity() >= new_capacity);
 
     SECTION("Continued reservation grows capacity again.") {
       auto const final_capacity{20UZ};
@@ -632,12 +639,12 @@ TEST_CASE("Reservation on a populated vector.", "[vector]") {
 
       REQUIRE(vec == expected);
       REQUIRE(vec.size() == expected.size());
-      REQUIRE(vec.capacity() == final_capacity);
+      REQUIRE(vec.capacity() >= final_capacity);
 
       SECTION("Reserving less than the current capacity does nothing.") {
         vec.reserve(initial_capacity);
 
-        REQUIRE(vec.capacity() == final_capacity);
+        REQUIRE(vec.capacity() >= final_capacity);
       }
     }
   }
@@ -680,13 +687,16 @@ TEST_CASE("Vector memory growth.", "[vector]") {
 
     SECTION("Insertion up to capacity does not trigger growth.") {
       REQUIRE(vec.size() == initial_capacity);
-      REQUIRE(vec.capacity() == initial_capacity);
+      REQUIRE(vec.capacity() >= initial_capacity);
     }
 
     SECTION("Insertion beyond capacity does trigger growth.") {
-      vec.push_back(42UZ);
+      auto const difference{vec.capacity() - vec.size() + 1};
+      for (auto const _ : std::views::iota(0UZ, difference)) {
+        vec.push_back(42UZ);
+      }
 
-      REQUIRE(vec.size() == initial_capacity + 1UZ);
+      REQUIRE(vec.size() == initial_capacity + difference);
       REQUIRE(vec.capacity() > initial_capacity);
     }
   }
