@@ -48,21 +48,4 @@ struct ThrowingObject {
 auto main() -> int {
   std::puts("");
   std::puts("");
-
-<<<<<<< HEAD
-  swtl::Vector<int> vec;
-  std::println("Before: {}", vec.capacity());
-  vec.reserve(10);
-
-  vec.push_back(1);
-  vec.push_back(2);
-  vec.push_back(3);
-  vec.push_back(4);
-  vec.push_back(5);
-
-  std::println("After: {}", vec.capacity());
-  vec.reserve(100);
-=======
-  swtl::Vector<ThrowingObject> vec(10);
->>>>>>> cc0dc39 (Exception concerns and implementation refactor TODOs.)
 }
