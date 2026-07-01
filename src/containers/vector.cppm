@@ -245,30 +245,15 @@ public:
   constexpr Vector(std::from_range_t, Range &&range) {
     if constexpr (std::ranges::sized_range<Range>) {
       auto count{static_cast<size_type>(std::ranges::size(range))};
-      reserve(count);
+      this->create_storage(count);
 
-      try {
-        allocator_aware::uninitialized_copy_range(allocator_, range.begin(),
-                                                  range.end(), begin());
-        size_ = count;
-      } catch (...) {
-        std::allocator_traits<Allocator>::deallocate(allocator_, data_,
-                                                     capacity_);
-        throw;
-      }
+      this->data_end_ = memory::uninitialized_copy(
+          this->allocator_, range.begin(), range.end(), this->data_begin_);
     } else {
       for (auto &&element : range) {
         emplace_back(element);
       }
     }
-  }
-
-  constexpr explicit Vector(std::initializer_list<T> const &init_list)
-      : data_{std::allocator_traits<Allocator>::allocate(allocator_,
-                                                         init_list.size())},
-        capacity_{init_list.size()}, size_{init_list.size()} {
-    allocator_aware::uninitialized_copy_range(allocator_, init_list.begin(),
-                                              init_list.end(), begin());
   }
 
   template <std::input_iterator InputIterator>
