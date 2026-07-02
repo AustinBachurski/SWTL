@@ -348,10 +348,85 @@ TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
   }
 }
 
-TEST_CASE("Iterator validation.", "[vector]") {
+TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
+  swtl::Vector vec{1, 2, 3, 4, 5};
+  swtl::Vector const const_vec{1, 2, 3, 4, 5};
+
+  // Forward iterators.
+  SECTION("begin() returns non const iterator from non const container and a "
+          "const iterator from a const container..") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.begin()), swtl::VectorIterator<int>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(const_vec.begin()),
+                                  swtl::VectorIterator<int const>>);
+  }
+
+  SECTION("end() returns non const iterator from non const container and a "
+          "const iterator from a const container..") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.end()), swtl::VectorIterator<int>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(const_vec.end()),
+                                  swtl::VectorIterator<int const>>);
+  }
+
+  SECTION("cbegin() returns a const iterator regardless of the container.") {
+    STATIC_REQUIRE(std::is_same_v<decltype(vec.cbegin()),
+                                  swtl::VectorIterator<int const>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(const_vec.cbegin()),
+                                  swtl::VectorIterator<int const>>);
+  }
+
+  SECTION("cend() returns a const iterator regardless of the container.") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.cend()), swtl::VectorIterator<int const>>);
+    STATIC_REQUIRE(std::is_same_v<decltype(const_vec.cend()),
+                                  swtl::VectorIterator<int const>>);
+  }
+
+  // Reverse iterators.
+  SECTION("rbegin() returns non const iterator from non const container and a "
+          "const iterator from a const container..") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.rbegin()),
+                       std::reverse_iterator<swtl::VectorIterator<int>>>);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(const_vec.rbegin()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+  }
+
+  SECTION("rend() returns non const iterator from non const container and a "
+          "const iterator from a const container..") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.rend()),
+                       std::reverse_iterator<swtl::VectorIterator<int>>>);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(const_vec.rend()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+  }
+
+  SECTION("crbegin() returns a const iterator regardless of the container.") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.crbegin()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(const_vec.crbegin()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+  }
+
+  SECTION("crend() returns a const iterator regardless of the container.") {
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.crend()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(const_vec.crend()),
+                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
+  }
+}
+
+TEST_CASE("Iterators behave as expected.", "[vector]") {
   swtl::Vector vec{1, 2, 3, 4, 5};
 
-  SECTION("Const correctness.") {
+  SECTION("Iterators are const correct.") {
     STATIC_REQUIRE(std::is_same_v<decltype(vec.cbegin()),
                                   swtl::VectorIterator<int const>>);
     STATIC_REQUIRE(
