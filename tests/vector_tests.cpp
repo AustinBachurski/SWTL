@@ -13,6 +13,7 @@
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 import swtl_vector;
@@ -134,68 +135,58 @@ TEST_CASE("VectorIterator arithmetic operators.", "[vector_iterator]") {
   std::array const values{1, 2, 3, 4, 5};
   swtl::Vector const vec(values.begin(), values.end());
 
-  SECTION("operator++.") {
-    auto iter{vec.begin()};
+  auto begin_iter{vec.begin()};
+  auto end_iter{vec.end()};
 
-    REQUIRE(*iter++ == values.front());
-    REQUIRE(*iter == values[1]);
-    REQUIRE(*++iter == values[2]);
+  SECTION("operator++ increments the iterator.") {
+    REQUIRE(*begin_iter++ == values.front());
+    REQUIRE(*begin_iter == values[1]);
+    REQUIRE(*++begin_iter == values[2]);
   }
 
-  SECTION("operator--.") {
-    auto iter{vec.end()};
-
-    REQUIRE(*--iter == values.back());
-    REQUIRE(*iter-- == values.back());
-    REQUIRE(*iter == values[3]);
+  SECTION("operator-- decrements the iterator.") {
+    REQUIRE(*--end_iter == values.back());
+    REQUIRE(*end_iter-- == values.back());
+    REQUIRE(*end_iter == values[3]);
   }
 
-  SECTION("operator+=.") {
-    auto iter{vec.begin()};
-
-    REQUIRE(*(iter += 1) == values[1]);
-    REQUIRE(*(iter += 2) == values[3]);
+  SECTION("operator+= increments the iterator by n.") {
+    REQUIRE(*(begin_iter += 1) == values[1]);
+    REQUIRE(*(begin_iter += 2) == values[3]);
   }
 
-  SECTION("operator-=.") {
-    auto iter{vec.end()};
-
-    REQUIRE(*(iter -= 1) == values.back());
-    REQUIRE(*(iter -= 2) == values[2]);
+  SECTION("operator-= decrements the iterator by n.") {
+    REQUIRE(*(end_iter -= 1) == values.back());
+    REQUIRE(*(end_iter -= 2) == values[2]);
   }
 
-  SECTION("operator+(iterator, difference_type.") {
-    auto iter{vec.begin()};
-
-    REQUIRE(*(iter + 2) == values[2]);
-    REQUIRE(*iter == values.front());
-    REQUIRE(*(iter + values.size() - 1) == values.back());
+  SECTION("operator+(iterator, difference_type) returns a new iterator "
+          "incremented by n.") {
+    REQUIRE(*(begin_iter + 2) == values[2]);
+    REQUIRE(*begin_iter == values.front());
+    REQUIRE(*(begin_iter + values.size() - 1) == values.back());
   }
 
-  SECTION("operator+(difference_type, iterator.") {
-    auto iter{vec.begin()};
-
-    REQUIRE(*(2 + iter) == values[2]);
-    REQUIRE(*iter == values.front());
-    REQUIRE(*(values.size() - 1 + iter) == values.back());
+  SECTION("operator+(difference_type, iterator) returns a new iterator "
+          "incremented by n.") {
+    REQUIRE(*(2 + begin_iter) == values[2]);
+    REQUIRE(*begin_iter == values.front());
+    REQUIRE(*(values.size() - 1 + begin_iter) == values.back());
   }
 
-  SECTION("operator-(iterator, difference_type).") {
-    auto iter{vec.end()};
-
-    REQUIRE(*(iter - 2) == values[3]);
-    REQUIRE(iter == vec.end());
-    REQUIRE(*(iter - values.size()) == values.front());
+  SECTION("operator-(iterator, difference_type) returns a new iterator "
+          "decremented by n.") {
+    REQUIRE(*(end_iter - 2) == values[3]);
+    REQUIRE(end_iter == vec.end());
+    REQUIRE(*(end_iter - values.size()) == values.front());
   }
 
-  SECTION("operator-(iterator, iterator).") {
-    auto lhs{vec.end()};
-    auto rhs{vec.begin() + 2};
-
-    REQUIRE(vec.begin() - vec.end() == -5);
-    REQUIRE(lhs - rhs == 3);
-    REQUIRE(rhs - vec.begin() == 2);
-    REQUIRE(vec.end() - vec.begin() == static_cast<std::ptrdiff_t>(vec.size()));
+  SECTION("operator-(iterator, iterator) returns the distance between two "
+          "iterators.") {
+    REQUIRE(begin_iter - end_iter == -5);
+    REQUIRE(end_iter - (begin_iter + 2) == 3);
+    REQUIRE(begin_iter + 2 - vec.begin() == 2);
+    REQUIRE(std::cmp_equal(vec.end() - vec.begin(), vec.size()));
   }
 }
 
@@ -246,7 +237,7 @@ TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]") {
 
 // ** VECTOR TESTS **
 TEST_CASE("Vector initialization.", "[vector]") {
-  SECTION("Default construction should result in a valid container.") {
+  SECTION("Vector()") {
     swtl::Vector<int> vec;
     REQUIRE(vec.is_empty());
     REQUIRE(vec.size() == 0UZ);
