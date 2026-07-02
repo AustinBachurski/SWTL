@@ -24,6 +24,7 @@ auto handle_contract_violation(
       violation.location().file_name(), violation.location().line()));
 }
 
+// ** VECTOR ITERATOR TESTS **
 TEST_CASE("VectorIterator initialization.", "[vector_iterator]") {
   SECTION("Valid initalization.") {
     swtl::Vector<int> empty_vec;
@@ -243,6 +244,7 @@ TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]") {
   }
 }
 
+// ** VECTOR TESTS **
 TEST_CASE("Vector initialization.", "[vector]") {
   SECTION("Default construction should result in a valid container.") {
     swtl::Vector<int> vec;
