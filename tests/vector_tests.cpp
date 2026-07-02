@@ -17,8 +17,8 @@
 
 import swtl_vector;
 
-void handle_contract_violation(
-    std::contracts::contract_violation const &violation) {
+auto handle_contract_violation(
+    std::contracts::contract_violation const &violation) -> void {
   throw std::logic_error(std::format(
       "Contract Violation: {}\nLocation: {}:{}", violation.comment(),
       violation.location().file_name(), violation.location().line()));
@@ -63,8 +63,6 @@ TEST_CASE("VectorIterator access operators.", "[vector_iterator]") {
 
   auto iter{vec.begin()};
   auto const_iter{const_vec.begin()};
-
-  // TODO: Working Here, tests are likely invalid, references are always const.
 
   SECTION("operator* returns a reference to the underlying element.") {
     // Non const element reference expected.
