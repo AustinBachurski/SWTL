@@ -331,17 +331,18 @@ TEST_CASE("Vector construction with the default allocator.", "[vector]") {
 }
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
-                   char const *, std::string) {
-  SECTION("Braced initialization.") {
-    TestType init{};
-    swtl::Vector vec{init};
+                   float, double, char const *, std::string_view, std::string) {
+  TestType value{};
+  std::vector<TestType> std_vector_of_value(4);
+
+  SECTION("CTAD from braced construction.") {
+    swtl::Vector vec{value};
 
     STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
   }
 
-  SECTION("Iterator initialization.") {
-    std::vector<TestType> init(4);
-    swtl::Vector vec(init.begin(), init.end());
+  SECTION("CTAD from iterator construction.") {
+    swtl::Vector vec(std_vector_of_value.begin(), std_vector_of_value.end());
 
     STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
   }
