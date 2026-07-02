@@ -236,18 +236,20 @@ TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]") {
 }
 
 // ** VECTOR TESTS **
-TEST_CASE("Vector initialization.", "[vector]") {
-  SECTION("Vector()") {
-    swtl::Vector<int> vec;
+TEST_CASE("Vector construction with the default allocator.", "[vector]") {
+  SECTION("Vector() produces an empty Vector.") {
+    swtl::Vector<int> const vec;
+
     REQUIRE(vec.is_empty());
     REQUIRE(vec.size() == 0UZ);
     REQUIRE(vec.capacity() == 0UZ);
     REQUIRE(vec.data() == nullptr);
   }
 
-  SECTION("Initializer list constructor.") {
-    std::initializer_list<int> init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    swtl::Vector<int> vec(init_list);
+  SECTION("Vector(std::initializer_list) creates a Vector with elements from "
+          "the initializer list.") {
+    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    swtl::Vector<int> const vec(init_list);
 
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
@@ -256,9 +258,10 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(std::ranges::equal(vec, init_list));
   }
 
-  SECTION("Iterator constructor.") {
-    std::initializer_list<int> init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    swtl::Vector<int> vec(init_list.begin(), init_list.end());
+  SECTION("Vector(iterator, iterator) creates a Vector with elements from the "
+          "provided iterators.") {
+    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    swtl::Vector<int> const vec(init_list.begin(), init_list.end());
 
     REQUIRE(!vec.is_empty());
     REQUIRE(vec.size() == init_list.size());
@@ -267,10 +270,10 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(std::ranges::equal(vec, init_list));
   }
 
-  SECTION("Count constructor.") {
-    swtl::Vector<int> should_be_empty(0);
-    swtl::Vector<int> expected{0, 0, 0, 0, 0};
-    swtl::Vector<int> vec(expected.size());
+  SECTION("Vector(size_type n) creates a Vector with n elements of type T.") {
+    swtl::Vector<int> const should_be_empty(0);
+    swtl::Vector<int> const expected{0, 0, 0, 0, 0};
+    swtl::Vector<int> const vec(expected.size());
 
     REQUIRE(should_be_empty.is_empty());
     REQUIRE(!vec.is_empty());
@@ -280,25 +283,50 @@ TEST_CASE("Vector initialization.", "[vector]") {
     REQUIRE(vec == expected);
   }
 
-  SECTION("Count, Value constructor.") {
-    swtl::Vector<int> vec_of_int(4, 2);
-    swtl::Vector<std::string> vec_of_string(2, "four");
+  SECTION("Vector(size_type n, T &value) creates a Vector with n elements of "
+          "type T equal to value.") {
+    swtl::Vector<int> const vec_of_int(4, 2);
+    swtl::Vector<int> const expected_vec_of_int{2, 2, 2, 2};
 
-    REQUIRE(vec_of_int == swtl::Vector{2, 2, 2, 2});
-    REQUIRE(vec_of_string == swtl::Vector<std::string>{
-                                 "four",
-                                 "four",
-                             });
+    swtl::Vector<std::string> const vec_of_string(2, "four");
+    swtl::Vector<std::string> const expected_vec_of_string{"four", "four"};
+
+    REQUIRE(!vec_of_int.is_empty());
+    REQUIRE(vec_of_int.size() == expected_vec_of_int.size());
+    REQUIRE(vec_of_int.capacity() >= expected_vec_of_int.size());
+    REQUIRE(vec_of_int.data() != nullptr);
+    REQUIRE(vec_of_int == expected_vec_of_int);
+
+    REQUIRE(!vec_of_string.is_empty());
+    REQUIRE(vec_of_string.size() == expected_vec_of_string.size());
+    REQUIRE(vec_of_string.capacity() >= expected_vec_of_string.size());
+    REQUIRE(vec_of_string.data() != nullptr);
+    REQUIRE(vec_of_string == expected_vec_of_string);
   }
 
-  SECTION("Range constructor.") {
-    std::vector init_list_of_int{1, 2, 3, 4, 5};
-    std::vector<std::string> init_list_of_string{"one", "two", "three"};
-    swtl::Vector vec_of_int(std::from_range, init_list_of_int);
-    swtl::Vector vec_of_string(std::from_range, init_list_of_string);
+  SECTION("Vector(std::from_range, range) creates a Vector with elements from "
+          "the provided range.") {
+    std::initializer_list<int> const int_init{1, 2, 3, 4, 5};
+    std::vector const std_vector_of_int(int_init);
+    swtl::Vector<int> const expected_vec_of_int(int_init);
+    swtl::Vector const vec_of_int(std::from_range, std_vector_of_int);
 
-    REQUIRE(std::ranges::equal(init_list_of_int, vec_of_int));
-    REQUIRE(std::ranges::equal(init_list_of_string, vec_of_string));
+    std::initializer_list<std::string> const str_init{"one", "two", "three"};
+    std::vector<std::string> const std_vector_of_string(str_init);
+    swtl::Vector<std::string> const expected_vec_of_string(str_init);
+    swtl::Vector const vec_of_string(std::from_range, std_vector_of_string);
+
+    REQUIRE(!vec_of_int.is_empty());
+    REQUIRE(vec_of_int.size() == expected_vec_of_int.size());
+    REQUIRE(vec_of_int.capacity() >= expected_vec_of_int.size());
+    REQUIRE(vec_of_int.data() != nullptr);
+    REQUIRE(vec_of_int == expected_vec_of_int);
+
+    REQUIRE(!vec_of_string.is_empty());
+    REQUIRE(vec_of_string.size() == expected_vec_of_string.size());
+    REQUIRE(vec_of_string.capacity() >= expected_vec_of_string.size());
+    REQUIRE(vec_of_string.data() != nullptr);
+    REQUIRE(vec_of_string == expected_vec_of_string);
   }
 }
 
