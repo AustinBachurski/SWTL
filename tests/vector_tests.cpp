@@ -258,18 +258,6 @@ TEST_CASE("Vector construction with the default allocator.", "[vector]") {
     REQUIRE(std::ranges::equal(vec, init_list));
   }
 
-  SECTION("Vector(iterator, iterator) creates a Vector with elements from the "
-          "provided iterators.") {
-    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    swtl::Vector<int> const vec(init_list.begin(), init_list.end());
-
-    REQUIRE(!vec.is_empty());
-    REQUIRE(vec.size() == init_list.size());
-    REQUIRE(vec.capacity() >= init_list.size());
-    REQUIRE(vec.data() != nullptr);
-    REQUIRE(std::ranges::equal(vec, init_list));
-  }
-
   SECTION("Vector(size_type n) creates a Vector with n elements of type T.") {
     swtl::Vector<int> const should_be_empty(0);
     swtl::Vector<int> const expected{0, 0, 0, 0, 0};
@@ -302,6 +290,18 @@ TEST_CASE("Vector construction with the default allocator.", "[vector]") {
     REQUIRE(vec_of_string.capacity() >= expected_vec_of_string.size());
     REQUIRE(vec_of_string.data() != nullptr);
     REQUIRE(vec_of_string == expected_vec_of_string);
+  }
+
+  SECTION("Vector(iterator, iterator) creates a Vector with elements from the "
+          "provided iterators.") {
+    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    swtl::Vector<int> const vec(init_list.begin(), init_list.end());
+
+    REQUIRE(!vec.is_empty());
+    REQUIRE(vec.size() == init_list.size());
+    REQUIRE(vec.capacity() >= init_list.size());
+    REQUIRE(vec.data() != nullptr);
+    REQUIRE(std::ranges::equal(vec, init_list));
   }
 
   SECTION("Vector(std::from_range, range) creates a Vector with elements from "

@@ -212,16 +212,6 @@ public:
   constexpr Vector(Allocator const &allocator = Allocator())
       : Base{allocator} {}
 
-  constexpr explicit Vector(size_type count,
-                            Allocator const &allocator = Allocator())
-      : Base{allocator} {
-    this->create_storage(count);
-
-    for (auto const _ : std::views::iota(0UZ, count)) {
-      emplace_back();
-    }
-  }
-
   // Should not be marked as explicit to allow for conversion from braced init
   // list.
   constexpr Vector(std::initializer_list<T> const &init_list,
@@ -233,26 +223,21 @@ public:
                                    init_list.end(), this->data_begin_);
   }
 
+  constexpr explicit Vector(size_type count,
+                            Allocator const &allocator = Allocator())
+      : Base{allocator} {
+    this->create_storage(count);
+
+    for (auto const _ : std::views::iota(0UZ, count)) {
+      emplace_back();
+    }
+  }
+
   constexpr Vector(size_type count, T const &value) {
     this->create_storage(count);
 
     for (auto const _ : std::views::iota(0UZ, count)) {
       emplace_back(value);
-    }
-  }
-
-  template <container_compatible_range<T> Range>
-  constexpr Vector(std::from_range_t, Range &&range) {
-    if constexpr (std::ranges::sized_range<Range>) {
-      auto count{static_cast<size_type>(std::ranges::size(range))};
-      this->create_storage(count);
-
-      this->data_end_ = memory::uninitialized_copy(
-          this->allocator_, range.begin(), range.end(), this->data_begin_);
-    } else {
-      for (auto &&element : range) {
-        emplace_back(element);
-      }
     }
   }
 
@@ -272,6 +257,21 @@ public:
 
     this->data_end_ = memory::uninitialized_copy(this->allocator_, src_begin,
                                                  src_end, this->data_begin_);
+  }
+
+  template <container_compatible_range<T> Range>
+  constexpr Vector(std::from_range_t, Range &&range) {
+    if constexpr (std::ranges::sized_range<Range>) {
+      auto count{static_cast<size_type>(std::ranges::size(range))};
+      this->create_storage(count);
+
+      this->data_end_ = memory::uninitialized_copy(
+          this->allocator_, range.begin(), range.end(), this->data_begin_);
+    } else {
+      for (auto &&element : range) {
+        emplace_back(element);
+      }
+    }
   }
 
   // TODO: assign_range
