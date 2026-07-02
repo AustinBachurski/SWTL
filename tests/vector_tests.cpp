@@ -131,11 +131,11 @@ TEST_CASE("VectorIterator access operators.", "[vector_iterator]") {
   }
 }
 
-TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
-  std::array values{1, 2, 3, 4, 5};
-  swtl::Vector vec(values.begin(), values.end());
+TEST_CASE("VectorIterator arithmetic operators.", "[vector_iterator]") {
+  std::array const values{1, 2, 3, 4, 5};
+  swtl::Vector const vec(values.begin(), values.end());
 
-  SECTION("VectorIterator::operator++.") {
+  SECTION("operator++.") {
     auto iter{vec.begin()};
 
     REQUIRE(*iter++ == values.front());
@@ -143,7 +143,7 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*++iter == values[2]);
   }
 
-  SECTION("VectorIterator::operator--.") {
+  SECTION("operator--.") {
     auto iter{vec.end()};
 
     REQUIRE(*--iter == values.back());
@@ -151,21 +151,21 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*iter == values[3]);
   }
 
-  SECTION("VectorIterator::operator+=.") {
+  SECTION("operator+=.") {
     auto iter{vec.begin()};
 
     REQUIRE(*(iter += 1) == values[1]);
     REQUIRE(*(iter += 2) == values[3]);
   }
 
-  SECTION("VectorIterator::operator-=.") {
+  SECTION("operator-=.") {
     auto iter{vec.end()};
 
     REQUIRE(*(iter -= 1) == values.back());
     REQUIRE(*(iter -= 2) == values[2]);
   }
 
-  SECTION("VectorIterator::operator+.") {
+  SECTION("operator+(iterator, difference_type.") {
     auto iter{vec.begin()};
 
     REQUIRE(*(iter + 2) == values[2]);
@@ -173,7 +173,7 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*(iter + values.size() - 1) == values.back());
   }
 
-  SECTION("VectorIterator::operator+.") {
+  SECTION("operator+(difference_type, iterator.") {
     auto iter{vec.begin()};
 
     REQUIRE(*(2 + iter) == values[2]);
@@ -181,7 +181,7 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*(values.size() - 1 + iter) == values.back());
   }
 
-  SECTION("VectorIterator::operator-(iterator, difference_type).") {
+  SECTION("operator-(iterator, difference_type).") {
     auto iter{vec.end()};
 
     REQUIRE(*(iter - 2) == values[3]);
@@ -189,7 +189,7 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(*(iter - values.size()) == values.front());
   }
 
-  SECTION("VectorIterator::operator-(iterator, iterator).") {
+  SECTION("operator-(iterator, iterator).") {
     auto lhs{vec.end()};
     auto rhs{vec.begin() + 2};
 
@@ -198,16 +198,50 @@ TEST_CASE("VectorIterator operations.", "[vector_iterator]") {
     REQUIRE(rhs - vec.begin() == 2);
     REQUIRE(vec.end() - vec.begin() == static_cast<std::ptrdiff_t>(vec.size()));
   }
+}
 
-  SECTION("VectorIterator::operator<=>.") {
-    auto first{vec.begin()};
-    auto middle{vec.begin() + 2};
-    auto last{vec.end()};
+TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]") {
+  std::array const values{0, 1};
+  swtl::Vector const vec(values.begin(), values.end());
 
+  auto first{vec.begin()};
+  auto middle{vec.begin() + 1};
+  auto last{vec.end()};
+
+  SECTION("operator==") {
+    REQUIRE(first == middle - 1);
+    REQUIRE(middle == last - 1);
+    REQUIRE(first + 2 == last);
+  }
+
+  SECTION("operator!=.") {
     REQUIRE(first != last);
+    REQUIRE(first != middle);
+    REQUIRE(middle != last);
+  }
+
+  SECTION("operator<.") {
     REQUIRE(first < middle);
+    REQUIRE(first < last);
+    REQUIRE(middle < last);
+  }
+
+  SECTION("operator<=.") {
+    REQUIRE(first <= first);
+    REQUIRE(first <= middle);
+    REQUIRE(first <= last);
+  }
+
+  SECTION("operator>.") {
     REQUIRE(last > middle);
-    REQUIRE(++first == --middle);
+    REQUIRE(last > first);
+    REQUIRE(middle > first);
+  }
+
+  SECTION("operator>=.") {
+    REQUIRE(last >= last);
+    REQUIRE(last >= middle);
+    REQUIRE(last >= first);
   }
 }
 
