@@ -67,7 +67,7 @@ TEST_CASE("VectorIterator access operators.", "[vector_iterator]") {
   auto const_iter{const_vec.begin()};
 
   SECTION("operator* returns a reference to the underlying element.") {
-    // Non const element reference expected.
+    // Non-const element reference expected.
     REQUIRE(std::is_lvalue_reference_v<decltype(*iter)>);
     REQUIRE(!std::is_const_v<std::remove_reference_t<decltype(*iter)>>);
     REQUIRE(std::is_same_v<std::remove_reference_t<decltype(*iter)>,
@@ -87,7 +87,7 @@ TEST_CASE("VectorIterator access operators.", "[vector_iterator]") {
   }
 
   SECTION("operator-> accesses the underlying object via pointer semantics.") {
-    // Non const pointer to element expected.
+    // Non-const pointer to element expected.
     REQUIRE(std::is_same_v<decltype(iter.operator->()), decltype(base) *>);
 
     REQUIRE(iter->value == base.value);
@@ -103,7 +103,7 @@ TEST_CASE("VectorIterator access operators.", "[vector_iterator]") {
 
   SECTION("operator[] returns a reference to the element at the specified "
           "offset.") {
-    // Non const element reference expected.
+    // Non-const element reference expected.
     REQUIRE(std::is_lvalue_reference_v<decltype(iter[0])>);
     REQUIRE(!std::is_const_v<std::remove_reference_t<decltype(iter[0])>>);
     REQUIRE(std::is_same_v<std::remove_reference_t<decltype(iter[0])>,
@@ -353,7 +353,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
   swtl::Vector const const_vec{1, 2, 3, 4, 5};
 
   // Forward iterators.
-  SECTION("begin() returns non const iterator from non const container and a "
+  SECTION("begin() returns non-const iterator from non-const container and a "
           "const iterator from a const container..") {
     STATIC_REQUIRE(
         std::is_same_v<decltype(vec.begin()), swtl::VectorIterator<int>>);
@@ -361,7 +361,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
                                   swtl::VectorIterator<int const>>);
   }
 
-  SECTION("end() returns non const iterator from non const container and a "
+  SECTION("end() returns non-const iterator from non-const container and a "
           "const iterator from a const container..") {
     STATIC_REQUIRE(
         std::is_same_v<decltype(vec.end()), swtl::VectorIterator<int>>);
@@ -384,7 +384,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
   }
 
   // Reverse iterators.
-  SECTION("rbegin() returns non const iterator from non const container and a "
+  SECTION("rbegin() returns non-const iterator from non-const container and a "
           "const iterator from a const container..") {
     STATIC_REQUIRE(
         std::is_same_v<decltype(vec.rbegin()),
@@ -394,7 +394,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
                        std::reverse_iterator<swtl::VectorIterator<int const>>>);
   }
 
-  SECTION("rend() returns non const iterator from non const container and a "
+  SECTION("rend() returns non-const iterator from non-const container and a "
           "const iterator from a const container..") {
     STATIC_REQUIRE(
         std::is_same_v<decltype(vec.rend()),
@@ -423,16 +423,13 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
   }
 }
 
-TEST_CASE("Iterators behave as expected.", "[vector]") {
+TEST_CASE("Iteration moves in the correct direction and returns const correct "
+          "elements.",
+          "[vector]") {
   swtl::Vector vec{1, 2, 3, 4, 5};
 
-  SECTION("Iterators are const correct.") {
-    STATIC_REQUIRE(std::is_same_v<decltype(vec.cbegin()),
-                                  swtl::VectorIterator<int const>>);
-    STATIC_REQUIRE(
-        std::is_same_v<decltype(vec.crbegin()),
-                       std::reverse_iterator<swtl::VectorIterator<int const>>>);
-  }
+  // References are used in these sections so that the actual return value of
+  // the iterator can be tested, as opposed to the result of a copy.
 
   SECTION("Non-const forward iteration.") {
     auto previous_element{std::numeric_limits<int>::lowest()};
@@ -477,8 +474,12 @@ TEST_CASE("Iterators behave as expected.", "[vector]") {
       previous_element = current_element;
     }
   }
+}
 
-  SECTION("Non-const forward iterator mutability.") {
+TEST_CASE("Non-const iterator mutability.", "[vector]") {
+  swtl::Vector const vec{1, 2, 3, 4, 5};
+
+  SECTION("Non-const forward iterator is mutable.") {
     auto mutated_vec{vec};
 
     for (auto &element : mutated_vec) {
@@ -488,7 +489,7 @@ TEST_CASE("Iterators behave as expected.", "[vector]") {
     REQUIRE(mutated_vec != vec);
   }
 
-  SECTION("Non-const reverse iterator mutability.") {
+  SECTION("Non-const reverse iterator is mutable.") {
     auto mutated_vec{vec};
 
     for (auto &element : mutated_vec | std::views::reverse) {
