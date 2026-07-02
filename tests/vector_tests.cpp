@@ -500,9 +500,11 @@ TEST_CASE("Non-const iterator mutability.", "[vector]") {
   }
 }
 
-TEMPLATE_TEST_CASE("Special member functions with std::allocator.", "[vector]",
-                   swtl::Vector<int>, swtl::Vector<double>, swtl::Vector<bool>,
-                   swtl::Vector<std::string>) {
+// TODO: WORKING HERE: Refactor work in progress.
+//
+TEMPLATE_TEST_CASE("Special member functions with the default allocator.",
+                   "[vector]", swtl::Vector<int>, swtl::Vector<double>,
+                   swtl::Vector<bool>, swtl::Vector<std::string>) {
   using T = typename std::remove_const_t<TestType>::value_type;
 
   [[maybe_unused]] TestType initial;
