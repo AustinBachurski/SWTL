@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 4.3)
+#set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d") # 4.3.3/4 version?  But says invalid???
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
 set(CMAKE_CXX_MODULE_STD 1)
 
@@ -13,7 +14,7 @@ Include(FetchContent)
 FetchContent_Declare(
   Catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.15.0
+  GIT_TAG        v3.15.1
 )
 
 FetchContent_MakeAvailable(Catch2)
