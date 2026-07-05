@@ -500,14 +500,13 @@ TEST_CASE("Non-const iterator mutability.", "[vector]") {
   }
 }
 
-// TODO: WORKING HERE: Refactor work in progress.
-//
-TEMPLATE_TEST_CASE("Special member functions with the default allocator.",
-                   "[vector]", swtl::Vector<int>, swtl::Vector<double>,
-                   swtl::Vector<bool>, swtl::Vector<std::string>) {
+TEMPLATE_TEST_CASE(
+    "Special member functions with the default allocator and built-in types.",
+    "[vector]", swtl::Vector<int>, swtl::Vector<double>, swtl::Vector<bool>,
+    swtl::Vector<std::string>) {
   using T = typename std::remove_const_t<TestType>::value_type;
 
-  [[maybe_unused]] TestType initial;
+  [[maybe_unused]] TestType destination;
 
   TestType source{[]() {
     if constexpr (std::same_as<T, int>) {
@@ -523,95 +522,111 @@ TEMPLATE_TEST_CASE("Special member functions with the default allocator.",
           "three point one four one five nine two six five three five",
           "eighty-two eighty-two eighty-two, two hundred and forty-six total",
           "we've been trying to reach you about your car's extended warranty"};
+    } else {
+      throw std::invalid_argument(
+          "Missing TestType case to define Vector data.");
     }
   }()};
 
-  SECTION("Copy constructor from non-const source.") {
-    auto copied{source};
+  SECTION("Copy constructor from non-const source copies correctly but does "
+          "not modify the source.") {
+    auto const copied{source};
 
     REQUIRE(source == copied);
     REQUIRE(source.data() != copied.data());
   }
 
-  SECTION("Self copy assignment.") {
-    auto data_ptr_before_copy{source.data()};
+  SECTION("Self copy assignment does nothing.") {
+    auto const data_ptr_before_copy{source.data()};
+    auto const capacity_before_copy{source.capacity()};
+    auto const size_before_copy{source.size()};
     source = source;
 
     REQUIRE(source.data() == data_ptr_before_copy);
+    REQUIRE(source.capacity() == capacity_before_copy);
+    REQUIRE(source.size() == size_before_copy);
   }
 
-  SECTION("Copy assignment operator from non-const source.") {
-    initial = source;
+  SECTION(
+      "Copy assignment operator from non-const source copies to new memory.") {
+    destination = source;
 
-    REQUIRE(initial == source);
-    REQUIRE(initial.data() != source.data());
+    REQUIRE(destination == source);
+    REQUIRE(destination.data() != source.data());
   }
 
-  SECTION("Copy constructor from const source.") {
+  SECTION("Copy constructor from const source copies to new memory.") {
     auto const &const_reference_source{source};
-    auto copied{const_reference_source};
+    auto const copied{const_reference_source};
 
     REQUIRE(source == copied);
     REQUIRE(source.data() != copied.data());
   }
 
-  SECTION("Copy assignment operator from const source.") {
+  SECTION("Copy assignment operator from const source copies to new memory.") {
     auto const &const_reference_to_source{source};
-    initial = const_reference_to_source;
+    destination = const_reference_to_source;
 
-    REQUIRE(initial == source);
-    REQUIRE(initial.data() != source.data());
+    REQUIRE(destination == source);
+    REQUIRE(destination.data() != source.data());
   }
 
-  SECTION("Move constructor from non-const source.") {
-    auto known_good_copy{source};
-    auto data_ptr_before_move{source.data()};
-    auto moved{std::move(source)};
+  SECTION(
+      "Move constructor from non-const source moves data without allocating.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    auto const capacity_before_move{source.capacity()};
+    auto const size_before_move{source.size()};
+    auto const moved{std::move(source)};
 
     REQUIRE(known_good_copy == moved);
     REQUIRE(source != moved);
     REQUIRE(moved.data() == data_ptr_before_move);
+    REQUIRE(moved.capacity() == capacity_before_move);
+    REQUIRE(moved.size() == size_before_move);
 
+    // Valid tests for the default allocator.
     REQUIRE(source.data() == nullptr);
     REQUIRE(source.size() == 0UZ);
     REQUIRE(source.capacity() == 0UZ);
   }
 
-  SECTION("Self move assignment.") {
-    auto known_good_copy{source};
-    auto data_ptr_before_move{source.data()};
-    auto size_before_move{source.size()};
-    auto capacity_before_move{source.capacity()};
+  SECTION("Self move assignment does nothing.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    auto const capacity_before_move{source.capacity()};
+    auto const size_before_move{source.size()};
     auto &ref_to_self{source}; // To bypass -Wself-move.
     source = std::move(ref_to_self);
 
     REQUIRE(source == known_good_copy);
     REQUIRE(source.data() == data_ptr_before_move);
-    REQUIRE(source.size() == size_before_move);
     REQUIRE(source.capacity() == capacity_before_move);
+    REQUIRE(source.size() == size_before_move);
   }
 
-  SECTION("Move assignment operator from non-const source.") {
-    auto known_good_copy{source};
-    auto data_ptr_before_move{source.data()};
-    initial = std::move(source);
+  SECTION("Move assignment operator from non-const source moves data without "
+          "allocating.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    destination = std::move(source);
 
-    REQUIRE(initial == known_good_copy);
-    REQUIRE(initial != source);
-    REQUIRE(initial.data() == data_ptr_before_move);
+    REQUIRE(destination == known_good_copy);
+    REQUIRE(destination != source);
+    REQUIRE(destination.data() == data_ptr_before_move);
 
-    // TODO: These might not be true depending on allocator propagation and
-    // equality.
+    // Valid tests for the default allocator.
     REQUIRE(source.data() == nullptr);
     REQUIRE(source.size() == 0UZ);
     REQUIRE(source.capacity() == 0UZ);
   }
 
-  SECTION("Move constructor from const source.") {
-    auto known_good_copy{source};
-    auto data_ptr_before_move{source.data()};
-    auto const &const_reference_to_source{source};
-    auto moved{std::move(const_reference_to_source)};
+  SECTION("Move constructor from const source allocates new memory and does "
+          "not modify the source.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    auto const &reference_to_const_source{source};
+    auto moved{std::move(reference_to_const_source)};
 
     REQUIRE(known_good_copy == moved);
     REQUIRE(source == moved);
@@ -622,15 +637,16 @@ TEMPLATE_TEST_CASE("Special member functions with the default allocator.",
     REQUIRE(source.capacity() != 0UZ);
   }
 
-  SECTION("Move assignment operator from const source.") {
-    auto known_good_copy{source};
-    auto data_ptr_before_move{source.data()};
-    auto const &const_reference_to_source{source};
-    initial = std::move(const_reference_to_source);
+  SECTION("Move assignment operator from const source allocates new memory and "
+          "does not modify the source.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    auto const &reference_to_const_source{source};
+    destination = std::move(reference_to_const_source);
 
-    REQUIRE(initial == known_good_copy);
-    REQUIRE(initial == source);
-    REQUIRE(initial.data() != data_ptr_before_move);
+    REQUIRE(destination == known_good_copy);
+    REQUIRE(destination == source);
+    REQUIRE(destination.data() != data_ptr_before_move);
 
     REQUIRE(source.data() != nullptr);
     REQUIRE(source.size() != 0UZ);
@@ -638,6 +654,10 @@ TEMPLATE_TEST_CASE("Special member functions with the default allocator.",
   }
 }
 
+// TODO: WORKING HERE: Refactor work in progress.
+// Correctness of defining objects in a test case?  Should these be somewhere
+// else?  Reusability?
+//
 TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
   struct ThrowingConstructor {
     int x{};
