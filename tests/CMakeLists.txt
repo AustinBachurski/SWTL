@@ -8,7 +8,8 @@ target_sources(tests PRIVATE
   "${PROJECT_SOURCE_DIR}/tests/helpers"
 
   FILES
-  "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helpers.cppm"
+  "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helper_functions.cppm"
+  "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helper_objects.cppm"
 )
 
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)

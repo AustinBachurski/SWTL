@@ -1,4 +1,4 @@
-export module swtl_test_helpers;
+export module swtl_test_helper_objects;
 
 import std;
 
