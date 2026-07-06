@@ -116,6 +116,7 @@ template <typename T, typename Allocator> struct VectorBase {
   using value_type = std::allocator_traits<Allocator>::value_type;
   using allocator_type = Allocator;
   using size_type = std::allocator_traits<Allocator>::size_type;
+  using difference_type = std::allocator_traits<Allocator>::difference_type;
   using pointer = std::allocator_traits<Allocator>::pointer;
   using AllocResult = std::allocation_result<pointer, size_type>;
   using a_traits = std::allocator_traits<Allocator>;
@@ -176,8 +177,9 @@ template <typename T, typename Allocator> struct VectorBase {
 
   [[nodiscard]] constexpr auto max_allocatable_size() const noexcept
       -> size_type {
-    return std::min(a_traits::max_size(allocator_),
-                    std::numeric_limits<size_type>::max() / sizeof(value_type));
+    return std::min<size_type>(a_traits::max_size(allocator_),
+                               std::numeric_limits<difference_type>::max() /
+                                   sizeof(T));
   }
 
   [[no_unique_address]] Allocator allocator_;

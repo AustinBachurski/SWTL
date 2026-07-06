@@ -306,21 +306,21 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector(iterator, iterator) creates a Vector with elements from the "
     "source container.",
-    "[vector]", int, double, std::string) {
+    "[vector]", bool, int, double, std::string) {
   auto const source_data{helpers::generate_baseline_data<TestType>()};
-  swtl::Vector<int> const vec(source_data.begin(), source_data.end());
+  swtl::Vector const vec(source_data.begin(), source_data.end());
 
   REQUIRE(!vec.is_empty());
   REQUIRE(vec.size() == source_data.size());
   REQUIRE(vec.capacity() >= source_data.size());
-  REQUIRE(vec.source_data() != nullptr);
+  REQUIRE(vec.data() != nullptr);
   REQUIRE(std::ranges::equal(vec, source_data));
 }
 
 TEMPLATE_TEST_CASE(
     "Vector(std::from_range, range) creates a Vector with elements from "
     "the provided range.",
-    "[vector]", int, double, std::string) {
+    "[vector]", bool, int, double, std::string) {
   auto const range_of_data{helpers::generate_baseline_data<TestType>()};
   swtl::Vector const vec(std::from_range, range_of_data);
 
@@ -329,7 +329,6 @@ TEMPLATE_TEST_CASE(
   REQUIRE(vec.capacity() >= range_of_data.size());
   REQUIRE(vec.data() != nullptr);
   REQUIRE(std::ranges::equal(vec, range_of_data));
-}
 }
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
@@ -351,8 +350,8 @@ TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
 }
 
 TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
-  auto vec{helpers::generate_populated_vector<int>()};
-  auto const const_vec{helpers::generate_populated_vector<int>()};
+  auto vec{helpers::generate_populated_swtl_vector<int>()};
+  auto const const_vec{vec};
 
   // Forward iterators.
   SECTION("begin() returns non-const iterator from non-const container and a "
@@ -428,7 +427,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
 TEST_CASE("Iteration moves in the correct direction and returns const correct "
           "elements.",
           "[vector]") {
-  auto vec{helpers::generate_populated_vector<int>()};
+  auto vec{helpers::generate_populated_swtl_vector<int>()};
 
   // References are used in these sections so that the actual return value of
   // the iterator can be tested, as opposed to the result of a copy.
@@ -479,7 +478,7 @@ TEST_CASE("Iteration moves in the correct direction and returns const correct "
 }
 
 TEST_CASE("Non-const iterator mutability.", "[vector]") {
-  auto const vec{helpers::generate_populated_vector<int>()};
+  auto const vec{helpers::generate_populated_swtl_vector<int>()};
 
   SECTION("Non-const forward iterator is mutable.") {
     auto mutated_vec{vec};
@@ -503,10 +502,9 @@ TEST_CASE("Non-const iterator mutability.", "[vector]") {
 }
 
 TEMPLATE_TEST_CASE("Special Member Functions: Copy Operations",
-                   "[vector][default_allocator]", swtl::Vector<int>,
-                   swtl::Vector<double>, swtl::Vector<bool>,
-                   swtl::Vector<std::string>) {
-  TestType source{helpers::generate_populated_vector<TestType>()};
+                   "[vector][default_allocator]", bool, int, double,
+                   std::string) {
+  auto source{helpers::generate_populated_swtl_vector<TestType>()};
 
   SECTION("Copy constructor from non-const source copies correctly.") {
     auto const copied{source};
@@ -516,7 +514,7 @@ TEMPLATE_TEST_CASE("Special Member Functions: Copy Operations",
   }
 
   SECTION("Copy assignment operator allocates new memory.") {
-    TestType destination;
+    swtl::Vector<TestType> destination;
     destination = source;
 
     REQUIRE(destination == source);
@@ -537,10 +535,9 @@ TEMPLATE_TEST_CASE("Special Member Functions: Copy Operations",
 }
 
 TEMPLATE_TEST_CASE("Special Member Functions: Move Operations",
-                   "[vector][default_allocator]", swtl::Vector<int>,
-                   swtl::Vector<double>, swtl::Vector<bool>,
-                   swtl::Vector<std::string>) {
-  TestType source{helpers::generate_populated_vector<TestType>()};
+                   "[vector][default_allocator]", bool, int, double,
+                   std::string) {
+  auto source{helpers::generate_populated_swtl_vector<TestType>()};
 
   SECTION(
       "Move constructor from non-const source moves data without allocating.") {
@@ -566,7 +563,7 @@ TEMPLATE_TEST_CASE("Special Member Functions: Move Operations",
     auto const known_good_copy{source};
     auto const data_ptr_before_move{source.data()};
 
-    TestType destination;
+    swtl::Vector<TestType> destination;
     destination = std::move(source);
 
     REQUIRE(destination == known_good_copy);
@@ -600,7 +597,7 @@ TEMPLATE_TEST_CASE("Special Member Functions: Move Operations",
     auto const data_ptr_before_move{source.data()};
     auto const &reference_to_const_source{source};
 
-    TestType destination;
+    swtl::Vector<TestType> destination;
     destination = std::move(reference_to_const_source);
 
     REQUIRE(destination == known_good_copy);
@@ -683,35 +680,34 @@ TEST_CASE("Exception safety with user defined types - throwing move-only "
 }
 
 // TODO: WORKING HERE: Refactor work in progress.
-TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
-                   swtl::Vector<int>, swtl::Vector<int> const,
-                   swtl::Vector<std::string>, swtl::Vector<std::string> const) {
-  using T = typename std::remove_const_t<TestType>::value_type;
+TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]", int,
+                   int const, double, double const, bool, bool const,
+                   std::string, std::string const) {
+  using T = typename std::remove_const_t<TestType>;
+  using ConstCorrectVector =
+      std::conditional_t<std::is_const_v<TestType>, swtl::Vector<T> const,
+                         swtl::Vector<T>>;
   using ExpectedQualifiedRef =
       std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
   auto const expected{helpers::generate_baseline_data<T>()};
-  TestType vec(expected.begin(), expected.end());
 
-  auto const idx0{0UZ};
-  auto const idx1{1UZ};
-  auto const idx2{2UZ};
-  auto const idx3{3UZ};
-  auto const idx4{4UZ};
+  ConstCorrectVector vec(expected.begin(), expected.end());
+
+  auto const first_idx{0UZ};
+  auto const last_idx{vec.size() - 1};
 
   SECTION("Vector::at returns a reference to the element at position.") {
-    REQUIRE(vec.at(idx0) == expected[idx0]);
-    REQUIRE(vec.at(idx1) == expected[idx1]);
-    REQUIRE(vec.at(idx2) == expected[idx2]);
-    REQUIRE(vec.at(idx3) == expected[idx3]);
-    REQUIRE(vec.at(idx4) == expected[idx4]);
+    REQUIRE(vec.at(first_idx) == expected[first_idx]);
+    REQUIRE(vec.at(last_idx) == expected[last_idx]);
     STATIC_REQUIRE(
-        std::is_same_v<decltype(vec.at(idx0)), ExpectedQualifiedRef>);
+        std::is_same_v<decltype(vec.at(first_idx)), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::at throws when accessing an element out of bounds.") {
     using Catch::Matchers::ContainsSubstring;
     using Catch::Matchers::MessageMatches;
+
     auto const invalid_index{vec.size()};
 
     REQUIRE_THROWS_MATCHES(
@@ -722,12 +718,10 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
 
   SECTION("Vector::operator[] returns a reference to the element at "
           "position.") {
-    REQUIRE(vec[idx0] == expected[idx0]);
-    REQUIRE(vec[idx1] == expected[idx1]);
-    REQUIRE(vec[idx2] == expected[idx2]);
-    REQUIRE(vec[idx3] == expected[idx3]);
-    REQUIRE(vec[idx4] == expected[idx4]);
-    STATIC_REQUIRE(std::is_same_v<decltype(vec[idx0]), ExpectedQualifiedRef>);
+    REQUIRE(vec[first_idx] == expected[first_idx]);
+    REQUIRE(vec[last_idx] == expected[last_idx]);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec[first_idx]), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::front returns a reference to the first element.") {
@@ -741,12 +735,13 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   }
 }
 
-// TODO: Add test case for double reserve to prevent the bug we just had to fix!
-// TODO: Add test case for pointer overflow is max_size() + ptr > ptr max?
-TEST_CASE("Reservation on an empty vector.", "[vector]") {
-  swtl::Vector<int> vec;
+TEMPLATE_TEST_CASE("Reservation on an empty vector.", "[vector]", bool, int,
+                   double, std::string) {
+  swtl::Vector<TestType> vec;
 
-  SECTION("Reservation increases capacity but does not affect size.") {
+  // Capacity may be greater than requested due to using allocate_at_least().
+
+  SECTION("Reserve increases capacity but does not affect size.") {
     auto const initial_capacity{10UZ};
     vec.reserve(initial_capacity);
 
@@ -758,12 +753,16 @@ TEST_CASE("Reservation on an empty vector.", "[vector]") {
       auto const final_capacity{20UZ};
       vec.reserve(final_capacity);
 
+      REQUIRE(vec.is_empty());
+      REQUIRE(vec.size() == 0UZ);
       REQUIRE(vec.capacity() >= final_capacity);
 
       SECTION("Reserving less than the current capacity does nothing.") {
         auto const before_resize_attempt{vec.capacity()};
         vec.reserve(initial_capacity);
 
+        REQUIRE(vec.is_empty());
+        REQUIRE(vec.size() == 0UZ);
         REQUIRE(vec.capacity() == before_resize_attempt);
       }
     }
@@ -775,15 +774,16 @@ TEST_CASE("Reservation on an empty vector.", "[vector]") {
   }
 }
 
-TEST_CASE("Reservation on a populated vector.", "[vector]") {
-  swtl::Vector<int> vec{1, 2, 3};
-  swtl::Vector<int> const expected{vec};
+TEMPLATE_TEST_CASE("Reservation on a populated vector.", "[vector]", bool, int,
+                   double, std::string) {
+  auto vec{helpers::generate_populated_swtl_vector<TestType>()};
   auto const initial_capacity{vec.capacity()};
+  swtl::Vector const expected{vec};
 
   // Capacity may be greater than requested due to using allocate_at_least().
 
   SECTION("Reservation grows capacity but does not modify elements.") {
-    auto new_capacity{10UZ};
+    auto new_capacity{initial_capacity + 10UZ};
     vec.reserve(new_capacity);
 
     REQUIRE(vec == expected);
@@ -791,7 +791,7 @@ TEST_CASE("Reservation on a populated vector.", "[vector]") {
     REQUIRE(vec.capacity() >= new_capacity);
 
     SECTION("Continued reservation grows capacity again.") {
-      auto const final_capacity{20UZ};
+      auto const final_capacity{vec.capacity() + 20UZ};
       vec.reserve(final_capacity);
 
       REQUIRE(vec == expected);
@@ -801,6 +801,8 @@ TEST_CASE("Reservation on a populated vector.", "[vector]") {
       SECTION("Reserving less than the current capacity does nothing.") {
         vec.reserve(initial_capacity);
 
+        REQUIRE(vec == expected);
+        REQUIRE(vec.size() == expected.size());
         REQUIRE(vec.capacity() >= final_capacity);
       }
     }
