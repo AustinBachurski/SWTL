@@ -4,9 +4,7 @@ import std;
 
 export namespace swtl_test_helpers {
 
-template <typename VectorType> auto generate_populated_vector() {
-  using T = typename std::remove_const_t<VectorType>::value_type;
-
+template <typename T> auto generate_baseline_data() -> std::vector<T> {
   return []() {
     if constexpr (std::same_as<T, int>) {
       return VectorType{0, 1, 2, 3, 4, 5};
@@ -26,6 +24,12 @@ template <typename VectorType> auto generate_populated_vector() {
                                   "values for the passed in Vector type.");
     }
   }();
+}
+
+template <typename VectorType> auto generate_populated_vector() {
+  using T = typename std::remove_const_t<VectorType>::value_type;
+  auto const data{generate_baseline_data<T>()};
+  return VectorType(data.begin(), data.end());
 }
 
 } // namespace swtl_test_helpers

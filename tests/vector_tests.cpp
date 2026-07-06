@@ -239,104 +239,103 @@ TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]") {
 }
 
 // ** VECTOR TESTS **
-TEST_CASE("Vector construction with the default allocator.", "[vector]") {
-  SECTION("Vector() produces an empty Vector.") {
-    swtl::Vector<int> const vec;
+TEST_CASE("Default construction creates an empty Vector.", "[vector]") {
+  swtl::Vector<int> const vec;
 
-    REQUIRE(vec.is_empty());
-    REQUIRE(vec.size() == 0UZ);
-    REQUIRE(vec.capacity() == 0UZ);
-    REQUIRE(vec.data() == nullptr);
-  }
+  REQUIRE(vec.is_empty());
+  REQUIRE(vec.size() == 0UZ);
+  REQUIRE(vec.capacity() == 0UZ);
+  REQUIRE(vec.data() == nullptr);
+}
 
-  SECTION("Vector(std::initializer_list) creates a Vector with elements from "
-          "the initializer list.") {
-    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    swtl::Vector<int> const vec(init_list);
+TEST_CASE("Vector(std::initializer_list) creates a Vector with elements from "
+          "the initializer list.",
+          "[vector]") {
+  std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  swtl::Vector<int> const vec(init_list);
 
-    REQUIRE(!vec.is_empty());
-    REQUIRE(vec.size() == init_list.size());
-    REQUIRE(vec.capacity() >= init_list.size());
-    REQUIRE(vec.data() != nullptr);
-    REQUIRE(std::ranges::equal(vec, init_list));
-  }
+  REQUIRE(!vec.is_empty());
+  REQUIRE(vec.size() == init_list.size());
+  REQUIRE(vec.capacity() >= init_list.size());
+  REQUIRE(vec.data() != nullptr);
+  REQUIRE(std::ranges::equal(vec, init_list));
+}
 
-  SECTION("Vector(size_type n) creates a Vector with n elements of type T.") {
-    swtl::Vector<int> const should_be_empty(0);
-    swtl::Vector<int> const expected{0, 0, 0, 0, 0};
-    swtl::Vector<int> const vec(expected.size());
+TEST_CASE("Vector(size_type n) creates a Vector with n elements of type T.",
+          "[vector]") {
+  swtl::Vector<int> const should_be_empty(0);
+  swtl::Vector<int> const expected{0, 0, 0, 0, 0};
+  swtl::Vector<int> const vec(expected.size());
 
-    REQUIRE(should_be_empty.is_empty());
-    REQUIRE(!vec.is_empty());
-    REQUIRE(vec.size() == expected.size());
-    REQUIRE(vec.capacity() >= expected.size());
-    REQUIRE(vec.data() != nullptr);
-    REQUIRE(vec == expected);
-  }
+  REQUIRE(should_be_empty.is_empty());
+  REQUIRE(!vec.is_empty());
+  REQUIRE(vec.size() == expected.size());
+  REQUIRE(vec.capacity() >= expected.size());
+  REQUIRE(vec.data() != nullptr);
+  REQUIRE(vec == expected);
+}
 
-  SECTION("Vector(size_type n, T &value) creates a Vector with n elements of "
-          "type T equal to value.") {
-    swtl::Vector<int> const vec_of_int(4, 2);
-    swtl::Vector<int> const expected_vec_of_int{2, 2, 2, 2};
+TEMPLATE_TEST_CASE(
+    "Vector(size_type n, T &value) creates a Vector with n elements of "
+    "type T equal to value.",
+    "[vector]", int, double, std::string) {
 
-    swtl::Vector<std::string> const vec_of_string(2, "four");
-    swtl::Vector<std::string> const expected_vec_of_string{"four", "four"};
+  auto const count{4UZ};
+  auto const value{[]() {
+    if constexpr (std::same_as<TestType, int>) {
+      return 42;
+    } else if constexpr (std::same_as<TestType, double>) {
+      return 4.2;
+    } else if constexpr (std::same_as<TestType, std::string>) {
+      return std::string{"forty-two"};
+    } else {
+      throw std::invalid_argument("Missing conditional block to generate "
+                                  "value for TestType.");
+    }
+  }()};
 
-    REQUIRE(!vec_of_int.is_empty());
-    REQUIRE(vec_of_int.size() == expected_vec_of_int.size());
-    REQUIRE(vec_of_int.capacity() >= expected_vec_of_int.size());
-    REQUIRE(vec_of_int.data() != nullptr);
-    REQUIRE(vec_of_int == expected_vec_of_int);
+  swtl::Vector<TestType> const vec(count, value);
 
-    REQUIRE(!vec_of_string.is_empty());
-    REQUIRE(vec_of_string.size() == expected_vec_of_string.size());
-    REQUIRE(vec_of_string.capacity() >= expected_vec_of_string.size());
-    REQUIRE(vec_of_string.data() != nullptr);
-    REQUIRE(vec_of_string == expected_vec_of_string);
-  }
+  REQUIRE(!vec.is_empty());
+  REQUIRE(vec.size() == count);
+  REQUIRE(vec.capacity() >= count);
+  REQUIRE(vec.data() != nullptr);
+  REQUIRE(std::ranges::equal(vec, std::vector<TestType>(count, value)));
+}
 
-  SECTION("Vector(iterator, iterator) creates a Vector with elements from the "
-          "provided iterators.") {
-    std::initializer_list<int> const init_list{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    swtl::Vector<int> const vec(init_list.begin(), init_list.end());
+TEMPLATE_TEST_CASE(
+    "Vector(iterator, iterator) creates a Vector with elements from the "
+    "source container.",
+    "[vector]", int, double, std::string) {
+  auto const source_data{helpers::generate_baseline_data<TestType>()};
+  swtl::Vector<int> const vec(source_data.begin(), source_data.end());
 
-    REQUIRE(!vec.is_empty());
-    REQUIRE(vec.size() == init_list.size());
-    REQUIRE(vec.capacity() >= init_list.size());
-    REQUIRE(vec.data() != nullptr);
-    REQUIRE(std::ranges::equal(vec, init_list));
-  }
+  REQUIRE(!vec.is_empty());
+  REQUIRE(vec.size() == source_data.size());
+  REQUIRE(vec.capacity() >= source_data.size());
+  REQUIRE(vec.source_data() != nullptr);
+  REQUIRE(std::ranges::equal(vec, source_data));
+}
 
-  SECTION("Vector(std::from_range, range) creates a Vector with elements from "
-          "the provided range.") {
-    std::initializer_list<int> const int_init{1, 2, 3, 4, 5};
-    std::vector const std_vector_of_int(int_init);
-    swtl::Vector<int> const expected_vec_of_int(int_init);
-    swtl::Vector const vec_of_int(std::from_range, std_vector_of_int);
+TEMPLATE_TEST_CASE(
+    "Vector(std::from_range, range) creates a Vector with elements from "
+    "the provided range.",
+    "[vector]", int, double, std::string) {
+  auto const range_of_data{helpers::generate_baseline_data<TestType>()};
+  swtl::Vector const vec(std::from_range, range_of_data);
 
-    std::initializer_list<std::string> const str_init{"one", "two", "three"};
-    std::vector<std::string> const std_vector_of_string(str_init);
-    swtl::Vector<std::string> const expected_vec_of_string(str_init);
-    swtl::Vector const vec_of_string(std::from_range, std_vector_of_string);
-
-    REQUIRE(!vec_of_int.is_empty());
-    REQUIRE(vec_of_int.size() == expected_vec_of_int.size());
-    REQUIRE(vec_of_int.capacity() >= expected_vec_of_int.size());
-    REQUIRE(vec_of_int.data() != nullptr);
-    REQUIRE(vec_of_int == expected_vec_of_int);
-
-    REQUIRE(!vec_of_string.is_empty());
-    REQUIRE(vec_of_string.size() == expected_vec_of_string.size());
-    REQUIRE(vec_of_string.capacity() >= expected_vec_of_string.size());
-    REQUIRE(vec_of_string.data() != nullptr);
-    REQUIRE(vec_of_string == expected_vec_of_string);
-  }
+  REQUIRE(!vec.is_empty());
+  REQUIRE(vec.size() == range_of_data.size());
+  REQUIRE(vec.capacity() >= range_of_data.size());
+  REQUIRE(vec.data() != nullptr);
+  REQUIRE(std::ranges::equal(vec, range_of_data));
+}
 }
 
 TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
                    float, double, char const *, std::string_view, std::string) {
   TestType value{};
-  std::vector<TestType> std_vector_of_value(4);
+  std::vector<TestType> std_vector_of_value;
 
   SECTION("CTAD from braced construction.") {
     swtl::Vector vec{value};
@@ -352,8 +351,8 @@ TEMPLATE_TEST_CASE("CTAD correctly deduces types.", "[vector]", int, bool,
 }
 
 TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
-  swtl::Vector vec{1, 2, 3, 4, 5};
-  swtl::Vector const const_vec{1, 2, 3, 4, 5};
+  auto vec{helpers::generate_populated_vector<int>()};
+  auto const const_vec{helpers::generate_populated_vector<int>()};
 
   // Forward iterators.
   SECTION("begin() returns non-const iterator from non-const container and a "
@@ -429,7 +428,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]") {
 TEST_CASE("Iteration moves in the correct direction and returns const correct "
           "elements.",
           "[vector]") {
-  swtl::Vector vec{1, 2, 3, 4, 5};
+  auto vec{helpers::generate_populated_vector<int>()};
 
   // References are used in these sections so that the actual return value of
   // the iterator can be tested, as opposed to the result of a copy.
@@ -480,7 +479,7 @@ TEST_CASE("Iteration moves in the correct direction and returns const correct "
 }
 
 TEST_CASE("Non-const iterator mutability.", "[vector]") {
-  swtl::Vector const vec{1, 2, 3, 4, 5};
+  auto const vec{helpers::generate_populated_vector<int>()};
 
   SECTION("Non-const forward iterator is mutable.") {
     auto mutated_vec{vec};
@@ -691,29 +690,29 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   using ExpectedQualifiedRef =
       std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-  auto const expected{[]() {
-    if constexpr (std::is_same_v<T, int>) {
-      return std::array<int, 5>{1, 2, 3, 4, 5};
-    } else if constexpr (std::is_same_v<T, std::string>) {
-      return std::array<std::string, 5>{"one", "two", "three", "four", "five"};
-    }
-  }()};
-
+  auto const expected{helpers::generate_baseline_data<T>()};
   TestType vec(expected.begin(), expected.end());
 
+  auto const idx0{0UZ};
+  auto const idx1{1UZ};
+  auto const idx2{2UZ};
+  auto const idx3{3UZ};
+  auto const idx4{4UZ};
+
   SECTION("Vector::at returns a reference to the element at position.") {
-    REQUIRE(vec.at(0) == expected[0]);
-    REQUIRE(vec.at(1) == expected[1]);
-    REQUIRE(vec.at(2) == expected[2]);
-    REQUIRE(vec.at(3) == expected[3]);
-    REQUIRE(vec.at(4) == expected[4]);
-    STATIC_REQUIRE(std::is_same_v<decltype(vec.at(0)), ExpectedQualifiedRef>);
+    REQUIRE(vec.at(idx0) == expected[idx0]);
+    REQUIRE(vec.at(idx1) == expected[idx1]);
+    REQUIRE(vec.at(idx2) == expected[idx2]);
+    REQUIRE(vec.at(idx3) == expected[idx3]);
+    REQUIRE(vec.at(idx4) == expected[idx4]);
+    STATIC_REQUIRE(
+        std::is_same_v<decltype(vec.at(idx0)), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::at throws when accessing an element out of bounds.") {
     using Catch::Matchers::ContainsSubstring;
     using Catch::Matchers::MessageMatches;
-    auto const invalid_index{42UZ};
+    auto const invalid_index{vec.size()};
 
     REQUIRE_THROWS_MATCHES(
         vec.at(invalid_index), std::out_of_range,
@@ -723,21 +722,21 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
 
   SECTION("Vector::operator[] returns a reference to the element at "
           "position.") {
-    REQUIRE(vec[0] == expected[0]);
-    REQUIRE(vec[1] == expected[1]);
-    REQUIRE(vec[2] == expected[2]);
-    REQUIRE(vec[3] == expected[3]);
-    REQUIRE(vec[4] == expected[4]);
-    STATIC_REQUIRE(std::is_same_v<decltype(vec[0]), ExpectedQualifiedRef>);
+    REQUIRE(vec[idx0] == expected[idx0]);
+    REQUIRE(vec[idx1] == expected[idx1]);
+    REQUIRE(vec[idx2] == expected[idx2]);
+    REQUIRE(vec[idx3] == expected[idx3]);
+    REQUIRE(vec[idx4] == expected[idx4]);
+    STATIC_REQUIRE(std::is_same_v<decltype(vec[idx0]), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::front returns a reference to the first element.") {
-    REQUIRE(vec.front() == expected[0]);
+    REQUIRE(vec.front() == expected.front());
     STATIC_REQUIRE(std::is_same_v<decltype(vec.front()), ExpectedQualifiedRef>);
   }
 
   SECTION("Vector::back returns a reference to the last element.") {
-    REQUIRE(vec.back() == expected[4]);
+    REQUIRE(vec.back() == expected.back());
     STATIC_REQUIRE(std::is_same_v<decltype(vec.back()), ExpectedQualifiedRef>);
   }
 }
