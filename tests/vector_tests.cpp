@@ -809,80 +809,137 @@ TEMPLATE_TEST_CASE("Reservation on a populated vector.", "[vector]", bool, int,
   }
 }
 
-TEST_CASE("Vector size growth", "[vector]") {
-  swtl::Vector<int> vec;
+TEMPLATE_TEST_CASE("Element insertion via push_back.", "[vector]", bool, int,
+                   double, std::string) {
+  swtl::Vector<TestType> vec;
+  auto const data{helpers::generate_baseline_data<TestType>()};
 
-  SECTION("Element insertion increases size to match the number of elements.") {
-    vec.push_back(1);
+  SECTION("Inserting lvalue references works as expected.") {
+    for (auto const &element : data) {
+      vec.push_back(element);
+    }
 
-    REQUIRE(vec.size() == 1UZ);
+    REQUIRE(std::ranges::equal(vec, data));
+  }
 
-    SECTION("Again...") {
-      vec.push_back(2);
+  SECTION("Inserting rvalue references works as expected.") {
+    auto expiring{data};
 
-      REQUIRE(vec.size() == 2UZ);
+    for (auto &&element : expiring) {
+      vec.push_back(std::move(element));
+    }
 
-      SECTION("And again...") {
-        for (auto const value : std::views::iota(0, 40)) {
-          vec.push_back(value);
+    REQUIRE(std::ranges::equal(vec, data));
+  }
+}
+
+TEMPLATE_TEST_CASE("Element insertion via emplace_back.", "[vector]", bool, int,
+                   double, std::string) {
+  swtl::Vector<TestType> vec;
+  auto const data{helpers::generate_baseline_data<TestType>()};
+
+  SECTION("Inserting lvalue references succeeds.") {
+    for (auto const &element : data) {
+      vec.emplace_back(element);
+    }
+
+    REQUIRE(std::ranges::equal(vec, data));
+  }
+
+  SECTION("Inserting rvalue references succeeds.") {
+    auto expiring{data};
+
+    for (auto &&element : expiring) {
+      vec.emplace_back(std::move(element));
+    }
+
+    REQUIRE(std::ranges::equal(vec, data));
+  }
+}
+
+TEMPLATE_TEST_CASE(
+    "Calling emplace_back() with no arguments default constructs an object.",
+    "[vector]", bool, int, double, std::string) {
+  swtl::Vector<TestType> vec;
+  vec.emplace_back();
+
+  REQUIRE(vec.size() == 1UZ);
+  REQUIRE(vec.front() == TestType{});
+}
+
+TEST_CASE("Calling emplace_back() with arguments constructs an object using "
+          "said arguments.",
+          "[vector]") {
+  struct CustomObject {
+    int value{};
+    std::string string{};
+
+    auto operator<=>(CustomObject const &other) const = default;
+  };
+
+  auto const int_value{42};
+  auto const string_value{"is the correct answer"};
+
+  swtl::Vector<CustomObject> vec;
+  vec.emplace_back(int_value, string_value);
+
+  REQUIRE(vec.front() == CustomObject{int_value, string_value});
+}
+
+TEMPLATE_TEST_CASE("Reallocation growth.", "[vector]", bool, int, double,
+                   std::string) {
+  swtl::Vector<TestType> vec(1);
+
+  SECTION("Insertion up to capacity does not trigger growth.") {
+    auto const initial_capacity{vec.capacity()};
+
+    while (vec.size() < initial_capacity) {
+      vec.emplace_back();
+    }
+
+    REQUIRE(vec.size() == initial_capacity);
+    REQUIRE(vec.capacity() == initial_capacity);
+
+    SECTION("Adding elements beyond capacity at minimum doubles capacity.") {
+      vec.emplace_back();
+
+      REQUIRE(vec.capacity() >= initial_capacity * 2);
+
+      SECTION("Consistent lack of growth.") {
+        auto const expanded_capacity{vec.size()};
+
+        while (vec.size() < expanded_capacity) {
+          vec.emplace_back();
         }
 
-        REQUIRE(vec.size() == 42UZ);
+        REQUIRE(vec.size() == expanded_capacity);
+        REQUIRE(vec.capacity() == expanded_capacity);
+
+        SECTION("Consistent growth.")
+        vec.emplace_back();
+
+        REQUIRE(vec.capacity() >= expanded_capacity * 2);
       }
     }
   }
 }
 
-TEST_CASE("Vector memory growth.", "[vector]") {
-  swtl::Vector<std::size_t> vec;
+TEMPLATE_TEST_CASE("Reallocation preserves existing elements.", "[vector]",
+                   bool, int, double, std::string) {
+  auto vec{helpers::generate_populated_swtl_vector<TestType>()};
+  auto const before_growth{vec};
 
-  SECTION("When filling a vector...") {
-    auto const initial_capacity{40UZ};
-    vec.reserve(initial_capacity);
-
-    for (auto const value : std::views::iota(0UZ, initial_capacity)) {
-      vec.push_back(value);
-    }
-
-    SECTION("Insertion up to capacity does not trigger growth.") {
-      REQUIRE(vec.size() == initial_capacity);
-      REQUIRE(vec.capacity() >= initial_capacity);
-    }
-
-    SECTION("Insertion beyond capacity does trigger growth.") {
-      auto const difference{vec.capacity() - vec.size() + 1};
-      for (auto const _ : std::views::iota(0UZ, difference)) {
-        vec.push_back(42UZ);
-      }
-
-      REQUIRE(vec.size() == initial_capacity + difference);
-      REQUIRE(vec.capacity() > initial_capacity);
-    }
+  while (vec.size() < vec.capacity()) {
+    vec.emplace_back();
   }
+  vec.emplace_back();
 
-  SECTION("Growth preserves elements previously inserted.") {
-    auto const initial_capacity{100UZ};
-    vec.reserve(initial_capacity);
-
-    for (auto const value : std::views::iota(0UZ, initial_capacity)) {
-      vec.push_back(value);
-    }
-
-    auto before_growth{vec};
-    vec.push_back(42UZ);
-
-    bool old_values_intact{true};
-
-    for (auto const idx : std::views::iota(0UZ, initial_capacity)) {
-      if (before_growth[idx] != vec[idx]) {
-        old_values_intact = false;
-      }
-    }
-
-    REQUIRE(old_values_intact);
+  for (auto const &pair : std::views::zip(vec, before_growth)) {
+    REQUIRE(std::get<0>(pair) == std::get<1>(pair));
   }
 }
 
+// TODO: WORKING HERE - Continuing test refactor.
 TEST_CASE("Comparing vectors.", "[vector]") {
   SECTION("Comparing values.") {
     swtl::Vector<int> const baseline_vec{0, 1, 2, 3, 4, 5};
