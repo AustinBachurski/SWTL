@@ -16,7 +16,8 @@
 #include <vector>
 
 import swtl_vector;
-import swtl_test_helpers;
+import swtl_test_helper_functions;
+import swtl_test_helper_objects;
 
 namespace helpers = swtl_test_helpers;
 
@@ -502,76 +503,45 @@ TEST_CASE("Non-const iterator mutability.", "[vector]") {
   }
 }
 
-TEMPLATE_TEST_CASE(
-    "Special member functions with the default allocator and built-in types.",
-    "[vector]", swtl::Vector<int>, swtl::Vector<double>, swtl::Vector<bool>,
-    swtl::Vector<std::string>) {
-  using T = typename std::remove_const_t<TestType>::value_type;
+TEMPLATE_TEST_CASE("Special Member Functions: Copy Operations",
+                   "[vector][default_allocator]", swtl::Vector<int>,
+                   swtl::Vector<double>, swtl::Vector<bool>,
+                   swtl::Vector<std::string>) {
+  TestType source{helpers::generate_populated_vector<TestType>()};
 
-  [[maybe_unused]] TestType destination;
-
-  TestType source{[]() {
-    if constexpr (std::same_as<T, int>) {
-      return TestType{0, 1, 2, 3, 4, 5};
-    } else if constexpr (std::same_as<T, double>) {
-      return TestType{0.0, 1.1, 2.2, 3.3, 4.4, 5.5};
-    } else if constexpr (std::same_as<T, bool>) {
-      return TestType{true, false, false, false, true, true,
-                      true, false, true,  false, true};
-    } else if constexpr (std::same_as<T, std::string>) {
-      return TestType{
-          "one zero, zero zero one one, one zero one zero one",
-          "three point one four one five nine two six five three five",
-          "eighty-two eighty-two eighty-two, two hundred and forty-six total",
-          "we've been trying to reach you about your car's extended warranty"};
-    } else {
-      throw std::invalid_argument(
-          "Missing TestType case to define Vector data.");
-    }
-  }()};
-
-  SECTION("Copy constructor from non-const source copies correctly but does "
-          "not modify the source.") {
+  SECTION("Copy constructor from non-const source copies correctly.") {
     auto const copied{source};
 
     REQUIRE(source == copied);
     REQUIRE(source.data() != copied.data());
   }
 
-  SECTION("Self copy assignment does nothing.") {
-    auto const data_ptr_before_copy{source.data()};
-    auto const capacity_before_copy{source.capacity()};
-    auto const size_before_copy{source.size()};
-    source = source;
-
-    REQUIRE(source.data() == data_ptr_before_copy);
-    REQUIRE(source.capacity() == capacity_before_copy);
-    REQUIRE(source.size() == size_before_copy);
-  }
-
-  SECTION(
-      "Copy assignment operator from non-const source copies to new memory.") {
+  SECTION("Copy assignment operator allocates new memory.") {
+    TestType destination;
     destination = source;
 
     REQUIRE(destination == source);
     REQUIRE(destination.data() != source.data());
   }
 
-  SECTION("Copy constructor from const source copies to new memory.") {
-    auto const &const_reference_source{source};
-    auto const copied{const_reference_source};
+  SECTION("Self copy assignment does nothing.") {
+    auto const data_ptr_before_copy{source.data()};
+    auto const capacity_before_copy{source.capacity()};
+    auto const size_before_copy{source.size()};
+    auto const &reference_to_source{source};
+    source = reference_to_source;
 
-    REQUIRE(source == copied);
-    REQUIRE(source.data() != copied.data());
+    REQUIRE(source.data() == data_ptr_before_copy);
+    REQUIRE(source.capacity() == capacity_before_copy);
+    REQUIRE(source.size() == size_before_copy);
   }
+}
 
-  SECTION("Copy assignment operator from const source copies to new memory.") {
-    auto const &const_reference_to_source{source};
-    destination = const_reference_to_source;
-
-    REQUIRE(destination == source);
-    REQUIRE(destination.data() != source.data());
-  }
+TEMPLATE_TEST_CASE("Special Member Functions: Move Operations",
+                   "[vector][default_allocator]", swtl::Vector<int>,
+                   swtl::Vector<double>, swtl::Vector<bool>,
+                   swtl::Vector<std::string>) {
+  TestType source{helpers::generate_populated_vector<TestType>()};
 
   SECTION(
       "Move constructor from non-const source moves data without allocating.") {
@@ -587,37 +557,23 @@ TEMPLATE_TEST_CASE(
     REQUIRE(moved.capacity() == capacity_before_move);
     REQUIRE(moved.size() == size_before_move);
 
-    // Valid tests for the default allocator.
     REQUIRE(source.data() == nullptr);
     REQUIRE(source.size() == 0UZ);
     REQUIRE(source.capacity() == 0UZ);
-  }
-
-  SECTION("Self move assignment does nothing.") {
-    auto const known_good_copy{source};
-    auto const data_ptr_before_move{source.data()};
-    auto const capacity_before_move{source.capacity()};
-    auto const size_before_move{source.size()};
-    auto &ref_to_self{source}; // To bypass -Wself-move.
-    source = std::move(ref_to_self);
-
-    REQUIRE(source == known_good_copy);
-    REQUIRE(source.data() == data_ptr_before_move);
-    REQUIRE(source.capacity() == capacity_before_move);
-    REQUIRE(source.size() == size_before_move);
   }
 
   SECTION("Move assignment operator from non-const source moves data without "
           "allocating.") {
     auto const known_good_copy{source};
     auto const data_ptr_before_move{source.data()};
+
+    TestType destination;
     destination = std::move(source);
 
     REQUIRE(destination == known_good_copy);
     REQUIRE(destination != source);
     REQUIRE(destination.data() == data_ptr_before_move);
 
-    // Valid tests for the default allocator.
     REQUIRE(source.data() == nullptr);
     REQUIRE(source.size() == 0UZ);
     REQUIRE(source.capacity() == 0UZ);
@@ -644,6 +600,8 @@ TEMPLATE_TEST_CASE(
     auto const known_good_copy{source};
     auto const data_ptr_before_move{source.data()};
     auto const &reference_to_const_source{source};
+
+    TestType destination;
     destination = std::move(reference_to_const_source);
 
     REQUIRE(destination == known_good_copy);
@@ -653,6 +611,20 @@ TEMPLATE_TEST_CASE(
     REQUIRE(source.data() != nullptr);
     REQUIRE(source.size() != 0UZ);
     REQUIRE(source.capacity() != 0UZ);
+  }
+
+  SECTION("Self move assignment does nothing.") {
+    auto const known_good_copy{source};
+    auto const data_ptr_before_move{source.data()};
+    auto const capacity_before_move{source.capacity()};
+    auto const size_before_move{source.size()};
+    auto &ref_to_self{source}; // To bypass -Wself-move.
+    source = std::move(ref_to_self);
+
+    REQUIRE(source == known_good_copy);
+    REQUIRE(source.data() == data_ptr_before_move);
+    REQUIRE(source.capacity() == capacity_before_move);
+    REQUIRE(source.size() == size_before_move);
   }
 }
 
@@ -719,7 +691,7 @@ TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
   using ExpectedQualifiedRef =
       std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-  auto expected{[]() {
+  auto const expected{[]() {
     if constexpr (std::is_same_v<T, int>) {
       return std::array<int, 5>{1, 2, 3, 4, 5};
     } else if constexpr (std::is_same_v<T, std::string>) {
