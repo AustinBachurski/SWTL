@@ -9,7 +9,6 @@
 #include <format>
 #include <initializer_list>
 #include <limits>
-#include <numeric>
 #include <ranges>
 #include <stdexcept>
 #include <type_traits>
@@ -17,6 +16,9 @@
 #include <vector>
 
 import swtl_vector;
+import swtl_test_helpers;
+
+namespace helpers = swtl_test_helpers;
 
 auto handle_contract_violation(
     std::contracts::contract_violation const &violation) -> void {
@@ -654,96 +656,62 @@ TEMPLATE_TEST_CASE(
   }
 }
 
-// TODO: WORKING HERE: Refactor work in progress.
-// Correctness of defining objects in a test case?  Should these be somewhere
-// else?  Reusability?
-//
-TEST_CASE("Exception safety guarantees with throwing objects.", "[vector]") {
-  struct ThrowingConstructor {
-    int x{};
-
-    ThrowingConstructor() { throw std::runtime_error("Do you leak?"); };
-  };
-
-  struct ThrowingCopyConstructor {
-    int x{};
-    float y{};
-    std::string z{"Enough text so that we heap allocate the data."};
-
-    auto operator<=>(ThrowingCopyConstructor const &other) const = default;
-
-    ThrowingCopyConstructor() = default;
-    ThrowingCopyConstructor(
-        [[maybe_unused]] ThrowingCopyConstructor const &other) {
-      throw std::runtime_error("Oh noes, I throws!");
-    }
-    ThrowingCopyConstructor(ThrowingCopyConstructor &&other) =
-        delete ("Testing throwing copy constructor, don't move me.");
-  };
-
-  struct ThrowingMoveConstructor {
-    int x{};
-    float y{};
-    std::string z{"Enough text so that we heap allocate the data."};
-
-    auto operator<=>(ThrowingMoveConstructor const &other) const = default;
-
-    ThrowingMoveConstructor() = default;
-    ThrowingMoveConstructor(ThrowingMoveConstructor const &other) = default;
-    ThrowingMoveConstructor([[maybe_unused]] ThrowingMoveConstructor &&other) {
-      throw std::runtime_error("Oh noes, I throws!");
-    }
-  };
-
-  struct ThrowingMoveOnlyObject {
-    int x{};
-    float y{};
-    std::string z{"Enough text so that we heap allocate the data."};
-
-    auto operator<=>(ThrowingMoveOnlyObject const &other) const = default;
-
-    ThrowingMoveOnlyObject() = default;
-    ThrowingMoveOnlyObject(ThrowingMoveOnlyObject const &other) = delete;
-    ThrowingMoveOnlyObject([[maybe_unused]] ThrowingMoveOnlyObject &&other) {
-      throw std::runtime_error("Oh noes, I throws!");
-    }
-  };
-
-  SECTION("Object with throwing constructor.") {
-    REQUIRE_THROWS_AS(swtl::Vector<ThrowingConstructor>(1), std::runtime_error);
-  }
-
-  SECTION("Object with throwing copy constructor.") {
-    swtl::Vector<ThrowingCopyConstructor> throws_on_copy(3);
-    swtl::Vector<ThrowingCopyConstructor> const expected(3);
-
-    REQUIRE_THROWS_AS(throws_on_copy.emplace_back(), std::runtime_error);
-    REQUIRE(throws_on_copy == expected);
-    // Insertion fails, but the container remains in it's previous state.
-  }
-
-  SECTION("Object with throwing move constructor.") {
-    swtl::Vector<ThrowingMoveConstructor> throws_on_move(3);
-    swtl::Vector<ThrowingMoveConstructor> const expected(4);
-
-    REQUIRE_NOTHROW(throws_on_move.emplace_back());
-    REQUIRE(throws_on_move == expected);
-    // Insertion succeeds because migration falls back to the copy constructor.
-  }
-
-  SECTION("Move only object with throwing move constructor.") {
-    swtl::Vector<ThrowingMoveOnlyObject> throws_on_move(3);
-    swtl::Vector<ThrowingMoveOnlyObject> const expected(3);
-
-    // Insertion will fail, but no memory should be leaked and invariants should
-    // hold.  Cannot guarantee the state of the contained elements.
-    REQUIRE_THROWS_AS(throws_on_move.emplace_back(), std::runtime_error);
-    REQUIRE(throws_on_move.size() == expected.size());
-    REQUIRE(throws_on_move.capacity() >= expected.size());
-    REQUIRE(throws_on_move.data() != nullptr);
-  }
+TEST_CASE("Exception safety with user defined types - throwing constructor.",
+          "[vector]") {
+  REQUIRE_THROWS_AS(swtl::Vector<helpers::ThrowingConstructor>(1),
+                    std::runtime_error);
 }
 
+TEST_CASE(
+    "Exception safety with user defined types - throwing copy constructor.",
+    "[vector]") {
+  swtl::Vector<helpers::ThrowingCopyConstructor> throws_on_copy(3);
+  auto const full_count{throws_on_copy.capacity()};
+
+  while (throws_on_copy.size() != full_count) {
+    throws_on_copy.emplace_back();
+  }
+  swtl::Vector<helpers::ThrowingCopyConstructor> const expected(full_count);
+
+  REQUIRE_THROWS_AS(throws_on_copy.emplace_back(), std::runtime_error);
+  REQUIRE(throws_on_copy == expected);
+}
+
+TEST_CASE("Exception safety with user defined types - throwing move "
+          "constructor (copy fallback).",
+          "[vector]") {
+  swtl::Vector<helpers::ThrowingMoveConstructor> throws_on_move(3);
+  auto const full_count{throws_on_move.capacity()};
+
+  while (throws_on_move.size() != full_count) {
+    throws_on_move.emplace_back();
+  }
+  swtl::Vector<helpers::ThrowingMoveConstructor> const expected(full_count + 1);
+
+  // Reallocation succeeds because migration falls back to the copy constructor.
+  REQUIRE_NOTHROW(throws_on_move.emplace_back());
+  REQUIRE(throws_on_move == expected);
+}
+
+TEST_CASE("Exception safety with user defined types - throwing move-only "
+          "constructor.",
+          "[vector]") {
+  swtl::Vector<helpers::ThrowingMoveOnlyObject> throws_on_move(3);
+  auto const full_count{throws_on_move.capacity()};
+
+  while (throws_on_move.size() != full_count) {
+    throws_on_move.emplace_back();
+  }
+  swtl::Vector<helpers::ThrowingMoveOnlyObject> const expected(full_count);
+
+  // Reallocation fails, but no memory should be leaked and invariants should
+  // hold.  Cannot guarantee the state of the contained elements.
+  REQUIRE_THROWS_AS(throws_on_move.emplace_back(), std::runtime_error);
+  REQUIRE(throws_on_move.data() != nullptr);
+  REQUIRE(throws_on_move.size() == expected.size());
+}
+
+// TODO: WORKING HERE: Refactor work in progress.
 TEMPLATE_TEST_CASE("Element access, const & non-const.", "[vector]",
                    swtl::Vector<int>, swtl::Vector<int> const,
                    swtl::Vector<std::string>, swtl::Vector<std::string> const) {
