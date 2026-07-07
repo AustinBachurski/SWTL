@@ -20,8 +20,6 @@ import swtl_test_helper_functions;
 import swtl_test_helper_objects;
 
 namespace helpers = swtl_test_helpers;
-
-/*
 auto handle_contract_violation(
     std::contracts::contract_violation const &violation) -> void {
   throw std::logic_error(std::format(
