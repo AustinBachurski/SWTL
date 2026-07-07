@@ -1071,3 +1071,58 @@ TEMPLATE_TEST_CASE("max_size() returns sane values.", "[vector]", unsigned char,
   REQUIRE(vec.max_size() <=
           std::numeric_limits<std::ptrdiff_t>::max() / sizeof(TestType));
 }
+
+TEST_CASE("is_empty() returns the correct boolean value.", "[vector]") {
+  swtl::Vector<int> empty_vec;
+  auto const non_empty_vec{helpers::generate_populated_swtl_vector<int>()};
+
+  REQUIRE(empty_vec.is_empty());
+  REQUIRE(!non_empty_vec.is_empty());
+}
+
+TEST_CASE("size() returns the correct value as elements are added.",
+          "[vector]") {
+  swtl::Vector<int> vec;
+
+  SECTION("Empty vector returns size of zero.") {
+    REQUIRE(vec.size() == 0UZ);
+
+    SECTION("Adding elements increases size accordingly.") {
+      auto const limit{100UZ};
+
+      for (auto const count : std::views::iota(0UZ, limit)) {
+        REQUIRE(vec.size() == count);
+        vec.emplace_back();
+      }
+
+      REQUIRE(vec.size() == limit);
+    }
+  }
+}
+
+TEST_CASE("capacity() returns a sane value.", "[vector]") {
+  swtl::Vector<int> vec;
+
+  REQUIRE(vec.capacity() == 0);
+
+  SECTION(
+      "Adding capacity increases the return value of capacity() as expected.") {
+    auto const value{10UZ};
+    vec.reserve(value);
+
+    REQUIRE(vec.capacity() >= value);
+  }
+}
+
+TEST_CASE(
+    "clear() removes all elements of the vector without affecting capacity.",
+    "[vector]") {
+  auto vec{helpers::generate_populated_swtl_vector<int>()};
+  auto const populated_capacity{vec.capacity()};
+  vec.clear();
+
+  REQUIRE(vec.is_empty());
+  REQUIRE(vec.size() == 0UZ);
+  REQUIRE(vec.capacity() == populated_capacity);
+  REQUIRE(vec.data() != nullptr);
+}
