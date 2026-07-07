@@ -116,6 +116,7 @@ template <typename T, typename Allocator> struct VectorBase {
   using value_type = std::allocator_traits<Allocator>::value_type;
   using allocator_type = Allocator;
   using size_type = std::allocator_traits<Allocator>::size_type;
+  using difference_type = std::allocator_traits<Allocator>::difference_type;
   using pointer = std::allocator_traits<Allocator>::pointer;
   using AllocResult = std::allocation_result<pointer, size_type>;
   using a_traits = std::allocator_traits<Allocator>;
@@ -176,8 +177,9 @@ template <typename T, typename Allocator> struct VectorBase {
 
   [[nodiscard]] constexpr auto max_allocatable_size() const noexcept
       -> size_type {
-    return std::min(a_traits::max_size(allocator_),
-                    std::numeric_limits<size_type>::max() / sizeof(value_type));
+    return std::min<size_type>(a_traits::max_size(allocator_),
+                               std::numeric_limits<difference_type>::max() /
+                                   sizeof(T));
   }
 
   [[no_unique_address]] Allocator allocator_;
@@ -212,16 +214,6 @@ public:
   constexpr Vector(Allocator const &allocator = Allocator())
       : Base{allocator} {}
 
-  constexpr explicit Vector(size_type count,
-                            Allocator const &allocator = Allocator())
-      : Base{allocator} {
-    this->create_storage(count);
-
-    for (auto const _ : std::views::iota(0UZ, count)) {
-      emplace_back();
-    }
-  }
-
   // Should not be marked as explicit to allow for conversion from braced init
   // list.
   constexpr Vector(std::initializer_list<T> const &init_list,
@@ -233,26 +225,21 @@ public:
                                    init_list.end(), this->data_begin_);
   }
 
+  constexpr explicit Vector(size_type count,
+                            Allocator const &allocator = Allocator())
+      : Base{allocator} {
+    this->create_storage(count);
+
+    for (auto const _ : std::views::iota(0UZ, count)) {
+      emplace_back();
+    }
+  }
+
   constexpr Vector(size_type count, T const &value) {
     this->create_storage(count);
 
     for (auto const _ : std::views::iota(0UZ, count)) {
       emplace_back(value);
-    }
-  }
-
-  template <container_compatible_range<T> Range>
-  constexpr Vector(std::from_range_t, Range &&range) {
-    if constexpr (std::ranges::sized_range<Range>) {
-      auto count{static_cast<size_type>(std::ranges::size(range))};
-      this->create_storage(count);
-
-      this->data_end_ = memory::uninitialized_copy(
-          this->allocator_, range.begin(), range.end(), this->data_begin_);
-    } else {
-      for (auto &&element : range) {
-        emplace_back(element);
-      }
     }
   }
 
@@ -272,6 +259,21 @@ public:
 
     this->data_end_ = memory::uninitialized_copy(this->allocator_, src_begin,
                                                  src_end, this->data_begin_);
+  }
+
+  template <container_compatible_range<T> Range>
+  constexpr Vector(std::from_range_t, Range &&range) {
+    if constexpr (std::ranges::sized_range<Range>) {
+      auto count{static_cast<size_type>(std::ranges::size(range))};
+      this->create_storage(count);
+
+      this->data_end_ = memory::uninitialized_copy(
+          this->allocator_, range.begin(), range.end(), this->data_begin_);
+    } else {
+      for (auto &&element : range) {
+        emplace_back(element);
+      }
+    }
   }
 
   // TODO: assign_range
