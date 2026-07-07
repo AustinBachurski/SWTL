@@ -9,13 +9,24 @@ template <typename Type> auto generate_baseline_data() {
   using T = std::remove_cvref_t<Type>;
 
   return []() -> std::vector<T> {
-    if constexpr (std::same_as<T, int>) {
-      return {0, 1, 2, 3, 4, 5};
-    } else if constexpr (std::same_as<T, double>) {
-      return {0.0, 1.1, 2.2, 3.3, 4.4, 5.5};
+    /*
+    Currently a bug that prevents this from linking with libstdc++,
+    appears to be fixed in gcc(trunk).
+
+    if constexpr (std::same_as<T, char>) {
+      return {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+              'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+    */
+    if constexpr (std::same_as<T, unsigned char>) {
+      return {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+              'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
     } else if constexpr (std::same_as<T, bool>) {
       return {true, false, false, false, true, true,
               true, false, true,  false, true};
+    } else if constexpr (std::same_as<T, int>) {
+      return {0, 1, 2, 3, 4, 5};
+    } else if constexpr (std::same_as<T, double>) {
+      return {0.0, 1.1, 2.2, 3.3, 4.4, 5.5};
     } else if constexpr (std::same_as<T, std::string>) {
       return {
           "one zero, zero zero one one, one zero one zero one",
