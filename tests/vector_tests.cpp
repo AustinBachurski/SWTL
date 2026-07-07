@@ -4,7 +4,7 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
 
-// #include <contracts>
+#include <contracts>
 #include <cstddef>
 #include <format>
 #include <initializer_list>
