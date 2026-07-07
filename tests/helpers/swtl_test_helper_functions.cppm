@@ -11,7 +11,7 @@ template <typename Type> auto generate_baseline_data() {
   return []() -> std::vector<T> {
     /*
     Currently a bug that prevents this from linking with libstdc++,
-    appears to be fixed in gcc(trunk).
+    in gcc 16.1, appears to be fixed in gcc(trunk).
 
     if constexpr (std::same_as<T, char>) {
       return {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
