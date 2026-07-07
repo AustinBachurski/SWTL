@@ -26,7 +26,6 @@ auto handle_contract_violation(
       "Contract Violation: {}\nLocation: {}:{}", violation.comment(),
       violation.location().file_name(), violation.location().line()));
 }
-*/
 
 // ** VECTOR ITERATOR TESTS **
 TEST_CASE("VectorIterator initialization.", "[vector_iterator]") {
