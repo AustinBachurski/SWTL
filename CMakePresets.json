@@ -9,7 +9,6 @@
     {
       "name": "base-config",
       "hidden": true,
-      "description": "Platform agnostic configuration.",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/${presetName}",
       "cacheVariables": {
@@ -22,105 +21,75 @@
       }
     },
     {
-      "name": "dev",
-      "inherits": "base-config",
-      "description": "Default development preset.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "g++",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "name": "gnu-compiler",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" }
     },
     {
-      "name": "x64-clang-debug",
-      "inherits": "base-config",
-      "description": "Compile with clang++ in Debug mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "name": "clang-compiler",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
     },
     {
-      "name": "x64-clang-release",
-      "inherits": "base-config",
-      "description": "Compile with clang++ in Release mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "clang++",
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "name": "microsoft-compiler",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_CXX_COMPILER": "cl" }
+    },
+    {
+      "name": "debug-build",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release-build",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
     },
     {
       "name": "x64-gcc-debug",
-      "inherits": "base-config",
-      "description": "Compile with g++ in Debug mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "g++",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "inherits": ["base-config", "gnu-compiler", "debug-build"]
     },
     {
       "name": "x64-gcc-release",
-      "inherits": "base-config",
-      "description": "Compile with g++ in Release mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "g++",
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "inherits": ["base-config", "gnu-compiler", "release-build"]
+    },
+    {
+      "name": "x64-clang-debug",
+      "inherits": ["base-config", "clang-compiler", "debug-build"]
+    },
+    {
+      "name": "x64-clang-release",
+      "inherits": ["base-config", "clang-compiler", "release-build"]
     },
     {
       "name": "x64-msvc-debug",
-      "inherits": "base-config",
-      "description": "Compile with MSVC in Debug mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "cl",
-        "CMAKE_BUILD_TYPE": "Debug"
-      }
+      "inherits": ["base-config", "microsoft-compiler", "debug-build"]
     },
     {
       "name": "x64-msvc-release",
-      "inherits": "base-config",
-      "description": "Compile with MSVC in Release mode.",
-      "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "cl",
-        "CMAKE_BUILD_TYPE": "Release"
-      }
+      "inherits": ["base-config", "microsoft-compiler", "release-build"]
     }
   ],
   "buildPresets": [
-    {
-      "name": "dev",
-      "configurePreset": "dev"
-    },
-    {
-      "name": "x64-clang-debug",
-      "configurePreset": "x64-clang-debug"
-    },
-    {
-      "name": "x64-clang-release",
-      "configurePreset": "x64-clang-release"
-    },
-    {
-      "name": "x64-gcc-debug",
-      "configurePreset": "x64-gcc-debug"
-    },
-    {
-      "name": "x64-gcc-release",
-      "configurePreset": "x64-gcc-release"
-    },
-    {
-      "name": "x64-msvc-debug",
-      "configurePreset": "x64-msvc-debug"
-    },
-    {
-      "name": "x64-msvc-release",
-      "configurePreset": "x64-msvc-release"
-    }
+    { "name": "x64-gcc-debug",     "configurePreset": "x64-gcc-debug" },
+    { "name": "x64-gcc-release",   "configurePreset": "x64-gcc-release" },
+    { "name": "x64-clang-debug",   "configurePreset": "x64-clang-debug" },
+    { "name": "x64-clang-release", "configurePreset": "x64-clang-release" },
+    { "name": "x64-msvc-debug",    "configurePreset": "x64-msvc-debug" },
+    { "name": "x64-msvc-release",  "configurePreset": "x64-msvc-release" }
   ],
   "testPresets": [
     {
-      "name": "test-dev",
-      "configurePreset": "dev",
+      "name": "test-x64-gcc-debug",
+      "configurePreset": "x64-gcc-debug",
       "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error"}
+      "execution": { "noTestsAction": "error" }
+    },
+    {
+      "name": "test-x64-clang-debug",
+      "configurePreset": "x64-clang-debug",
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error" }
     }
   ]
 }

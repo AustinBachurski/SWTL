@@ -8,6 +8,7 @@ project(SWTL LANGUAGES CXX)
 option(WARNINGS_AS_ERRORS "Treat compiler warnings as errors." ON)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompilerWarnings.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Sanitizers.cmake")
 
 Include(FetchContent)
 

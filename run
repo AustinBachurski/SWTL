@@ -1,9 +1,28 @@
 #!/usr/bin/env bash
 
+set -e
+
 binary="example"
+
+lsp_preset="x64-clang-debug"
+
+build_preset="x64-gcc-debug"
+test_preset="test-x64-gcc-debug"
 
 clear
 
-if [[ ! -d "build" ]]; then
-  cmake --preset dev
-fi && cmake --build --preset dev && ctest --preset test-dev && ./out/bin/dev/"${binary}"
+echo "--- Generating LSP Database & Module Interfaces (Clang) ---"
+cmake --preset ${lsp_preset}
+#cmake --build --preset ${lsp_preset}
+
+echo -e "\n--- Configuring Build (${build_preset}) ---"
+cmake --preset ${build_preset}
+
+echo -e "\n--- Building (${build_preset}) ---"
+cmake --build --preset ${build_preset}
+
+echo -e "\n--- Running Tests ${test_preset} ---"
+ctest --preset ${test_preset}
+
+echo -e "\n--- Executing Binary ---"
+./out/bin/${build_preset}/"${binary}"

@@ -21,11 +21,5 @@ target_sources(example PRIVATE
 target_link_libraries(example PRIVATE swtl)
 
 enable_warnings_for_target(example)
-
-target_compile_options(example PRIVATE
-  $<$<CONFIG:Debug>:-fsanitize=address,undefined>
-)
-
-target_link_options(example PRIVATE
-  $<$<CONFIG:Debug>:-fsanitize=address,undefined>
-)
+enable_address_sanitizer_for_target(example)
+enable_undefined_behavior_sanitizer_for_target(example)
