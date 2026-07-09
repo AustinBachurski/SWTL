@@ -707,30 +707,34 @@ private:
   template <typename... Args>
   constexpr auto realloc_emplace(Args &&...args) -> reference {
     auto [ptr, count]{this->allocate_at_least(calculate_growth_size())};
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-
     auto new_element_begin{ptr + size()};
     auto new_element_end{new_element_begin + 1};
 
-    // If this throws the memory guard will clean up the allocation and the
-    // original elements remain untouched.
-    a_traits::construct(this->allocator_, new_element_begin,
-                        std::forward<Args>(args)...);
+    {
+      // Will free the newly allocated memory in case of an exception.
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
 
-    // A valid element exists in new memory and must be destroyed prior to
-    // deallocation if an exception is thrown during data migration.
-    memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
-                                    new_element_end};
-    memory::uninitialized_move_if_noexcept(this->allocator_, this->data_begin_,
-                                           this->data_end_, ptr);
-    elem_guard.dismiss();
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+      a_traits::construct(this->allocator_, new_element_begin,
+                          std::forward<Args>(args)...);
+      {
+        // Will destroy the newly constructed element in case of an exception.
+        memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
+                                        new_element_end};
+
+        memory::uninitialized_move_if_noexcept(this->allocator_, begin(), end(),
+                                               ptr);
+
+        // Use the guard's destructor to destroy our old elements.
+        elem_guard.reassign(this->data_begin_,
+                            std::exchange(this->data_end_, new_element_end));
+      }
+      // Use the guard's destructor to free our old memory.
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
     this->data_end_ = new_element_end;
-    this->capacity_end_ = this->data_begin_ + count;
+    this->capacity_end_ = ptr + count;
     return back();
   }
 };
