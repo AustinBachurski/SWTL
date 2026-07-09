@@ -407,12 +407,12 @@ public:
       other.data_begin_ = other.data_end_ = other.capacity_end_ = nullptr;
       return *this;
     } else {
-      // Worst case scenario, we can't transfer memory at all since the source
-      // allocator can't be moved and does not compare equal to the destination
-      // allocator.  Allocate new memory with the destination allocator and move
-      // the elements over.  On success, destroy destination's existing objects,
-      // free the memory, and replace the storage with the newly allocated
-      // memory.
+      // Worst case scenario - may throw - we can't transfer memory at all
+      // since the source allocator can't be moved and does not compare equal to
+      // the destination allocator.  Allocate new memory with the destination
+      // allocator and move the elements over.  On success, destroy
+      // destination's existing objects, free the memory, and replace the
+      // storage with the newly allocated memory.
       //
       // Once that's done, we have two options depending on how consistent we
       // want to be:
@@ -430,16 +430,27 @@ public:
       // operator, but I believe this to be the correct choice.
 
       auto [ptr, count]{this->allocate_at_least(other.size())};
-      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-      auto new_end{memory::uninitialized_move(
-          this->allocator_, other.data_begin_, other.data_end_, ptr)};
-      mem_guard.dismiss();
-      clear();
-      this->deallocate_memory_of_this();
+      {
+        memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+        {
+          memory::ElementGuard elem_guard{this->allocator_, ptr, ptr};
+
+          // By using the element guard's end member as the insertion point, we
+          // get cleanup tracking for free.
+          for (auto src_begin{other.data_begin_}; src_begin != other.data_end_;
+               ++src_begin, ++elem_guard.end) {
+            std::allocator_traits<Allocator>::construct(
+                this->allocator_, elem_guard.end, std::move(*src_begin));
+          }
+
+          elem_guard.reassign(this->data_begin_,
+                              std::exchange(this->data_end_, elem_guard.end));
+        }
+        mem_guard.reassign(this->data_begin_, capacity());
+      }
 
       this->data_begin_ = ptr;
-      this->data_end_ = new_end;
-      this->capacity_end_ = this->data_begin_ + count;
+      this->capacity_end_ = ptr + count;
       return *this;
     }
   } // namespace swtl
