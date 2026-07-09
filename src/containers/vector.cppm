@@ -583,23 +583,25 @@ public:
       return;
     }
 
-    if (this->capacity_end_ == nullptr) {
+    if (this->data_begin_ == nullptr) {
       this->create_storage(new_capacity);
       return;
     }
 
-    auto [ptr,
-          count]{this->allocate_at_least(calculate_growth_size(new_capacity))};
+    auto [ptr, count]{this->allocate_at_least(new_capacity)};
 
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-    auto const new_end{memory::uninitialized_move_if_noexcept(
-        this->allocator_, this->data_begin_, this->data_end_, ptr)};
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+    {
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+
+      auto new_end{memory::uninitialized_move_if_noexcept(this->allocator_,
+                                                          begin(), end(), ptr)};
+
+      clear();
+      this->data_end_ = new_end;
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
-    this->data_end_ = new_end;
     this->capacity_end_ = ptr + count;
   }
 
