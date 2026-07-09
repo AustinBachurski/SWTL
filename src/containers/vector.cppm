@@ -577,8 +577,7 @@ public:
       return;
     }
 
-    auto [ptr,
-          count]{this->allocate_at_least(calculate_growth_size(new_capacity))};
+    auto [ptr, count]{this->allocate_at_least(new_capacity)};
 
     memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
     auto const new_end{memory::uninitialized_move_if_noexcept(
