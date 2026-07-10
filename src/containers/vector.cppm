@@ -154,12 +154,17 @@ template <typename T, typename Allocator> struct VectorBase {
 
     auto [ptr, count]{a_traits::allocate_at_least(allocator_, n)};
 
-    auto max{max_allocatable_size()};
+    auto max{max_allocatable_elements()};
     if (count > max) {
       count = max;
     }
 
     return {ptr, count};
+  }
+
+  [[nodiscard]] constexpr auto allocated_capacity() const noexcept
+      -> size_type {
+    return static_cast<size_type>(capacity_end_ - data_begin_);
   }
 
   constexpr auto create_storage(size_type n) -> void {
@@ -169,13 +174,12 @@ template <typename T, typename Allocator> struct VectorBase {
     capacity_end_ = data_begin_ + count;
   }
 
-  constexpr auto deallocate_memory_of_this() -> void {
-    a_traits::deallocate(allocator_, data_begin_,
-                         static_cast<size_type>(capacity_end_ - data_begin_));
+  constexpr auto deallocate_memory_of_this() noexcept -> void {
+    a_traits::deallocate(allocator_, data_begin_, allocated_capacity());
     data_begin_ = data_end_ = capacity_end_ = nullptr;
   }
 
-  [[nodiscard]] constexpr auto max_allocatable_size() const noexcept
+  [[nodiscard]] constexpr auto max_allocatable_elements() const noexcept
       -> size_type {
     return std::min<size_type>(a_traits::max_size(allocator_),
                                std::numeric_limits<difference_type>::max() /
@@ -566,7 +570,7 @@ public:
   }
 
   [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-    return this->max_allocatable_size();
+    return this->max_allocatable_elements();
   }
 
   constexpr auto reserve(size_type new_capacity) -> void {
@@ -607,13 +611,13 @@ public:
   }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return static_cast<size_type>(this->capacity_end_ - this->data_begin_);
+    return this->allocated_capacity();
   }
 
   // shrink_to_fit()
 
   // ** MODIFIERS **
-  constexpr auto clear() -> void {
+  constexpr auto clear() noexcept -> void {
     memory::destroy(this->allocator_, begin(), end());
     this->data_end_ = this->data_begin_;
   }
