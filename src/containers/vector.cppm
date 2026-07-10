@@ -446,7 +446,6 @@ public:
         clear();
         this->data_end_ = new_end;
 
-        // Use the guard's destructor to free our old memory.
         mem_guard.reassign(this->data_begin_, capacity());
       }
 
@@ -599,6 +598,7 @@ public:
 
       clear();
       this->data_end_ = new_end;
+
       mem_guard.reassign(this->data_begin_, capacity());
     }
 
@@ -725,24 +725,20 @@ private:
     auto const new_element_end{new_element_begin + 1};
 
     {
-      // Will free the newly allocated memory in case of an exception.
       memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
 
       a_traits::construct(this->allocator_, new_element_begin,
                           std::forward<Args>(args)...);
       {
-        // Will destroy the newly constructed element in case of an exception.
         memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
                                         new_element_end};
 
         memory::uninitialized_move_if_noexcept(this->allocator_, begin(), end(),
                                                ptr);
 
-        // Use the guard's destructor to destroy our old elements.
         elem_guard.reassign(this->data_begin_,
                             std::exchange(this->data_end_, new_element_end));
       }
-      // Use the guard's destructor to free our old memory.
       mem_guard.reassign(this->data_begin_, capacity());
     }
 
