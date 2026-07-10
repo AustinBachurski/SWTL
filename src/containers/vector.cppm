@@ -154,12 +154,17 @@ template <typename T, typename Allocator> struct VectorBase {
 
     auto [ptr, count]{a_traits::allocate_at_least(allocator_, n)};
 
-    auto max{max_allocatable_size()};
+    auto max{max_allocatable_elements()};
     if (count > max) {
       count = max;
     }
 
     return {ptr, count};
+  }
+
+  [[nodiscard]] constexpr auto allocated_capacity() const noexcept
+      -> size_type {
+    return static_cast<size_type>(capacity_end_ - data_begin_);
   }
 
   constexpr auto create_storage(size_type n) -> void {
@@ -169,13 +174,12 @@ template <typename T, typename Allocator> struct VectorBase {
     capacity_end_ = data_begin_ + count;
   }
 
-  constexpr auto deallocate_memory_of_this() -> void {
-    a_traits::deallocate(allocator_, data_begin_,
-                         static_cast<size_type>(capacity_end_ - data_begin_));
+  constexpr auto deallocate_memory_of_this() noexcept -> void {
+    a_traits::deallocate(allocator_, data_begin_, allocated_capacity());
     data_begin_ = data_end_ = capacity_end_ = nullptr;
   }
 
-  [[nodiscard]] constexpr auto max_allocatable_size() const noexcept
+  [[nodiscard]] constexpr auto max_allocatable_elements() const noexcept
       -> size_type {
     return std::min<size_type>(a_traits::max_size(allocator_),
                                std::numeric_limits<difference_type>::max() /
@@ -264,7 +268,7 @@ public:
   template <container_compatible_range<T> Range>
   constexpr Vector(std::from_range_t, Range &&range) {
     if constexpr (std::ranges::sized_range<Range>) {
-      auto count{static_cast<size_type>(std::ranges::size(range))};
+      auto const count{static_cast<size_type>(std::ranges::size(range))};
       this->create_storage(count);
 
       this->data_end_ = memory::uninitialized_copy(
@@ -308,17 +312,21 @@ public:
         Allocator new_alloc{other.allocator_};
         auto [ptr, count]{a_traits::allocate_at_least(new_alloc, other.size())};
 
-        memory::AllocationGuard mem_guard{new_alloc, ptr, count};
-        auto const new_end{memory::uninitialized_copy(
-            new_alloc, other.data_begin_, other.data_end_, ptr)};
-        mem_guard.dismiss();
-        clear();
-        this->deallocate_memory_of_this();
+        {
+          memory::AllocationGuard mem_guard{new_alloc, ptr, count};
+
+          auto const new_end{memory::uninitialized_copy(
+              new_alloc, other.begin(), other.end(), ptr)};
+
+          clear();
+          this->data_end_ = new_end;
+          mem_guard.switch_allocator(this->allocator_);
+          mem_guard.reassign(this->data_begin_, capacity());
+        }
 
         this->allocator_ = new_alloc;
         this->data_begin_ = ptr;
-        this->data_end_ = new_end;
-        this->capacity_end_ = this->data_begin_ + count;
+        this->capacity_end_ = ptr + count;
         return *this;
       } else {
         // If allocators do compare equal, the source allocator can manage the
@@ -361,16 +369,19 @@ public:
 
     auto [ptr, count]{this->allocate_at_least(other.size())};
 
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-    auto new_end{memory::uninitialized_copy(this->allocator_, other.data_begin_,
-                                            other.data_end_, ptr)};
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+    {
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+
+      auto const new_end{memory::uninitialized_copy(
+          this->allocator_, other.begin(), other.end(), ptr)};
+
+      clear();
+      this->data_end_ = new_end;
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
-    this->data_end_ = new_end;
-    this->capacity_end_ = this->data_begin_ + count;
+    this->capacity_end_ = ptr + count;
     return *this;
   }
 
@@ -407,12 +418,12 @@ public:
       other.data_begin_ = other.data_end_ = other.capacity_end_ = nullptr;
       return *this;
     } else {
-      // Worst case scenario, we can't transfer memory at all since the source
-      // allocator can't be moved and does not compare equal to the destination
-      // allocator.  Allocate new memory with the destination allocator and move
-      // the elements over.  On success, destroy destination's existing objects,
-      // free the memory, and replace the storage with the newly allocated
-      // memory.
+      // Worst case scenario - may throw - we can't transfer memory at all
+      // since the source allocator can't be moved and does not compare equal to
+      // the destination allocator.  Allocate new memory with the destination
+      // allocator and move the elements over.  On success, destroy
+      // destination's existing objects, free the memory, and replace the
+      // storage with the newly allocated memory.
       //
       // Once that's done, we have two options depending on how consistent we
       // want to be:
@@ -430,16 +441,20 @@ public:
       // operator, but I believe this to be the correct choice.
 
       auto [ptr, count]{this->allocate_at_least(other.size())};
-      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-      auto new_end{memory::uninitialized_move(
-          this->allocator_, other.data_begin_, other.data_end_, ptr)};
-      mem_guard.dismiss();
-      clear();
-      this->deallocate_memory_of_this();
+      {
+        memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+
+        auto const new_end{memory::uninitialized_move_if_noexcept(
+            this->allocator_, begin(), end(), ptr)};
+
+        clear();
+        this->data_end_ = new_end;
+
+        mem_guard.reassign(this->data_begin_, capacity());
+      }
 
       this->data_begin_ = ptr;
-      this->data_end_ = new_end;
-      this->capacity_end_ = this->data_begin_ + count;
+      this->capacity_end_ = ptr + count;
       return *this;
     }
   } // namespace swtl
@@ -555,7 +570,7 @@ public:
   }
 
   [[nodiscard]] constexpr auto max_size() const noexcept -> size_type {
-    return this->max_allocatable_size();
+    return this->max_allocatable_elements();
   }
 
   constexpr auto reserve(size_type new_capacity) -> void {
@@ -572,33 +587,37 @@ public:
       return;
     }
 
-    if (this->capacity_end_ == nullptr) {
+    if (this->data_begin_ == nullptr) {
       this->create_storage(new_capacity);
       return;
     }
 
     auto [ptr, count]{this->allocate_at_least(new_capacity)};
 
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-    auto const new_end{memory::uninitialized_move_if_noexcept(
-        this->allocator_, this->data_begin_, this->data_end_, ptr)};
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+    {
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+
+      auto const new_end{memory::uninitialized_move_if_noexcept(
+          this->allocator_, begin(), end(), ptr)};
+
+      clear();
+      this->data_end_ = new_end;
+
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
-    this->data_end_ = new_end;
     this->capacity_end_ = ptr + count;
   }
 
   [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
-    return static_cast<size_type>(this->capacity_end_ - this->data_begin_);
+    return this->allocated_capacity();
   }
 
   // shrink_to_fit()
 
   // ** MODIFIERS **
-  constexpr auto clear() -> void {
+  constexpr auto clear() noexcept -> void {
     memory::destroy(this->allocator_, begin(), end());
     this->data_end_ = this->data_begin_;
   }
@@ -686,8 +705,8 @@ public:
 private:
   [[nodiscard]] constexpr auto
   calculate_growth_size(size_type target_growth = 1UZ) -> size_type {
-    auto current_size{size()};
-    auto max_possible_growth{max_size() - current_size};
+    auto const current_size{size()};
+    auto const max_possible_growth{max_size() - current_size};
 
     if (max_possible_growth < target_growth) {
       throw std::length_error(
@@ -706,30 +725,30 @@ private:
   template <typename... Args>
   constexpr auto realloc_emplace(Args &&...args) -> reference {
     auto [ptr, count]{this->allocate_at_least(calculate_growth_size())};
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+    auto const new_element_begin{ptr + size()};
+    auto const new_element_end{new_element_begin + 1};
 
-    auto new_element_begin{ptr + size()};
-    auto new_element_end{new_element_begin + 1};
+    {
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
 
-    // If this throws the memory guard will clean up the allocation and the
-    // original elements remain untouched.
-    a_traits::construct(this->allocator_, new_element_begin,
-                        std::forward<Args>(args)...);
+      a_traits::construct(this->allocator_, new_element_begin,
+                          std::forward<Args>(args)...);
+      {
+        memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
+                                        new_element_end};
 
-    // A valid element exists in new memory and must be destroyed prior to
-    // deallocation if an exception is thrown during data migration.
-    memory::ElementGuard elem_guard{this->allocator_, new_element_begin,
-                                    new_element_end};
-    memory::uninitialized_move_if_noexcept(this->allocator_, this->data_begin_,
-                                           this->data_end_, ptr);
-    elem_guard.dismiss();
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+        memory::uninitialized_move_if_noexcept(this->allocator_, begin(), end(),
+                                               ptr);
+
+        elem_guard.reassign(this->data_begin_,
+                            std::exchange(this->data_end_, new_element_end));
+      }
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
     this->data_end_ = new_element_end;
-    this->capacity_end_ = this->data_begin_ + count;
+    this->capacity_end_ = ptr + count;
     return back();
   }
 };

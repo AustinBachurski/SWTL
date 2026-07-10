@@ -29,7 +29,7 @@ export template <AllocatorType Allocator> struct AllocationGuard {
   using size_type = std::allocator_traits<Allocator>::size_type;
 
   constexpr AllocationGuard(Allocator &allocator, pointer ptr_to_guard,
-                            size_type element_count)
+                            size_type element_count) noexcept
       : alloc{allocator}, ptr{ptr_to_guard}, count{element_count} {}
 
   constexpr ~AllocationGuard() {
@@ -44,10 +44,14 @@ export template <AllocatorType Allocator> struct AllocationGuard {
   auto operator=(AllocationGuard const &other) = delete;
   auto operator=(AllocationGuard &&other) = delete;
 
-  constexpr auto dismiss() -> void { ptr = nullptr; }
+  constexpr auto dismiss() noexcept -> void { ptr = nullptr; }
 
-  constexpr auto reassign(pointer ptr_to_guard, size_type element_count)
-      -> void {
+  constexpr auto switch_allocator(Allocator &new_allocator) noexcept -> void {
+    alloc = new_allocator;
+  }
+
+  constexpr auto reassign(pointer ptr_to_guard,
+                          size_type element_count) noexcept -> void {
     ptr = ptr_to_guard;
     count = element_count;
   }
@@ -62,7 +66,7 @@ export template <AllocatorType Allocator> struct ElementGuard {
   using pointer = std::allocator_traits<Allocator>::pointer;
 
   constexpr ElementGuard(Allocator &allocator, pointer begin_ptr,
-                         pointer end_ptr)
+                         pointer end_ptr) noexcept
       : alloc{allocator}, begin{begin_ptr}, end{end_ptr} {}
 
   constexpr ~ElementGuard() { destroy(alloc, begin, end); }
@@ -73,9 +77,13 @@ export template <AllocatorType Allocator> struct ElementGuard {
   auto operator=(ElementGuard const &other) = delete;
   auto operator=(ElementGuard &&other) = delete;
 
-  constexpr auto dismiss() -> void { begin = end; };
+  constexpr auto dismiss() noexcept -> void { begin = end; };
 
-  constexpr auto reassign(pointer begin_ptr, pointer end_ptr) -> void {
+  constexpr auto switch_allocator(Allocator &new_allocator) noexcept -> void {
+    alloc = new_allocator;
+  }
+
+  constexpr auto reassign(pointer begin_ptr, pointer end_ptr) noexcept -> void {
     begin = begin_ptr;
     end = end_ptr;
   }
@@ -101,20 +109,28 @@ export template <AllocatorType Allocator, std::input_iterator SourceIterator,
                  std::input_or_output_iterator DestinationIterator>
 constexpr auto uninitialized_copy(Allocator &allocator,
                                   SourceIterator src_begin, Sentinel src_end,
-                                  DestinationIterator dest_begin)
+                                  DestinationIterator destination)
     -> DestinationIterator {
-  ElementGuard elem_guard{allocator, std::to_address(dest_begin),
-                          std::to_address(dest_begin)};
+  using value_type = std::allocator_traits<Allocator>::value_type;
 
-  // By using the element guard's end member as the insertion point, we get
-  // cleanup tracking for free.
-  for (; src_begin != src_end; ++src_begin, ++elem_guard.end) {
-    std::allocator_traits<Allocator>::construct(allocator, elem_guard.end,
-                                                *src_begin);
+  if constexpr (std::is_nothrow_copy_constructible_v<value_type>) {
+    for (; src_begin != src_end; ++src_begin, ++destination) {
+      std::allocator_traits<Allocator>::construct(
+          allocator, std::to_address(destination), *src_begin);
+    }
+    return DestinationIterator{destination};
+  } else {
+    ElementGuard elem_guard{allocator, std::to_address(destination),
+                            std::to_address(destination)};
+
+    for (; src_begin != src_end; ++src_begin, ++elem_guard.end) {
+      std::allocator_traits<Allocator>::construct(allocator, elem_guard.end,
+                                                  *src_begin);
+    }
+
+    elem_guard.dismiss();
+    return DestinationIterator{elem_guard.end};
   }
-
-  elem_guard.dismiss();
-  return DestinationIterator{elem_guard.end};
 }
 
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
@@ -122,36 +138,46 @@ export template <AllocatorType Allocator, std::input_iterator SourceIterator,
                  std::input_or_output_iterator DestinationIterator>
 constexpr auto uninitialized_move(Allocator &allocator,
                                   SourceIterator src_begin, Sentinel src_end,
-                                  DestinationIterator dest_begin)
+                                  DestinationIterator destination)
     -> DestinationIterator {
-  ElementGuard elem_guard{allocator, std::to_address(dest_begin),
-                          std::to_address(dest_begin)};
+  using value_type = std::allocator_traits<Allocator>::value_type;
 
-  // By using the element guard's end member as the insertion point, we get
-  // cleanup tracking for free.
-  for (; src_begin != src_end; ++src_begin, ++elem_guard.end) {
-    std::allocator_traits<Allocator>::construct(allocator, elem_guard.end,
-                                                std::move(*src_begin));
+  if constexpr (std::is_nothrow_move_constructible_v<value_type>) {
+    for (; src_begin != src_end; ++src_begin, ++destination) {
+      std::allocator_traits<Allocator>::construct(
+          allocator, std::to_address(destination), std::move(*src_begin));
+    }
+
+    return DestinationIterator{destination};
+  } else {
+    ElementGuard elem_guard{allocator, std::to_address(destination),
+                            std::to_address(destination)};
+
+    for (; src_begin != src_end; ++src_begin, ++elem_guard.end) {
+      std::allocator_traits<Allocator>::construct(allocator, elem_guard.end,
+                                                  std::move(*src_begin));
+    }
+
+    elem_guard.dismiss();
+    return DestinationIterator{elem_guard.end};
   }
-
-  elem_guard.dismiss();
-  return DestinationIterator{elem_guard.end};
 }
 
 export template <AllocatorType Allocator, std::input_iterator SourceIterator,
                  std::sentinel_for<SourceIterator> Sentinel,
                  std::input_or_output_iterator DestinationIterator>
-constexpr auto
-uninitialized_move_if_noexcept(Allocator &allocator, SourceIterator src_begin,
-                               Sentinel src_end, DestinationIterator dest_begin)
+constexpr auto uninitialized_move_if_noexcept(Allocator &allocator,
+                                              SourceIterator src_begin,
+                                              Sentinel src_end,
+                                              DestinationIterator destination)
     -> DestinationIterator {
   using value_type = std::allocator_traits<Allocator>::value_type;
 
   if constexpr (std::is_nothrow_move_constructible_v<value_type> ||
                 !std::is_copy_constructible_v<value_type>) {
-    return uninitialized_move(allocator, src_begin, src_end, dest_begin);
+    return uninitialized_move(allocator, src_begin, src_end, destination);
   } else {
-    return uninitialized_copy(allocator, src_begin, src_end, dest_begin);
+    return uninitialized_copy(allocator, src_begin, src_end, destination);
   }
 }
 
