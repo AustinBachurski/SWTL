@@ -264,7 +264,7 @@ public:
   template <container_compatible_range<T> Range>
   constexpr Vector(std::from_range_t, Range &&range) {
     if constexpr (std::ranges::sized_range<Range>) {
-      auto count{static_cast<size_type>(std::ranges::size(range))};
+      auto const count{static_cast<size_type>(std::ranges::size(range))};
       this->create_storage(count);
 
       this->data_end_ = memory::uninitialized_copy(
@@ -368,8 +368,8 @@ public:
     {
       memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
 
-      auto new_end{memory::uninitialized_copy(this->allocator_, other.begin(),
-                                              other.end(), ptr)};
+      auto const new_end{memory::uninitialized_copy(
+          this->allocator_, other.begin(), other.end(), ptr)};
 
       clear();
       this->data_end_ = new_end;
@@ -439,20 +439,14 @@ public:
       auto [ptr, count]{this->allocate_at_least(other.size())};
       {
         memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-        {
-          memory::ElementGuard elem_guard{this->allocator_, ptr, ptr};
 
-          // By using the element guard's end member as the insertion point, we
-          // get cleanup tracking for free.
-          for (auto src_begin{other.data_begin_}; src_begin != other.data_end_;
-               ++src_begin, ++elem_guard.end) {
-            std::allocator_traits<Allocator>::construct(
-                this->allocator_, elem_guard.end, std::move(*src_begin));
-          }
+        auto const new_end{memory::uninitialized_move_if_noexcept(
+            this->allocator_, begin(), end(), ptr)};
 
-          elem_guard.reassign(this->data_begin_,
-                              std::exchange(this->data_end_, elem_guard.end));
-        }
+        clear();
+        this->data_end_ = new_end;
+
+        // Use the guard's destructor to free our old memory.
         mem_guard.reassign(this->data_begin_, capacity());
       }
 
@@ -600,8 +594,8 @@ public:
     {
       memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
 
-      auto new_end{memory::uninitialized_move_if_noexcept(this->allocator_,
-                                                          begin(), end(), ptr)};
+      auto const new_end{memory::uninitialized_move_if_noexcept(
+          this->allocator_, begin(), end(), ptr)};
 
       clear();
       this->data_end_ = new_end;
@@ -707,8 +701,8 @@ public:
 private:
   [[nodiscard]] constexpr auto
   calculate_growth_size(size_type target_growth = 1UZ) -> size_type {
-    auto current_size{size()};
-    auto max_possible_growth{max_size() - current_size};
+    auto const current_size{size()};
+    auto const max_possible_growth{max_size() - current_size};
 
     if (max_possible_growth < target_growth) {
       throw std::length_error(
@@ -727,8 +721,8 @@ private:
   template <typename... Args>
   constexpr auto realloc_emplace(Args &&...args) -> reference {
     auto [ptr, count]{this->allocate_at_least(calculate_growth_size())};
-    auto new_element_begin{ptr + size()};
-    auto new_element_end{new_element_begin + 1};
+    auto const new_element_begin{ptr + size()};
+    auto const new_element_end{new_element_begin + 1};
 
     {
       // Will free the newly allocated memory in case of an exception.
