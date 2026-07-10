@@ -308,17 +308,21 @@ public:
         Allocator new_alloc{other.allocator_};
         auto [ptr, count]{a_traits::allocate_at_least(new_alloc, other.size())};
 
-        memory::AllocationGuard mem_guard{new_alloc, ptr, count};
-        auto const new_end{memory::uninitialized_copy(
-            new_alloc, other.data_begin_, other.data_end_, ptr)};
-        mem_guard.dismiss();
-        clear();
-        this->deallocate_memory_of_this();
+        {
+          memory::AllocationGuard mem_guard{new_alloc, ptr, count};
+
+          auto const new_end{memory::uninitialized_copy(
+              new_alloc, other.begin(), other.end(), ptr)};
+
+          clear();
+          this->data_end_ = new_end;
+          mem_guard.switch_allocator(this->allocator_);
+          mem_guard.reassign(this->data_begin_, capacity());
+        }
 
         this->allocator_ = new_alloc;
         this->data_begin_ = ptr;
-        this->data_end_ = new_end;
-        this->capacity_end_ = this->data_begin_ + count;
+        this->capacity_end_ = ptr + count;
         return *this;
       } else {
         // If allocators do compare equal, the source allocator can manage the
@@ -361,16 +365,19 @@ public:
 
     auto [ptr, count]{this->allocate_at_least(other.size())};
 
-    memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
-    auto new_end{memory::uninitialized_copy(this->allocator_, other.data_begin_,
-                                            other.data_end_, ptr)};
-    mem_guard.dismiss();
-    clear();
-    this->deallocate_memory_of_this();
+    {
+      memory::AllocationGuard mem_guard{this->allocator_, ptr, count};
+
+      auto new_end{memory::uninitialized_copy(this->allocator_, other.begin(),
+                                              other.end(), ptr)};
+
+      clear();
+      this->data_end_ = new_end;
+      mem_guard.reassign(this->data_begin_, capacity());
+    }
 
     this->data_begin_ = ptr;
-    this->data_end_ = new_end;
-    this->capacity_end_ = this->data_begin_ + count;
+    this->capacity_end_ = ptr + count;
     return *this;
   }
 

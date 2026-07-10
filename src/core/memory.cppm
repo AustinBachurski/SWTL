@@ -29,7 +29,7 @@ export template <AllocatorType Allocator> struct AllocationGuard {
   using size_type = std::allocator_traits<Allocator>::size_type;
 
   constexpr AllocationGuard(Allocator &allocator, pointer ptr_to_guard,
-                            size_type element_count)
+                            size_type element_count) noexcept
       : alloc{allocator}, ptr{ptr_to_guard}, count{element_count} {}
 
   constexpr ~AllocationGuard() {
@@ -44,10 +44,14 @@ export template <AllocatorType Allocator> struct AllocationGuard {
   auto operator=(AllocationGuard const &other) = delete;
   auto operator=(AllocationGuard &&other) = delete;
 
-  constexpr auto dismiss() -> void { ptr = nullptr; }
+  constexpr auto dismiss() noexcept -> void { ptr = nullptr; }
 
-  constexpr auto reassign(pointer ptr_to_guard, size_type element_count)
-      -> void {
+  constexpr auto switch_allocator(Allocator &new_allocator) noexcept -> void {
+    alloc = new_allocator;
+  }
+
+  constexpr auto reassign(pointer ptr_to_guard,
+                          size_type element_count) noexcept -> void {
     ptr = ptr_to_guard;
     count = element_count;
   }
@@ -62,7 +66,7 @@ export template <AllocatorType Allocator> struct ElementGuard {
   using pointer = std::allocator_traits<Allocator>::pointer;
 
   constexpr ElementGuard(Allocator &allocator, pointer begin_ptr,
-                         pointer end_ptr)
+                         pointer end_ptr) noexcept
       : alloc{allocator}, begin{begin_ptr}, end{end_ptr} {}
 
   constexpr ~ElementGuard() { destroy(alloc, begin, end); }
@@ -73,9 +77,13 @@ export template <AllocatorType Allocator> struct ElementGuard {
   auto operator=(ElementGuard const &other) = delete;
   auto operator=(ElementGuard &&other) = delete;
 
-  constexpr auto dismiss() -> void { begin = end; };
+  constexpr auto dismiss() noexcept -> void { begin = end; };
 
-  constexpr auto reassign(pointer begin_ptr, pointer end_ptr) -> void {
+  constexpr auto switch_allocator(Allocator &new_allocator) noexcept -> void {
+    alloc = new_allocator;
+  }
+
+  constexpr auto reassign(pointer begin_ptr, pointer end_ptr) noexcept -> void {
     begin = begin_ptr;
     end = end_ptr;
   }
