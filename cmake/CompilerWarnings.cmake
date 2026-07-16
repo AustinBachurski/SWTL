@@ -3,7 +3,7 @@ function(enable_warnings_for_target target)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")
         set(project_warnings
-            -Weverything
+          #-Weverything
             # TODO: Disable what isn't needed.
         )
 
