@@ -1,7 +1,7 @@
 Language: Cpp
 Standard: Latest
 
-AccessModifierOffset: -2
+AccessModifierOffset: -3
 AlignAfterOpenBracket: true
 AlignArrayOfStructures: Left
 AlignConsecutiveAssignments:
