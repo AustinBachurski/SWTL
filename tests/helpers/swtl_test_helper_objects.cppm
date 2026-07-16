@@ -79,4 +79,35 @@ struct ThrowingMoveOnlyObject
    }
 };
 
+struct ThrowsAfterNCopies
+{
+   int *x_{};
+   int &counter_;
+   int limit_;
+
+   ThrowsAfterNCopies(int &counter, int limit)
+       : counter_{ counter }
+       , limit_{ limit }
+   {}
+
+   ThrowsAfterNCopies(ThrowsAfterNCopies const &other)
+       : counter_{ other.counter_ }
+       , limit_{ other.limit_ }
+   {
+      if (counter_ == limit_)
+      {
+         throw std::runtime_error("Limit reached, do you leak?");
+      }
+
+      x_ = new int(42);
+      ++counter_;
+   }
+
+   ~ThrowsAfterNCopies()
+   {
+      delete x_;
+      --counter_;
+   }
+};
+
 }  // namespace swtl_test_helpers

@@ -821,6 +821,22 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "Exception safety with user defined types - constructor that throws after "
+    "creating N objects.",
+    "[vector]")
+{
+   int counter{};
+   int limit{ 5 };
+   helpers::ThrowsAfterNCopies go_boom(counter, limit);
+
+   REQUIRE_THROWS_AS(
+       swtl::Vector<helpers::ThrowsAfterNCopies>(10, go_boom),
+       std::runtime_error);
+
+   REQUIRE(counter == 0);
+}
+
+TEST_CASE(
     "Exception safety with user defined types - throwing copy constructor.",
     "[vector]")
 {
