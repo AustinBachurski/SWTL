@@ -5,6 +5,85 @@ import std;
 export namespace swtl_test_helpers
 {
 
+template <typename Derived>
+struct LifetimeTracker
+{
+   static inline long long count{};
+
+   LifetimeTracker()
+   {
+      ++count;
+   }
+
+   LifetimeTracker(LifetimeTracker const &other)
+   {
+      ++count;
+   }
+
+   LifetimeTracker(LifetimeTracker &&other)
+   {
+      ++count;
+   }
+
+   LifetimeTracker &
+   operator=(LifetimeTracker const &other) = default;
+
+   LifetimeTracker &
+   operator=(LifetimeTracker &&other) = default;
+
+   ~LifetimeTracker()
+   {
+      --count;
+   }
+};
+
+template <typename Derived>
+class ThrowingObject
+{
+public:
+   ThrowingObject()
+   {
+      count_and_throw_if();
+   }
+
+   ThrowingObject(ThrowingObject const &other)
+   {
+      count_and_throw_if();
+   }
+
+   ThrowingObject(ThrowingObject &&other)
+   {
+      count_and_throw_if();
+   }
+
+   ThrowingObject &
+   operator=(ThrowingObject const &other) = default;
+
+   ThrowingObject &
+   operator=(ThrowingObject &&other) = default;
+
+   ~ThrowingObject() = default;
+
+   void
+   reset()
+   {
+      constructions = 0;
+   }
+
+private:
+   static void
+   count_and_throw_if()
+   {
+      if (++constructions == limit)
+      {
+         throw std::runtime_error("Oh noes, I throws!");
+      }
+   }
+
+   static inline std::size_t constructions{};
+   static inline std::size_t limit{ std::numeric_limits<std::size_t>::max() };
+};
+
 struct ThrowingConstructor
 {
    ThrowingConstructor()

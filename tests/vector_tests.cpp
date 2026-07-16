@@ -4,16 +4,7 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
 
-#include <contracts>
-#include <cstddef>
-#include <format>
-#include <initializer_list>
-#include <limits>
-#include <ranges>
-#include <stdexcept>
-#include <type_traits>
-#include <utility>
-#include <vector>
+import std;
 
 import swtl_vector;
 import swtl_test_helper_functions;
@@ -389,7 +380,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto const source_data{ helpers::generate_baseline_data<TestType>() };
+   auto const source_data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
    swtl::Vector const vec(source_data.begin(), source_data.end());
 
    REQUIRE(!vec.is_empty());
@@ -409,7 +402,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto const range_of_data{ helpers::generate_baseline_data<TestType>() };
+   auto const range_of_data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
    swtl::Vector const vec(std::from_range, range_of_data);
 
    REQUIRE(!vec.is_empty());
@@ -451,7 +446,7 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const const_vec{ vec };
 
    // Forward iterators.
@@ -574,7 +569,7 @@ TEST_CASE(
     "elements.",
     "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
    // References are used in these sections so that the actual return value of
    // the iterator can be tested, as opposed to the result of a copy.
@@ -640,7 +635,7 @@ TEST_CASE(
 
 TEST_CASE("Non-const iterator mutability.", "[vector]")
 {
-   auto const vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
    SECTION("Non-const forward iterator is mutable.")
    {
@@ -676,7 +671,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto source{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto source{
+      helpers::generate_populated_container<swtl::Vector<TestType>>()
+   };
 
    SECTION("Copy constructor from non-const source copies correctly.")
    {
@@ -717,7 +714,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto source{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto source{
+      helpers::generate_populated_container<swtl::Vector<TestType>>()
+   };
 
    SECTION(
        "Move constructor from non-const source moves data without allocating.")
@@ -810,6 +809,18 @@ TEMPLATE_TEST_CASE(
       REQUIRE(source.capacity() == capacity_before_move);
       REQUIRE(source.size() == size_before_move);
    }
+}
+
+TEST_CASE("push_back doesn't leak if construction throws")
+{
+   swtl::Vector<helpers::ThrowingType> vec;
+
+   helpers::ThrowingType::throw_after = 3;
+   vec.emplace_back();
+   vec.emplace_back();
+
+   REQUIRE_THROWS_AS(
+       vec.push_back(helpers::ThrowingType{}), std::runtime_error);
 }
 
 TEST_CASE(
@@ -918,7 +929,9 @@ TEMPLATE_TEST_CASE(
    using ExpectedQualifiedRef
        = std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-   auto const expected{ helpers::generate_baseline_data<T>() };
+   auto const expected{
+      helpers::generate_populated_container<std::vector<T>>()
+   };
 
    ConstCorrectVector vec(expected.begin(), expected.end());
 
@@ -1079,7 +1092,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
    auto const initial_capacity{ vec.capacity() };
    swtl::Vector const expected{ vec };
 
@@ -1125,7 +1138,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{ helpers::generate_baseline_data<TestType>() };
+   auto const data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    SECTION("Inserting lvalue references works as expected.")
    {
@@ -1160,7 +1175,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{ helpers::generate_baseline_data<TestType>() };
+   auto const data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    SECTION("Inserting lvalue references succeeds.")
    {
@@ -1234,7 +1251,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const expected{ helpers::generate_baseline_data<TestType>() };
+   auto const expected{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    for (auto const &element : expected)
    {
@@ -1305,7 +1324,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
    auto const before_growth{ vec };
 
    while (vec.size() < vec.capacity())
@@ -1408,7 +1427,9 @@ TEMPLATE_TEST_CASE(
 TEST_CASE("is_empty() returns the correct boolean value.", "[vector]")
 {
    swtl::Vector<int> empty_vec;
-   auto const non_empty_vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto const non_empty_vec{
+      helpers::generate_populated_container<swtl::Vector<int>>()
+   };
 
    REQUIRE(empty_vec.is_empty());
    REQUIRE(!non_empty_vec.is_empty());
@@ -1457,7 +1478,7 @@ TEST_CASE(
     "clear() removes all elements of the vector without affecting capacity.",
     "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const populated_capacity{ vec.capacity() };
    vec.clear();
 

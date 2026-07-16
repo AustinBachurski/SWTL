@@ -15,7 +15,7 @@ concept container_compatible_range
 export template <typename T>
 class VectorIterator
 {
- public:
+public:
    using iterator_category = std::contiguous_iterator_tag;
    using value_type = std::remove_cv_t<T>;
    using difference_type = std::ptrdiff_t;
@@ -139,7 +139,7 @@ class VectorIterator
    operator<=>(VectorIterator const &lhs, VectorIterator const &rhs) noexcept
        = default;
 
- private:
+private:
    pointer ptr_{};
 };
 
@@ -259,11 +259,11 @@ struct VectorBase
 export template <typename T, typename Allocator = std::allocator<T>>
 class Vector : protected VectorBase<T, Allocator>
 {
- private:
+private:
    using Base = VectorBase<T, Allocator>;
    using a_traits = std::allocator_traits<Allocator>;
 
- public:
+public:
    // ** MEMBER TYPES **
    using value_type = std::remove_cv_t<T>;
    using allocator_type = Base::allocator_type;
@@ -278,7 +278,7 @@ class Vector : protected VectorBase<T, Allocator>
    using reverse_iterator = std::reverse_iterator<iterator>;
    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
- public:
+public:
    // ** CONSTRUCTORS **
    constexpr Vector(Allocator const &allocator = Allocator())
        : Base{ allocator }
@@ -917,7 +917,7 @@ class Vector : protected VectorBase<T, Allocator>
       return lhs.size() <=> rhs.size();
    }
 
- private:
+private:
    [[nodiscard]]
    constexpr size_type
    calculate_growth_size(size_type target_growth = 1UZ)
