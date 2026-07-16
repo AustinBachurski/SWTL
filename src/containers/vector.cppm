@@ -305,20 +305,34 @@ class Vector : protected VectorBase<T, Allocator>
    {
       this->create_storage(count);
 
+      memory::ElementGuard elem_guard(
+          this->allocator_, this->data_begin_, this->data_begin_);
+
       for (auto const _ : std::views::iota(0UZ, count))
       {
-         emplace_back();
+         a_traits::construct(this->allocator_, elem_guard.end);
+         ++elem_guard.end;
       }
+
+      this->data_end_ = elem_guard.end;
+      elem_guard.dismiss();
    }
 
    constexpr Vector(size_type count, T const &value)
    {
       this->create_storage(count);
 
+      memory::ElementGuard elem_guard(
+          this->allocator_, this->data_begin_, this->data_begin_);
+
       for (auto const _ : std::views::iota(0UZ, count))
       {
-         emplace_back(value);
+         a_traits::construct(this->allocator_, elem_guard.end, value);
+         ++elem_guard.end;
       }
+
+      this->data_end_ = elem_guard.end;
+      elem_guard.dismiss();
    }
 
    template <std::input_iterator InputIterator>
@@ -357,10 +371,17 @@ class Vector : protected VectorBase<T, Allocator>
       }
       else
       {
+         memory::ElementGuard elem_guard(
+             this->allocator_, this->data_begin_, this->data_begin_);
+
          for (auto &&element : range)
          {
-            emplace_back(element);
+            a_traits::construct(this->allocator_, elem_guard.end, element);
+            ++elem_guard.end;
          }
+
+         this->data_end_ = elem_guard.end;
+         elem_guard.dismiss();
       }
    }
 
