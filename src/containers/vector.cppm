@@ -199,14 +199,15 @@ struct VectorBase
 
    [[nodiscard]]
    constexpr std::allocation_result<pointer, size_type>
-   allocate_at_least(size_type n)
+   allocate_at_least(size_type num_elements)
    {
-      if (n == 0)
+      if (num_elements == 0)
       {
-         return { .ptr = nullptr, .count = n };
+         return { .ptr = nullptr, .count = 0UZ };
       }
 
-      auto [ptr, count]{ a_traits::allocate_at_least(allocator_, n) };
+      auto [ptr, count]{ a_traits::allocate_at_least(
+          allocator_, num_elements) };
       auto max{ max_allocatable_elements() };
 
       if (count > max)
@@ -225,9 +226,9 @@ struct VectorBase
    }
 
    constexpr void
-   create_storage(size_type n)
+   create_storage(size_type num_elements)
    {
-      auto [ptr, count]{ allocate_at_least(n) };
+      auto [ptr, count]{ allocate_at_least(num_elements) };
 
       data_begin_ = data_end_ = ptr;
       capacity_end_ = data_begin_ + count;
