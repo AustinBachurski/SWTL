@@ -4,16 +4,7 @@
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
 
-#include <contracts>
-#include <cstddef>
-#include <format>
-#include <initializer_list>
-#include <limits>
-#include <ranges>
-#include <stdexcept>
-#include <type_traits>
-#include <utility>
-#include <vector>
+import std;
 
 import swtl_vector;
 import swtl_test_helper_functions;
@@ -324,7 +315,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Vector(size_type n) creates a Vector with n elements of type T.",
+    "Vector(size_type count) creates a Vector with count elements of type T.",
     "[vector]")
 {
    swtl::Vector<int> const should_be_empty(0);
@@ -340,8 +331,8 @@ TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector(size_type n, T &value) creates a Vector with n elements of "
-    "type T equal to value.",
+    "Vector(size_type count, T const &value) creates a Vector with count "
+    "elements of type T equal to value.",
     "[vector]",
     int,
     double,
@@ -389,7 +380,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto const source_data{ helpers::generate_baseline_data<TestType>() };
+   auto const source_data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
    swtl::Vector const vec(source_data.begin(), source_data.end());
 
    REQUIRE(!vec.is_empty());
@@ -409,7 +402,9 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto const range_of_data{ helpers::generate_baseline_data<TestType>() };
+   auto const range_of_data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
    swtl::Vector const vec(std::from_range, range_of_data);
 
    REQUIRE(!vec.is_empty());
@@ -451,7 +446,7 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const const_vec{ vec };
 
    // Forward iterators.
@@ -574,7 +569,7 @@ TEST_CASE(
     "elements.",
     "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
    // References are used in these sections so that the actual return value of
    // the iterator can be tested, as opposed to the result of a copy.
@@ -640,7 +635,7 @@ TEST_CASE(
 
 TEST_CASE("Non-const iterator mutability.", "[vector]")
 {
-   auto const vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
    SECTION("Non-const forward iterator is mutable.")
    {
@@ -669,14 +664,16 @@ TEST_CASE("Non-const iterator mutability.", "[vector]")
 
 TEMPLATE_TEST_CASE(
     "Special Member Functions: Copy Operations",
-    "[vector][default_allocator]",
+    "[vector][special member functions][default_allocator]",
     bool,
     unsigned char,
     int,
     double,
     std::string)
 {
-   auto source{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto source{
+      helpers::generate_populated_container<swtl::Vector<TestType>>()
+   };
 
    SECTION("Copy constructor from non-const source copies correctly.")
    {
@@ -711,13 +708,15 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Special Member Functions: Move Operations",
-    "[vector][default_allocator]",
+    "[vector][special member functions][default_allocator]",
     bool,
     int,
     double,
     std::string)
 {
-   auto source{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto source{
+      helpers::generate_populated_container<swtl::Vector<TestType>>()
+   };
 
    SECTION(
        "Move constructor from non-const source moves data without allocating.")
@@ -813,11 +812,154 @@ TEMPLATE_TEST_CASE(
 }
 
 TEST_CASE(
-    "Exception safety with user defined types - throwing constructor.",
+    "Vector(size_type count) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Vector(size_type count, T const &value) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   helpers::TrivialObject reference_object;
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Vector(InputIterator src_begin, InputIterator src_end) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   auto const source_count{ 5UZ };
+   std::vector<helpers::TrivialObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Vector(std::from_range_t, Range, &&range) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   auto const source_count{ 5UZ };
+   std::vector<helpers::TrivialObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Exception safety with user defined types - constructor that throws after "
+    "creating N objects.",
     "[vector]")
 {
+   int counter{};
+   int limit{ 5 };
+   helpers::ThrowsAfterNCopies go_boom(counter, limit);
+
    REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::ThrowingConstructor>(1), std::runtime_error);
+       swtl::Vector<helpers::ThrowsAfterNCopies>(10, go_boom),
+       std::runtime_error);
+
+   REQUIRE(counter == 0);
 }
 
 TEST_CASE(
@@ -902,7 +1044,9 @@ TEMPLATE_TEST_CASE(
    using ExpectedQualifiedRef
        = std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-   auto const expected{ helpers::generate_baseline_data<T>() };
+   auto const expected{
+      helpers::generate_populated_container<std::vector<T>>()
+   };
 
    ConstCorrectVector vec(expected.begin(), expected.end());
 
@@ -1063,7 +1207,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
    auto const initial_capacity{ vec.capacity() };
    swtl::Vector const expected{ vec };
 
@@ -1109,7 +1253,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{ helpers::generate_baseline_data<TestType>() };
+   auto const data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    SECTION("Inserting lvalue references works as expected.")
    {
@@ -1144,7 +1290,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{ helpers::generate_baseline_data<TestType>() };
+   auto const data{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    SECTION("Inserting lvalue references succeeds.")
    {
@@ -1218,7 +1366,9 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const expected{ helpers::generate_baseline_data<TestType>() };
+   auto const expected{
+      helpers::generate_populated_container<std::vector<TestType>>()
+   };
 
    for (auto const &element : expected)
    {
@@ -1289,7 +1439,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_swtl_vector<TestType>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
    auto const before_growth{ vec };
 
    while (vec.size() < vec.capacity())
@@ -1392,7 +1542,9 @@ TEMPLATE_TEST_CASE(
 TEST_CASE("is_empty() returns the correct boolean value.", "[vector]")
 {
    swtl::Vector<int> empty_vec;
-   auto const non_empty_vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto const non_empty_vec{
+      helpers::generate_populated_container<swtl::Vector<int>>()
+   };
 
    REQUIRE(empty_vec.is_empty());
    REQUIRE(!non_empty_vec.is_empty());
@@ -1441,7 +1593,7 @@ TEST_CASE(
     "clear() removes all elements of the vector without affecting capacity.",
     "[vector]")
 {
-   auto vec{ helpers::generate_populated_swtl_vector<int>() };
+   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const populated_capacity{ vec.capacity() };
    vec.clear();
 

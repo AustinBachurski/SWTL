@@ -15,7 +15,7 @@ concept container_compatible_range
 export template <typename T>
 class VectorIterator
 {
- public:
+public:
    using iterator_category = std::contiguous_iterator_tag;
    using value_type = std::remove_cv_t<T>;
    using difference_type = std::ptrdiff_t;
@@ -139,7 +139,7 @@ class VectorIterator
    operator<=>(VectorIterator const &lhs, VectorIterator const &rhs) noexcept
        = default;
 
- private:
+private:
    pointer ptr_{};
 };
 
@@ -199,14 +199,15 @@ struct VectorBase
 
    [[nodiscard]]
    constexpr std::allocation_result<pointer, size_type>
-   allocate_at_least(size_type n)
+   allocate_at_least(size_type num_elements)
    {
-      if (n == 0)
+      if (num_elements == 0)
       {
-         return { .ptr = nullptr, .count = n };
+         return { .ptr = nullptr, .count = 0UZ };
       }
 
-      auto [ptr, count]{ a_traits::allocate_at_least(allocator_, n) };
+      auto [ptr, count]{ a_traits::allocate_at_least(
+          allocator_, num_elements) };
       auto max{ max_allocatable_elements() };
 
       if (count > max)
@@ -225,9 +226,9 @@ struct VectorBase
    }
 
    constexpr void
-   create_storage(size_type n)
+   create_storage(size_type num_elements)
    {
-      auto [ptr, count]{ allocate_at_least(n) };
+      auto [ptr, count]{ allocate_at_least(num_elements) };
 
       data_begin_ = data_end_ = ptr;
       capacity_end_ = data_begin_ + count;
@@ -259,11 +260,11 @@ struct VectorBase
 export template <typename T, typename Allocator = std::allocator<T>>
 class Vector : protected VectorBase<T, Allocator>
 {
- private:
+private:
    using Base = VectorBase<T, Allocator>;
    using a_traits = std::allocator_traits<Allocator>;
 
- public:
+public:
    // ** MEMBER TYPES **
    using value_type = std::remove_cv_t<T>;
    using allocator_type = Base::allocator_type;
@@ -278,7 +279,7 @@ class Vector : protected VectorBase<T, Allocator>
    using reverse_iterator = std::reverse_iterator<iterator>;
    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
- public:
+public:
    // ** CONSTRUCTORS **
    constexpr Vector(Allocator const &allocator = Allocator())
        : Base{ allocator }
@@ -305,20 +306,34 @@ class Vector : protected VectorBase<T, Allocator>
    {
       this->create_storage(count);
 
+      memory::ElementGuard elem_guard(
+          this->allocator_, this->data_begin_, this->data_begin_);
+
       for (auto const _ : std::views::iota(0UZ, count))
       {
-         emplace_back();
+         a_traits::construct(this->allocator_, elem_guard.end);
+         ++elem_guard.end;
       }
+
+      this->data_end_ = elem_guard.end;
+      elem_guard.dismiss();
    }
 
    constexpr Vector(size_type count, T const &value)
    {
       this->create_storage(count);
 
+      memory::ElementGuard elem_guard(
+          this->allocator_, this->data_begin_, this->data_begin_);
+
       for (auto const _ : std::views::iota(0UZ, count))
       {
-         emplace_back(value);
+         a_traits::construct(this->allocator_, elem_guard.end, value);
+         ++elem_guard.end;
       }
+
+      this->data_end_ = elem_guard.end;
+      elem_guard.dismiss();
    }
 
    template <std::input_iterator InputIterator>
@@ -357,10 +372,17 @@ class Vector : protected VectorBase<T, Allocator>
       }
       else
       {
+         memory::ElementGuard elem_guard(
+             this->allocator_, this->data_begin_, this->data_begin_);
+
          for (auto &&element : range)
          {
-            emplace_back(element);
+            a_traits::construct(this->allocator_, elem_guard.end, element);
+            ++elem_guard.end;
          }
+
+         this->data_end_ = elem_guard.end;
+         elem_guard.dismiss();
       }
    }
 
@@ -896,7 +918,7 @@ class Vector : protected VectorBase<T, Allocator>
       return lhs.size() <=> rhs.size();
    }
 
- private:
+private:
    [[nodiscard]]
    constexpr size_type
    calculate_growth_size(size_type target_growth = 1UZ)

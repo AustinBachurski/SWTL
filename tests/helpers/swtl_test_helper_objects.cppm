@@ -1,3 +1,5 @@
+module;
+#include <limits>
 export module swtl_test_helper_objects;
 
 import std;
@@ -5,12 +7,124 @@ import std;
 export namespace swtl_test_helpers
 {
 
-struct ThrowingConstructor
+template <typename Derived>
+class LifetimeTracker
 {
-   ThrowingConstructor()
+public:
+   constexpr LifetimeTracker() noexcept
    {
-      throw std::runtime_error("Oh noes, I throws!");
-   };
+      ++count;
+   }
+
+   constexpr LifetimeTracker(
+       [[maybe_unused]] LifetimeTracker const &other) noexcept
+   {
+      ++count;
+   }
+
+   constexpr LifetimeTracker([[maybe_unused]] LifetimeTracker &&other) noexcept
+   {
+      ++count;
+   }
+
+   constexpr LifetimeTracker &
+   operator=([[maybe_unused]] LifetimeTracker const &other) = default;
+
+   constexpr LifetimeTracker &
+   operator=([[maybe_unused]] LifetimeTracker &&other) = default;
+
+   constexpr ~LifetimeTracker()
+   {
+      --count;
+   }
+
+   [[nodiscard]]
+   static constexpr bool
+   all_instances_destroyed() noexcept
+   {
+      return count == 0LL;
+   }
+
+   static constexpr void
+   reset_lifetime_instance_count() noexcept
+   {
+      count = 0LL;
+   }
+
+private:
+   static inline long long count{};
+};
+
+template <typename Derived>
+class ThrowingObject
+{
+public:
+   constexpr ThrowingObject()
+   {
+      count_and_throw_if();
+   }
+
+   constexpr ThrowingObject([[maybe_unused]] ThrowingObject const &other)
+   {
+      count_and_throw_if();
+   }
+
+   constexpr ThrowingObject([[maybe_unused]] ThrowingObject &&other)
+   {
+      count_and_throw_if();
+   }
+
+   constexpr ThrowingObject &
+   operator=([[maybe_unused]] ThrowingObject const &other) = default;
+
+   constexpr ThrowingObject &
+   operator=([[maybe_unused]] ThrowingObject &&other) = default;
+
+   constexpr ~ThrowingObject() = default;
+
+   static constexpr void
+   reset_throwing_instance_count() noexcept
+   {
+      instances = 0;
+   }
+
+   static constexpr void
+   throw_when_constructing_instance(std::size_t count) noexcept
+   {
+      limit = count;
+   }
+
+private:
+   static void
+   count_and_throw_if()
+   {
+      // Use equality so that this doesn't trigger when reference objects are
+      // constructed in consecutive test cases.
+      if (++instances == limit)
+      {
+         throw std::runtime_error("Oh noes, I throws!");
+      }
+   }
+
+   static inline std::size_t instances{};
+   // Default to max() so that reference objects can be constructed safetly.
+   static inline std::size_t limit{ std::numeric_limits<std::size_t>::max() };
+};
+
+template <typename T>
+constexpr void
+reset_instance_counts_of() noexcept
+{
+   T::reset_lifetime_instance_count();
+   T::reset_throwing_instance_count();
+}
+
+struct TrivialObject : ThrowingObject<TrivialObject>,
+                       LifetimeTracker<TrivialObject>
+{
+   float x{};
+   float y{};
+   float z{};
 };
 
 struct ThrowingCopyConstructor
@@ -76,6 +190,37 @@ struct ThrowingMoveOnlyObject
        , z{ std::move(other.z) }
    {
       throw std::runtime_error("Oh noes, I throws!");
+   }
+};
+
+struct ThrowsAfterNCopies
+{
+   int *x_{};
+   int &counter_;
+   int limit_;
+
+   ThrowsAfterNCopies(int &counter, int limit)
+       : counter_{ counter }
+       , limit_{ limit }
+   {}
+
+   ThrowsAfterNCopies(ThrowsAfterNCopies const &other)
+       : counter_{ other.counter_ }
+       , limit_{ other.limit_ }
+   {
+      if (counter_ == limit_)
+      {
+         throw std::runtime_error("Limit reached, do you leak?");
+      }
+
+      x_ = new int(42);
+      ++counter_;
+   }
+
+   ~ThrowsAfterNCopies()
+   {
+      delete x_;
+      --counter_;
    }
 };
 

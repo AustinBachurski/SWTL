@@ -6,13 +6,18 @@ import swtl_vector;
 export namespace swtl_test_helpers
 {
 
-template <typename Type>
-auto
-generate_baseline_data()
-{
-   using T = std::remove_cvref_t<Type>;
+template <typename Container>
+concept VectorLike
+    = std::same_as<Container, std::vector<typename Container::value_type>>
+   || std::same_as<Container, swtl::Vector<typename Container::value_type>>;
 
-   return []() -> std::vector<T>
+template <VectorLike Container>
+auto
+generate_populated_container()
+{
+   using T = typename Container::value_type;
+
+   return []() -> Container
    {
       /*
       Currently a bug that prevents this from linking with libstdc++,
@@ -55,19 +60,9 @@ generate_baseline_data()
       {
          throw std::invalid_argument(
              "Missing conditional block to generate "
-             "values for the passed in Vector type.");
+             "values for the passed in VectorLike type.");
       }
    }();
-}
-
-// TODO: FIX: This is a pointless copy, just template the container type also
-// and use one function.
-template <typename T>
-auto
-generate_populated_swtl_vector()
-{
-   auto const data{ generate_baseline_data<T>() };
-   return swtl::Vector(data.begin(), data.end());
 }
 
 }  // namespace swtl_test_helpers
