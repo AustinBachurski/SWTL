@@ -315,7 +315,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Vector(size_type n) creates a Vector with n elements of type T.",
+    "Vector(size_type count) creates a Vector with count elements of type T.",
     "[vector]")
 {
    swtl::Vector<int> const should_be_empty(0);
@@ -331,8 +331,8 @@ TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector(size_type n, T &value) creates a Vector with n elements of "
-    "type T equal to value.",
+    "Vector(size_type count, T const &value) creates a Vector with count "
+    "elements of type T equal to value.",
     "[vector]",
     int,
     double,
@@ -664,7 +664,7 @@ TEST_CASE("Non-const iterator mutability.", "[vector]")
 
 TEMPLATE_TEST_CASE(
     "Special Member Functions: Copy Operations",
-    "[vector][default_allocator]",
+    "[vector][special member functions][default_allocator]",
     bool,
     unsigned char,
     int,
@@ -708,7 +708,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Special Member Functions: Move Operations",
-    "[vector][default_allocator]",
+    "[vector][special member functions][default_allocator]",
     bool,
     int,
     double,
@@ -811,24 +811,139 @@ TEMPLATE_TEST_CASE(
    }
 }
 
-TEST_CASE("push_back doesn't leak if construction throws")
+TEST_CASE(
+    "Vector(size_type count) exception safety.",
+    "[vector][constructors][exception safety]")
 {
-   swtl::Vector<helpers::ThrowingType> vec;
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
 
-   helpers::ThrowingType::throw_after = 3;
-   vec.emplace_back();
-   vec.emplace_back();
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
 
-   REQUIRE_THROWS_AS(
-       vec.push_back(helpers::ThrowingType{}), std::runtime_error);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
 }
 
 TEST_CASE(
-    "Exception safety with user defined types - throwing constructor.",
-    "[vector]")
+    "Vector(size_type count, T const &value) exception safety.",
+    "[vector][constructors][exception safety]")
 {
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::ThrowingConstructor>(1), std::runtime_error);
+   helpers::TrivialObject reference_object;
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Vector(InputIterator src_begin, InputIterator src_end) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   auto const source_count{ 5UZ };
+   std::vector<helpers::TrivialObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
+}
+
+TEST_CASE(
+    "Vector(std::from_range_t, Range, &&range) exception safety.",
+    "[vector][constructors][exception safety]")
+{
+   auto const source_count{ 5UZ };
+   std::vector<helpers::TrivialObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+
+   SECTION(
+       "Memory owned by the vector does not leak if an exception is thrown "
+       "during construction.")
+   {
+      const auto instances{ 1UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          std::runtime_error);
+   }
+
+   SECTION(
+       "Any elements that were constructed are destroyed if an exception is "
+       "thrown during construction.")
+   {
+      const auto instances{ 5UZ };
+      helpers::TrivialObject::throw_when_constructing_instance(instances);
+
+      REQUIRE(instances <= source_count);
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          std::runtime_error);
+      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+   }
 }
 
 TEST_CASE(
