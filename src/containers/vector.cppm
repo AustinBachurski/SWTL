@@ -395,10 +395,7 @@ public:
    {
       this->create_storage(other.size());
       this->data_end_ = memory::uninitialized_copy(
-          this->allocator_,
-          other.data_begin_,
-          other.data_end_,
-          this->data_begin_);
+          this->allocator_, other.begin(), other.end(), this->data_begin_);
    }
 
    constexpr Vector &
