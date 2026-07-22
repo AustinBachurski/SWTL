@@ -1,5 +1,3 @@
-module;
-#include <limits>
 export module swtl_test_helper_objects;
 
 import std;
@@ -37,6 +35,9 @@ public:
    {
       --count;
    }
+
+   constexpr auto
+   operator<=>(LifetimeTracker const &other) const = default;
 
    [[nodiscard]]
    static constexpr bool
@@ -82,6 +83,9 @@ public:
 
    constexpr ~ThrowingObject() = default;
 
+   constexpr auto
+   operator<=>(ThrowingObject const &other) const = default;
+
    static constexpr void
    reset_throwing_instance_count() noexcept
    {
@@ -107,8 +111,9 @@ private:
    }
 
    static inline std::size_t instances{};
-   // Default to max() so that reference objects can be constructed safetly.
-   static inline std::size_t limit{ std::numeric_limits<std::size_t>::max() };
+   // Defaulting to zero means that the initial objects can be constructed at
+   // will during test setup, only once the limit is set will it throw.
+   static inline std::size_t limit{};
 };
 
 template <typename T>
@@ -119,109 +124,85 @@ reset_instance_counts_of() noexcept
    T::reset_throwing_instance_count();
 }
 
-struct TrivialObject : ThrowingObject<TrivialObject>,
-                       LifetimeTracker<TrivialObject>
+struct TestObject : public LifetimeTracker<TestObject>,
+                    public ThrowingObject<TestObject>
 {
-   float x{};
-   float y{};
-   float z{};
-};
+   std::size_t id{};
 
-struct ThrowingCopyConstructor
-{
-   int x{};
-   float y{};
-   std::string z{ "Enough text so that we heap allocate the data." };
+   constexpr TestObject() = default;
 
-   auto
-   operator<=>(ThrowingCopyConstructor const &other) const = default;
-
-   ThrowingCopyConstructor() = default;
-
-   ThrowingCopyConstructor(ThrowingCopyConstructor const &other)
-       : x{ other.x }
-       , y{ other.y }
-       , z{ other.z }
-   {
-      throw std::runtime_error("Oh noes, I throws!");
-   }
-
-   ThrowingCopyConstructor(ThrowingCopyConstructor &&other)
-       = delete ("Testing throwing copy constructor, don't move me.");
-};
-
-struct ThrowingMoveConstructor
-{
-   int x{};
-   float y{};
-   std::string z{ "Enough text so that we heap allocate the data." };
-
-   auto
-   operator<=>(ThrowingMoveConstructor const &other) const = default;
-
-   ThrowingMoveConstructor() = default;
-   ThrowingMoveConstructor(ThrowingMoveConstructor const &other) = default;
-
-   ThrowingMoveConstructor(ThrowingMoveConstructor &&other)
-       : x{ other.x }
-       , y{ other.y }
-       , z{ other.z }
-   {
-      throw std::runtime_error("Oh noes, I throws!");
-   }
-};
-
-struct ThrowingMoveOnlyObject
-{
-   int x{};
-   float y{};
-   std::string z{ "Enough text so that we heap allocate the data." };
-
-   auto
-   operator<=>(ThrowingMoveOnlyObject const &other) const = default;
-
-   ThrowingMoveOnlyObject() = default;
-   ThrowingMoveOnlyObject(ThrowingMoveOnlyObject const &other)
-       = delete ("Object is move-only.");
-
-   ThrowingMoveOnlyObject(ThrowingMoveOnlyObject &&other)
-       : x{ other.x }
-       , y{ other.y }
-       , z{ std::move(other.z) }
-   {
-      throw std::runtime_error("Oh noes, I throws!");
-   }
-};
-
-struct ThrowsAfterNCopies
-{
-   int *x_{};
-   int &counter_;
-   int limit_;
-
-   ThrowsAfterNCopies(int &counter, int limit)
-       : counter_{ counter }
-       , limit_{ limit }
+   constexpr TestObject(std::size_t identifier)
+       : id{ identifier }
    {}
 
-   ThrowsAfterNCopies(ThrowsAfterNCopies const &other)
-       : counter_{ other.counter_ }
-       , limit_{ other.limit_ }
-   {
-      if (counter_ == limit_)
-      {
-         throw std::runtime_error("Limit reached, do you leak?");
-      }
+   constexpr auto
+   operator<=>(TestObject const &other) const = default;
+};
 
-      x_ = new int(42);
-      ++counter_;
-   }
+struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>
+{
+   std::size_t id{};
 
-   ~ThrowsAfterNCopies()
-   {
-      delete x_;
-      --counter_;
-   }
+   constexpr NoThrowTestObject() = default;
+
+   constexpr NoThrowTestObject(std::size_t identifier)
+       : id{ identifier }
+   {}
+
+   constexpr auto
+   operator<=>(NoThrowTestObject const &other) const = default;
+};
+
+struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
+                            public ThrowingObject<MoveOnlyTestObject>
+{
+   std::size_t id{};
+
+   constexpr MoveOnlyTestObject() = default;
+
+   constexpr MoveOnlyTestObject(std::size_t identifier)
+       : id{ identifier }
+   {}
+
+   constexpr MoveOnlyTestObject(MoveOnlyTestObject const &other) = default;
+   constexpr MoveOnlyTestObject &
+   operator=(MoveOnlyTestObject const &other) = default;
+
+   constexpr MoveOnlyTestObject(MoveOnlyTestObject &&other)
+       = delete ("Object is move only.");
+   constexpr MoveOnlyTestObject &
+   operator=(MoveOnlyTestObject &&other) = delete ("Object is move only.");
+
+   constexpr ~MoveOnlyTestObject() = default;
+
+   constexpr auto
+   operator<=>(MoveOnlyTestObject const &other) const = default;
+};
+
+struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
+                            public ThrowingObject<CopyOnlyTestObject>
+{
+   std::size_t id{};
+
+   constexpr CopyOnlyTestObject() = default;
+
+   constexpr CopyOnlyTestObject(std::size_t identifier)
+       : id{ identifier }
+   {}
+
+   constexpr CopyOnlyTestObject(CopyOnlyTestObject const &other) = default;
+   constexpr CopyOnlyTestObject &
+   operator=(CopyOnlyTestObject const &other) = default;
+
+   constexpr CopyOnlyTestObject(CopyOnlyTestObject &&other)
+       = delete ("Object is copy only.");
+   constexpr CopyOnlyTestObject &
+   operator=(CopyOnlyTestObject &&other) = delete ("Object is copy only.");
+
+   constexpr ~CopyOnlyTestObject() = default;
+
+   constexpr auto
+   operator<=>(CopyOnlyTestObject const &other) const = default;
 };
 
 }  // namespace swtl_test_helpers

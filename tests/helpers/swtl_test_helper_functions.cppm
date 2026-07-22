@@ -65,4 +65,19 @@ generate_populated_container()
    }();
 }
 
+template <typename T>
+swtl::Vector<T>
+generate_vector_of_count(std::size_t count)
+{
+   swtl::Vector<T> vec;
+   vec.reserve(count);
+
+   for (auto const value : std::views::iota(0UZ, count))
+   {
+      vec.emplace_back(value);
+   }
+
+   return vec;
+}
+
 }  // namespace swtl_test_helpers
