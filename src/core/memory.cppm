@@ -202,13 +202,14 @@ uninitialized_move(
     Sentinel src_end,
     DestinationIterator destination)
 {
-   using value_type = std::allocator_traits<Allocator>::value_type;
+   using a_traits = std::allocator_traits<Allocator>;
+   using value_type = a_traits::value_type;
 
    if constexpr (std::is_nothrow_move_constructible_v<value_type>)
    {
       for (; src_begin != src_end; ++src_begin, ++destination)
       {
-         std::allocator_traits<Allocator>::construct(
+         a_traits::construct(
              allocator, std::to_address(destination), std::move(*src_begin));
       }
 
@@ -222,8 +223,7 @@ uninitialized_move(
 
       for (; src_begin != src_end; ++src_begin, ++elem_guard.end)
       {
-         std::allocator_traits<Allocator>::construct(
-             allocator, elem_guard.end, std::move(*src_begin));
+         a_traits::construct(allocator, elem_guard.end, std::move(*src_begin));
       }
 
       elem_guard.dismiss();

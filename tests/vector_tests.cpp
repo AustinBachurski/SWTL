@@ -3,6 +3,7 @@
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
+#include <stdexcept>
 
 import std;
 
@@ -812,20 +813,53 @@ TEMPLATE_TEST_CASE(
 }
 
 TEST_CASE(
+    "Special Member Functions: Strong Exception Safety",
+    "[vector][special member functions][default_allocator]")
+{
+   auto const element_count{ 10UZ };
+   auto source{ helpers::generate_vector_of_count<helpers::TestObject>(
+       element_count) };
+   auto const expected{ source };
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+   helpers::TestObject::throw_when_constructing_instance(element_count);
+
+   SECTION(
+       "Copy construction doesn't modify source elements and all new elements "
+       "are destroyed when an exception is thrown.")
+   {
+      REQUIRE_THROWS_AS(
+          swtl::Vector<helpers::TestObject>{ source }, std::runtime_error);
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
+      REQUIRE(source == expected);
+   }
+
+   SECTION(
+       "Copy assignment doesn't modify source elements and all new elements "
+       "are destroyed when an exception is thrown.")
+   {
+      swtl::Vector<helpers::TestObject> vec;
+
+      REQUIRE_THROWS_AS(vec = source, std::runtime_error);
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
+      REQUIRE(source == expected);
+   }
+}
+
+TEST_CASE(
     "Vector(size_type count) exception safety.",
     "[vector][constructors][exception safety]")
 {
-   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+   helpers::reset_instance_counts_of<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
        "during construction.")
    {
       const auto instances{ 1UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
+          swtl::Vector<helpers::TestObject>(instances), std::runtime_error);
    }
 
    SECTION(
@@ -833,11 +867,11 @@ TEST_CASE(
        "thrown during construction.")
    {
       const auto instances{ 5UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(instances), std::runtime_error);
-      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+          swtl::Vector<helpers::TestObject>(instances), std::runtime_error);
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
    }
 }
 
@@ -845,18 +879,18 @@ TEST_CASE(
     "Vector(size_type count, T const &value) exception safety.",
     "[vector][constructors][exception safety]")
 {
-   helpers::TrivialObject reference_object;
-   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+   helpers::TestObject reference_object;
+   helpers::reset_instance_counts_of<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
        "during construction.")
    {
       const auto instances{ 1UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          swtl::Vector<helpers::TestObject>(instances, reference_object),
           std::runtime_error);
    }
 
@@ -865,12 +899,12 @@ TEST_CASE(
        "thrown during construction.")
    {
       const auto instances{ 5UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(instances, reference_object),
+          swtl::Vector<helpers::TestObject>(instances, reference_object),
           std::runtime_error);
-      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
    }
 }
 
@@ -879,19 +913,19 @@ TEST_CASE(
     "[vector][constructors][exception safety]")
 {
    auto const source_count{ 5UZ };
-   std::vector<helpers::TrivialObject> const source(source_count);
-   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+   std::vector<helpers::TestObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
        "during construction.")
    {
       const auto instances{ 1UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE(instances <= source_count);
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          swtl::Vector<helpers::TestObject>(source.begin(), source.end()),
           std::runtime_error);
    }
 
@@ -900,13 +934,13 @@ TEST_CASE(
        "thrown during construction.")
    {
       const auto instances{ 5UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE(instances <= source_count);
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(source.begin(), source.end()),
+          swtl::Vector<helpers::TestObject>(source.begin(), source.end()),
           std::runtime_error);
-      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
    }
 }
 
@@ -915,19 +949,19 @@ TEST_CASE(
     "[vector][constructors][exception safety]")
 {
    auto const source_count{ 5UZ };
-   std::vector<helpers::TrivialObject> const source(source_count);
-   helpers::reset_instance_counts_of<helpers::TrivialObject>();
+   std::vector<helpers::TestObject> const source(source_count);
+   helpers::reset_instance_counts_of<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
        "during construction.")
    {
       const auto instances{ 1UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE(instances <= source_count);
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          swtl::Vector<helpers::TestObject>(std::from_range, source),
           std::runtime_error);
    }
 
@@ -936,89 +970,14 @@ TEST_CASE(
        "thrown during construction.")
    {
       const auto instances{ 5UZ };
-      helpers::TrivialObject::throw_when_constructing_instance(instances);
+      helpers::TestObject::throw_when_constructing_instance(instances);
 
       REQUIRE(instances <= source_count);
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrivialObject>(std::from_range, source),
+          swtl::Vector<helpers::TestObject>(std::from_range, source),
           std::runtime_error);
-      REQUIRE(helpers::TrivialObject::all_instances_destroyed());
+      REQUIRE(helpers::TestObject::all_instances_destroyed());
    }
-}
-
-TEST_CASE(
-    "Exception safety with user defined types - constructor that throws after "
-    "creating N objects.",
-    "[vector]")
-{
-   int counter{};
-   int limit{ 5 };
-   helpers::ThrowsAfterNCopies go_boom(counter, limit);
-
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::ThrowsAfterNCopies>(10, go_boom),
-       std::runtime_error);
-
-   REQUIRE(counter == 0);
-}
-
-TEST_CASE(
-    "Exception safety with user defined types - throwing copy constructor.",
-    "[vector]")
-{
-   swtl::Vector<helpers::ThrowingCopyConstructor> throws_on_copy(3);
-   auto const full_count{ throws_on_copy.capacity() };
-
-   while (throws_on_copy.size() != full_count)
-   {
-      throws_on_copy.emplace_back();
-   }
-   swtl::Vector<helpers::ThrowingCopyConstructor> const expected(full_count);
-
-   REQUIRE_THROWS_AS(throws_on_copy.emplace_back(), std::runtime_error);
-   REQUIRE(throws_on_copy == expected);
-}
-
-TEST_CASE(
-    "Exception safety with user defined types - throwing move "
-    "constructor (copy fallback).",
-    "[vector]")
-{
-   swtl::Vector<helpers::ThrowingMoveConstructor> throws_on_move(3);
-   auto const full_count{ throws_on_move.capacity() };
-
-   while (throws_on_move.size() != full_count)
-   {
-      throws_on_move.emplace_back();
-   }
-   swtl::Vector<helpers::ThrowingMoveConstructor> const expected(
-       full_count + 1);
-
-   // Reallocation succeeds because migration falls back to the copy
-   // constructor.
-   REQUIRE_NOTHROW(throws_on_move.emplace_back());
-   REQUIRE(throws_on_move == expected);
-}
-
-TEST_CASE(
-    "Exception safety with user defined types - throwing move-only "
-    "constructor.",
-    "[vector]")
-{
-   swtl::Vector<helpers::ThrowingMoveOnlyObject> throws_on_move(3);
-   auto const full_count{ throws_on_move.capacity() };
-
-   while (throws_on_move.size() != full_count)
-   {
-      throws_on_move.emplace_back();
-   }
-   swtl::Vector<helpers::ThrowingMoveOnlyObject> const expected(full_count);
-
-   // Reallocation fails, but no memory should be leaked and invariants should
-   // hold.  Cannot guarantee the state of the contained elements.
-   REQUIRE_THROWS_AS(throws_on_move.emplace_back(), std::runtime_error);
-   REQUIRE(throws_on_move.data() != nullptr);
-   REQUIRE(throws_on_move.size() == expected.size());
 }
 
 TEMPLATE_TEST_CASE(
@@ -1452,6 +1411,111 @@ TEMPLATE_TEST_CASE(
    {
       REQUIRE(std::get<0>(pair) == std::get<1>(pair));
    }
+}
+
+TEST_CASE("Reallocation exception safety.", "[vector][exception]")
+{
+   auto source{ helpers::generate_vector_of_count<helpers::TestObject>(10UZ) };
+
+   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
+   {
+      source.emplace_back();
+   }
+
+   auto const expected{ source };
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+   helpers::TestObject::throw_when_constructing_instance(source.size());
+
+   REQUIRE_THROWS_AS(source.emplace_back(), std::runtime_error);
+   REQUIRE(helpers::TestObject::all_instances_destroyed());
+   REQUIRE(source == expected);
+}
+
+TEST_CASE("Reallocation copies if move is not noexcept.", "[vector][exception]")
+{
+   struct MoveThrows
+   {
+      std::size_t id{};
+
+      constexpr MoveThrows() = default;
+
+      constexpr MoveThrows(std::size_t identifier)
+          : id{ identifier }
+      {}
+
+      constexpr MoveThrows([[maybe_unused]] MoveThrows const &other) = default;
+      constexpr MoveThrows &
+      operator=([[maybe_unused]] MoveThrows const &other) = default;
+
+      constexpr MoveThrows([[maybe_unused]] MoveThrows &&other)
+      {
+         throw std::runtime_error("Shouldn't happen.");
+      }
+
+      constexpr MoveThrows &
+      operator=([[maybe_unused]] MoveThrows &&other)
+      {
+         throw std::runtime_error("Shouldn't happen.");
+      }
+
+      constexpr auto
+      operator<=>(MoveThrows const &other) const = default;
+   };
+
+   auto source{ helpers::generate_vector_of_count<MoveThrows>(10UZ) };
+
+   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
+   {
+      source.emplace_back();
+   }
+
+   auto const expected{ source.size() + 1 };
+
+   REQUIRE_NOTHROW(source.emplace_back());
+   REQUIRE(source.size() == expected);
+}
+
+TEST_CASE(
+    "Reallocation copies if object is not movable.", "[vector][exception]")
+{
+   auto source{ helpers::generate_vector_of_count<helpers::CopyOnlyTestObject>(
+       10UZ) };
+
+   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
+   {
+      source.emplace_back();
+   }
+
+   auto const expected{ source.size() + 1 };
+
+   REQUIRE_NOTHROW(source.emplace_back());
+   REQUIRE(source.size() == expected);
+}
+
+TEST_CASE(
+    "Reallocation exception safety with throwing move only object.",
+    "[vector][exception]")
+{
+   auto const element_count{ 10UZ };
+   auto source{ helpers::generate_vector_of_count<helpers::MoveOnlyTestObject>(
+       element_count) };
+
+   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
+   {
+      source.emplace_back();
+   }
+
+   auto const expected{ source.size() };
+
+   helpers::reset_instance_counts_of<helpers::MoveOnlyTestObject>();
+   helpers::MoveOnlyTestObject::throw_when_constructing_instance(element_count);
+
+   // Reallocation fails, but no memory should be leaked and invariants should
+   // hold.  Cannot guarantee the state of the contained elements.
+   REQUIRE_THROWS_AS(source.emplace_back(), std::runtime_error);
+   REQUIRE(source.data() != nullptr);
+   REQUIRE(source.size() == expected);
 }
 
 TEST_CASE("Vector comparison.", "[vector]")
