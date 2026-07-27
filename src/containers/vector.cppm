@@ -386,6 +386,20 @@ public:
       }
    }
 
+   // ** ASSIGNMENT **
+
+   constexpr void
+   assign(size_type count, T const &value)
+   {}
+
+   template <std::input_iterator InputIterator>
+   constexpr void
+   assign(InputIterator src_begin, InputIterator src_end)
+   {}
+
+   constexpr assign(std::initializer_list<T> init_list)
+   {}
+
    // TODO: assign_range
    // TODO: get_allocator
 
