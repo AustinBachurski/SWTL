@@ -235,7 +235,7 @@ struct VectorBase
    }
 
    constexpr void
-   deallocate_memory_of_this() noexcept
+   deallocate_memory() noexcept
    {
       a_traits::deallocate(allocator_, data_begin_, allocated_capacity());
       data_begin_ = data_end_ = capacity_end_ = nullptr;
@@ -537,7 +537,7 @@ public:
          // Allocator can be moved with the container - noexcept.
 
          clear();
-         this->deallocate_memory_of_this();
+         this->deallocate_memory();
          this->allocator_ = std::move(other.allocator_);
          this->data_begin_ = other.data_begin_;
          this->data_end_ = other.data_end_;
@@ -552,7 +552,7 @@ public:
          // noexcept.
 
          clear();
-         this->deallocate_memory_of_this();
+         this->deallocate_memory();
          this->data_begin_ = other.data_begin_;
          this->data_end_ = other.data_end_;
          this->capacity_end_ = other.capacity_end_;
