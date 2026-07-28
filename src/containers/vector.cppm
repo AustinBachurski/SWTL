@@ -309,7 +309,7 @@ public:
       memory::ElementGuard elem_guard(
           this->allocator_, this->data_begin_, this->data_begin_);
 
-      for (auto const _ : std::views::iota(0UZ, count))
+      for (; count != 0UZ; --count)
       {
          a_traits::construct(this->allocator_, elem_guard.end);
          ++elem_guard.end;
@@ -326,7 +326,7 @@ public:
       memory::ElementGuard elem_guard(
           this->allocator_, this->data_begin_, this->data_begin_);
 
-      for (auto const _ : std::views::iota(0UZ, count))
+      for (; count != 0UZ; --count)
       {
          a_traits::construct(this->allocator_, elem_guard.end, value);
          ++elem_guard.end;
@@ -402,7 +402,7 @@ public:
             this->data_begin_ = this->data_end_ = ptr;
             this->capacity_end_ = ptr + size;
 
-            for (auto const _ : std::views::iota(0UZ, count))
+            for (; count != 0UZ; --count)
             {
                a_traits::construct(this->allocator_, this->data_end_++, value);
             }
@@ -413,7 +413,7 @@ public:
             {
                memory::ElementGuard elem_guard(this->allocator_, ptr, ptr);
 
-               for (auto const _ : std::views::iota(0UZ, count))
+               for (; count != 0UZ; --count)
                {
                   a_traits::construct(this->allocator_, elem_guard.end, value);
                   ++elem_guard.end;
