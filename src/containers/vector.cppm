@@ -390,14 +390,75 @@ public:
 
    constexpr void
    assign(size_type count, T const &value)
-   {}
+   {
+      if (capacity() < count)
+      {
+         auto [ptr, size]{ this->allocate_at_least(count) };
+
+         if constexpr (std::is_nothrow_copy_constructible_v<T>)
+         {
+            clear();
+            this->deallocate_memory();
+            this->data_begin_ = this->data_end_ = ptr;
+            this->capacity_end_ = ptr + size;
+
+            for (auto const _ : std::views::iota(0UZ, count))
+            {
+               a_traits::construct(this->allocator_, this->data_end_++, value);
+            }
+         }
+         else
+         {
+            memory::AllocationGuard mem_guard(this->allocator_, ptr, size);
+            {
+               memory::ElementGuard elem_guard(this->allocator_, ptr, ptr);
+
+               for (auto const _ : std::views::iota(0UZ, count))
+               {
+                  a_traits::construct(this->allocator_, elem_guard.end, value);
+                  ++elem_guard.end;
+               }
+
+               elem_guard.reassign(
+                   this->data_begin_,
+                   std::exchange(this->data_end_, elem_guard.end));
+            }
+            mem_guard.reassign(this->data_begin_, capacity());
+            this->data_begin_ = ptr;
+            this->capacity_end_ = ptr + size;
+         }
+      }
+      else
+      {
+         auto current = this->data_begin_;
+
+         for (; current != this->data_end_ && count != 0UZ; --count, ++current)
+         {
+            *current = value;
+         }
+
+         if (current < this->data_end_)
+         {
+            memory::destroy(this->allocator_, current, this->data_end_);
+            this->data_end_ = current;
+         }
+
+         for (; count != 0UZ; --count)
+         {
+            a_traits::construct(this->allocator_, this->data_end_, value);
+            ++this->data_end_;
+         }
+      }
+   }
 
    template <std::input_iterator InputIterator>
    constexpr void
    assign(InputIterator src_begin, InputIterator src_end)
+
    {}
 
-   constexpr assign(std::initializer_list<T> init_list)
+   constexpr void
+   assign(std::initializer_list<T> init_list)
    {}
 
    // TODO: assign_range

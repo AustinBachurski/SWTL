@@ -46,6 +46,13 @@ public:
       return count == 0LL;
    }
 
+   [[nodiscard]]
+   static constexpr long long
+   instances_alive() noexcept
+   {
+      return count;
+   }
+
    static constexpr void
    reset_lifetime_instance_count() noexcept
    {
@@ -120,8 +127,15 @@ template <typename T>
 constexpr void
 reset_instance_counts_of() noexcept
 {
-   T::reset_lifetime_instance_count();
-   T::reset_throwing_instance_count();
+   if constexpr (std::derived_from<T, LifetimeTracker<T>>)
+   {
+      T::reset_lifetime_instance_count();
+   }
+
+   if constexpr (std::derived_from<T, ThrowingObject<T>>)
+   {
+      T::reset_throwing_instance_count();
+   }
 }
 
 struct TestObject : public LifetimeTracker<TestObject>,

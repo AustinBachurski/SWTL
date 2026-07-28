@@ -3,7 +3,6 @@
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
-#include <stdexcept>
 
 import std;
 
@@ -978,6 +977,88 @@ TEST_CASE(
           std::runtime_error);
       REQUIRE(helpers::TestObject::all_instances_destroyed());
    }
+}
+
+// ** ASSIGNMENT **
+
+TEMPLATE_TEST_CASE(
+    "Vector::assign(size_type count, T const &value) updates vector with new "
+    "data.",
+    "[vector]",
+    helpers::TestObject,
+    helpers::NoThrowTestObject)
+{
+   auto const new_count{ 10UZ };
+   swtl::Vector<TestType> vec;
+   swtl::Vector<TestType> const expected(new_count, TestType{});
+
+   vec.assign(new_count, TestType{});
+
+   REQUIRE(vec == expected);
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::assign(size_type count, T const &value) does not leak memory when "
+    "reallocating.",
+    "[vector]",
+    helpers::TestObject,
+    helpers::NoThrowTestObject)
+{
+   auto const base_count{ 2UZ };
+   auto const new_count{ 128UZ };
+   swtl::Vector<TestType> const expected(new_count, TestType{});
+
+   helpers::reset_instance_counts_of<TestType>();
+   swtl::Vector<TestType> vec(base_count);
+
+   INFO(
+       "BAD TEST: initial capacity (which was "
+       << vec.capacity() << ") must be less than new_count (which was "
+       << new_count << ") for test to trigger reallocation - test is invalid!");
+   REQUIRE(vec.capacity() < new_count);
+
+   vec.assign(new_count, TestType{});
+
+   REQUIRE(vec == expected);
+   REQUIRE(std::cmp_equal(TestType::instances_alive(), new_count));
+}
+
+TEST_CASE(
+    "Vector::assign(size_type count, T const &value) correctly manages "
+    "lifetimes of existing elements if old size > new size.",
+    "[vector]")
+{
+   auto const base_count{ 10UZ };
+   auto const expected_count{ 5UZ };
+   swtl::Vector<helpers::TestObject> const expected(expected_count);
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+
+   swtl::Vector<helpers::TestObject> vec(base_count);
+   vec.assign(expected_count, helpers::TestObject{});
+
+   REQUIRE(vec == expected);
+   REQUIRE(
+       std::cmp_equal(helpers::TestObject::instances_alive(), expected_count));
+}
+
+TEST_CASE(
+    "Vector::assign(size_type count, T const &value) does not leak if an "
+    "exception is thrown.",
+    "[vector][exception]")
+{
+   auto const base_count{ 5UZ };
+   auto const new_count{ 10UZ };
+   swtl::Vector<helpers::TestObject> vec(base_count);
+   auto const expected{ vec };
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+   helpers::TestObject::throw_when_constructing_instance(new_count);
+
+   REQUIRE_THROWS_AS(
+       vec.assign(new_count, helpers::TestObject{}), std::runtime_error);
+   REQUIRE(helpers::TestObject::all_instances_destroyed());
+   REQUIRE(vec == expected);
 }
 
 TEMPLATE_TEST_CASE(
