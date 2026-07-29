@@ -1061,6 +1061,77 @@ TEST_CASE(
    REQUIRE(vec == expected);
 }
 
+TEST_CASE(
+    "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
+    "from a non forward iterator and doesn't leak elements.",
+    "[vector]")
+{
+   auto const source_size{ 10UZ };
+   auto const initial_size{ 20UZ };
+
+   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
+       source_size) };
+
+   helpers::TestInputIterator begin{ source.data() };
+   helpers::TestInputIterator end{ source.data() + source.size() };
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+
+   swtl::Vector<helpers::TestObject> vec(initial_size);
+
+   vec.assign(begin, end);
+
+   REQUIRE(vec == source);
+   REQUIRE(helpers::TestObject::instances_alive() == source_size);
+}
+
+TEST_CASE(
+    "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
+    "from a non forward iterator and grows when needed.",
+    "[vector]")
+{
+   auto const source_size{ 20UZ };
+   auto const initial_size{ 10UZ };
+
+   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
+       source_size) };
+
+   helpers::TestInputIterator begin{ source.data() };
+   helpers::TestInputIterator end{ source.data() + source.size() };
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+
+   swtl::Vector<helpers::TestObject> vec(initial_size);
+
+   vec.assign(begin, end);
+
+   REQUIRE(vec == source);
+   REQUIRE(helpers::TestObject::instances_alive() == source_size);
+}
+
+TEST_CASE(
+    "Vector::assign(InputIterator src_begin, InputIterator src_end) does not "
+    "leak if an exception is thrown.",
+    "[vector]")
+{
+   auto const source_size{ 20UZ };
+   auto const initial_size{ 10UZ };
+
+   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
+       source_size) };
+
+   helpers::TestInputIterator begin{ source.data() };
+   helpers::TestInputIterator end{ source.data() + source.size() };
+
+   helpers::reset_instance_counts_of<helpers::TestObject>();
+   helpers::TestObject::throw_when_constructing_instance(initial_size + 1);
+
+   swtl::Vector<helpers::TestObject> vec(initial_size);
+
+   REQUIRE_THROWS_AS(vec.assign(begin, end), std::runtime_error);
+   REQUIRE(helpers::TestObject::instances_alive() == initial_size);
+}
+
 TEMPLATE_TEST_CASE(
     "Element access, const & non-const.",
     "[vector]",

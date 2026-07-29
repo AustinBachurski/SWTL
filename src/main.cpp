@@ -5,6 +5,8 @@ import swtl_forward_list;
 import swtl_test_helper_functions;
 import swtl_test_helper_objects;
 
+namespace helpers = swtl_test_helpers;
+
 namespace
 {
 

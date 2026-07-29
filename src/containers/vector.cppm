@@ -343,18 +343,8 @@ public:
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      auto const distance{ std::ranges::distance(src_begin, src_end) };
-
-      if (distance < 0)
-      {
-         throw std::invalid_argument(
-             "Vector constructor: 'src_end' must be "
-             "reachable from 'src_begin'");
-      }
-
-      auto const count{ static_cast<size_type>(distance) };
-      this->create_storage(count);
-
+      this->create_storage(
+          static_cast<size_type>(std::ranges::distance(src_begin, src_end)));
       this->data_end_ = memory::uninitialized_copy(
           this->allocator_, src_begin, src_end, this->data_begin_);
    }
@@ -453,9 +443,34 @@ public:
 
    template <std::input_iterator InputIterator>
    constexpr void
-   assign(InputIterator src_begin, InputIterator src_end)
+   assign(InputIterator src_begin, [[maybe_unused]] InputIterator src_end)
+   {
+      if constexpr (std::forward_iterator<decltype(src_begin)>)
+      {
+         std::println("yep");
+      }
+      else
+      {
+         auto current{ begin() };
 
-   {}
+         while (src_begin != src_end && current != end())
+         {
+            *current++ = *src_begin++;
+         }
+
+         if (src_begin == src_end)
+         {
+            memory::destroy(this->allocator_, current, end());
+            this->data_end_ = std::to_address(current);
+            return;
+         }
+
+         while (src_begin != src_end)
+         {
+            emplace_back(*src_begin++);
+         }
+      }
+   }
 
    constexpr void
    assign(std::initializer_list<T> init_list)
