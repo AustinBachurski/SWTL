@@ -219,4 +219,57 @@ struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
    operator<=>(CopyOnlyTestObject const &other) const = default;
 };
 
+template <typename T>
+class TestInputIterator
+{
+public:
+   // Iterator Traits
+   using iterator_category = std::input_iterator_tag;
+   using value_type = std::remove_cv_t<T>;
+   using difference_type = std::ptrdiff_t;
+   using pointer = T *;
+   using reference = T &;
+
+   constexpr TestInputIterator() = default;
+
+   constexpr explicit TestInputIterator(pointer ptr)
+       : ptr_{ ptr }
+   {}
+
+   [[nodiscard]]
+   constexpr reference
+   operator*() const noexcept
+   {
+      return *ptr_;
+   }
+
+   constexpr TestInputIterator &
+   operator++() noexcept
+   {
+      ++ptr_;
+      return *this;
+   }
+
+   constexpr TestInputIterator
+   operator++(int) noexcept
+   {
+      auto temp{ *this };
+      ++ptr_;
+      return temp;
+   }
+
+   [[nodiscard]]
+   constexpr friend auto
+   operator<=>(
+       TestInputIterator const &lhs, TestInputIterator const &rhs) noexcept
+       = default;
+
+private:
+   pointer ptr_{};
+};
+
+// Ensures that the iterator meets the
+// requirements for the appropriate iterator tag.
+static_assert(std::input_or_output_iterator<TestInputIterator<int>>);
+
 }  // namespace swtl_test_helpers
