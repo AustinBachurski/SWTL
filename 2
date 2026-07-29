@@ -1065,8 +1065,8 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
     "from the source iterator and doesn't leak elements.",
     "[vector]",
-    // TODO: WORKING HERE - FIX template TestType args.
-    swtl::VectorIterator<helpers::TestObject>, )
+    swtl::VectorIterator<helpers::TestObject>,
+    )
 {
    auto const source_size{ 10UZ };
    auto const initial_size{ 20UZ };

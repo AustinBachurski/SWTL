@@ -1,3 +1,5 @@
+module;
+#include <type_traits>
 export module swtl_vector;
 
 import std;
@@ -344,7 +346,7 @@ public:
        : Base{ allocator }
    {
       this->create_storage(
-          static_cast<size_type>(std::ranges::distance(src_begin, src_end)));
+          static_cast<size_type>(std::distance(src_begin, src_end)));
       this->data_end_ = memory::uninitialized_copy(
           this->allocator_, src_begin, src_end, this->data_begin_);
    }
@@ -447,7 +449,42 @@ public:
    {
       if constexpr (std::forward_iterator<decltype(src_begin)>)
       {
-         std::println("yep");
+         if (auto const size{
+               static_cast<size_type>(std::distance(src_begin, src_end)) };
+             capacity() < size)
+         {
+            auto [ptr, count]{ this->allocate_at_least(size) };
+
+            if constexpr (std::is_nothrow_copy_constructible_v<T>)
+            {
+               clear();
+               this->deallocate_memory();
+               this->data_begin_ = ptr;
+               this->capacity_end_ = ptr + count;
+
+               this->data_end_ = memory::uninitialized_copy(
+                   this->allocator_, src_begin, src_end, ptr);
+            }
+            else
+            {
+               memory::AllocationGuard mem_guard(this->allocator_, ptr, count);
+
+               auto new_end{ memory::uninitialized_copy(
+                   this->allocator_, src_begin, src_end, ptr) };
+
+               clear();
+               mem_guard.reassign(this->data_begin_, capacity());
+               this->data_begin_ = ptr;
+               this->data_end_ = std::to_address(new_end);
+               this->capacity_end_ = ptr + count;
+            }
+         }
+         else
+         {
+            auto new_end{ std::copy(src_begin, src_end, begin()) };
+            memory::destroy(this->allocator_, new_end, end());
+            this->data_end_ = std::to_address(new_end);
+         }
       }
       else
       {
