@@ -1143,14 +1143,32 @@ TEST_CASE(
     "new data.",
     "[vector]")
 {
-   swtl::Vector<int> vec(10UZ);
    std::initializer_list<int> const init_list{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+   swtl::Vector<int> vec(10UZ);
+
    vec.assign(init_list);
 
    REQUIRE(std::ranges::equal(vec, init_list));
    // assign(std::initializer_list<T> init_list) calls the iterator helper under
    // the hood, this is well tested as
    // Vector::assign(InputIterator src_begin, Sentinel src_end) above.
+}
+
+TEST_CASE(
+    "Vector::assign_range(Range &&range) updates vector with new data.",
+    "[vector]")
+{
+   auto const range{
+      helpers::generate_populated_container<std::vector<int>>()
+   };
+   swtl::Vector<int> vec(10UZ);
+
+   vec.assign_range(range);
+
+   REQUIRE(std::ranges::equal(vec, range));
+   // assign(Range &&range) calls the iterator helper under the hood, this is
+   // well tested as Vector::assign(InputIterator src_begin, Sentinel src_end)
+   // above.
 }
 
 TEMPLATE_TEST_CASE(

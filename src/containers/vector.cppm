@@ -462,7 +462,13 @@ public:
       assign_from_range(init_list.begin(), init_list.end());
    }
 
-   // TODO: assign_range
+   template <container_compatible_range<T> Range>
+   constexpr void
+   assign_range(Range &&range)
+   {
+      assign_from_range(std::ranges::begin(range), std::ranges::end(range));
+   }
+
    // TODO: get_allocator
 
    // ** SPECIAL MEMBER FUNCTIONS **
