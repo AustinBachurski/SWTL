@@ -1065,8 +1065,8 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
     "from the source iterator and doesn't leak elements.",
     "[vector]",
-    // TODO: WORKING HERE - FIX template TestType args.
-    swtl::VectorIterator<helpers::TestObject>, )
+    helpers::TestInputIterator<helpers::TestObject const>,
+    swtl::VectorIterator<helpers::TestObject const>)
 {
    auto const source_size{ 10UZ };
    auto const initial_size{ 20UZ };
@@ -1087,13 +1087,12 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::TestObject::instances_alive() == source_size);
 }
 
-/*
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
     "from the source iterator and grows when needed.",
     "[vector]",
-    helpers::TestInputIterator,
-    swtl::VectorIterator)
+    helpers::TestInputIterator<helpers::TestObject const>,
+    swtl::VectorIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -1118,8 +1117,8 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, InputIterator src_end) does not "
     "leak if an exception is thrown.",
     "[vector]",
-    helpers::TestInputIterator,
-    swtl::VectorIterator)
+    helpers::TestInputIterator<helpers::TestObject const>,
+    swtl::VectorIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -1138,7 +1137,6 @@ TEMPLATE_TEST_CASE(
    REQUIRE_THROWS_AS(vec.assign(begin, end), std::runtime_error);
    REQUIRE(helpers::TestObject::instances_alive() == initial_size);
 }
-*/
 
 TEMPLATE_TEST_CASE(
     "Element access, const & non-const.",

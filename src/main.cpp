@@ -55,12 +55,4 @@ main()
 {
    std::puts("");
    std::puts("");
-
-   auto source{ helpers::generate_vector_of_count<helpers::TestObject>(42UZ) };
-   helpers::reset_instance_counts_of<helpers::TestObject>();
-   swtl::Vector<helpers::TestObject> vec(50);
-
-   vec.assign(source.begin(), source.end());
-
-   std::println("{}", helpers::TestObject::instances_alive());
 }
