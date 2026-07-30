@@ -451,8 +451,16 @@ public:
        std::sentinel_for<InputIterator> Sentinel
    >
    constexpr void
-   assign(InputIterator src_begin, [[maybe_unused]] Sentinel src_end)
+   assign(InputIterator src_begin, Sentinel src_end)
+       pre(!std::sized_sentinel_for<Sentinel, InputIterator>
+           || (src_end - src_begin >= 0
+               && "Are your iterator arguments backwards?"))
    {
+      std::puts("entered function body");
+      if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
+         contract_assert(
+             src_end - src_begin >= 0 && "Exploded in the function body!");
+
       assign_from_range(src_begin, src_end);
    }
 
@@ -469,7 +477,11 @@ public:
       assign_from_range(std::ranges::begin(range), std::ranges::end(range));
    }
 
-   // TODO: get_allocator
+   constexpr allocator_type
+   get_allocator() const noexcept
+   {
+      return this->allocator_;
+   }
 
    // ** SPECIAL MEMBER FUNCTIONS **
    constexpr Vector(Vector const &other)
@@ -1031,8 +1043,6 @@ private:
    >
    constexpr void
    assign_from_range(ForwardIterator src_begin, Sentinel src_end)
-       pre(!std::sized_sentinel_for<Sentinel, ForwardIterator>
-           || (src_end - src_begin) >= 0)
    {
       if (auto const input_size{
             static_cast<size_type>(std::distance(src_begin, src_end)) };

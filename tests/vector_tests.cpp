@@ -12,7 +12,7 @@ import swtl_test_helper_objects;
 
 namespace helpers = swtl_test_helpers;
 
-constexpr void
+void
 handle_contract_violation(std::contracts::contract_violation const &violation)
 {
    throw std::logic_error(
@@ -981,6 +981,7 @@ TEST_CASE(
 
 // ** ASSIGNMENT **
 
+/*
 TEMPLATE_TEST_CASE(
     "Vector::assign(size_type count, T const &value) updates vector with new "
     "data.",
@@ -1139,6 +1140,22 @@ TEMPLATE_TEST_CASE(
 }
 
 TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) triggers a "
+    "contract assert if arguments are reversed and iterator supports "
+    "operator-.",
+    "[vector]")
+{
+   auto const source{
+      helpers::generate_populated_container<std::vector<int>>()
+   };
+   swtl::Vector<int> vec;
+
+   REQUIRE_THROWS_AS(
+       vec.assign(source.end(), source.begin()), std::logic_error);
+}
+*/
+
+TEST_CASE(
     "Vector::assign(std::initializer_list<T> init_list) updates vector with "
     "new data.",
     "[vector]")
@@ -1169,6 +1186,15 @@ TEST_CASE(
    // assign(Range &&range) calls the iterator helper under the hood, this is
    // well tested as Vector::assign(InputIterator src_begin, Sentinel src_end)
    // above.
+}
+
+// TODO: Add additional allocators via template test case.
+TEST_CASE("Vector::get_allocator() returns the correct allocator.", "[vector]")
+{
+   std::allocator<int> test_alloc;
+   swtl::Vector<int, std::allocator<int>> vec(test_alloc);
+
+   REQUIRE(vec.get_allocator() == test_alloc);
 }
 
 TEMPLATE_TEST_CASE(
