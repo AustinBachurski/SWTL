@@ -908,7 +908,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Vector(InputIterator src_begin, InputIterator src_end) exception safety.",
+    "Vector(InputIterator src_begin, Sentinel src_end) exception safety.",
     "[vector][constructors][exception safety]")
 {
    auto const source_count{ 5UZ };
@@ -1062,7 +1062,7 @@ TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and doesn't leak elements.",
     "[vector]",
     helpers::TestInputIterator<helpers::TestObject const>,
@@ -1088,7 +1088,7 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, InputIterator src_end) assigns "
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and grows when needed.",
     "[vector]",
     helpers::TestInputIterator<helpers::TestObject const>,
@@ -1114,7 +1114,7 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, InputIterator src_end) does not "
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) does not "
     "leak if an exception is thrown.",
     "[vector]",
     helpers::TestInputIterator<helpers::TestObject const>,
@@ -1136,6 +1136,21 @@ TEMPLATE_TEST_CASE(
 
    REQUIRE_THROWS_AS(vec.assign(begin, end), std::runtime_error);
    REQUIRE(helpers::TestObject::instances_alive() == initial_size);
+}
+
+TEST_CASE(
+    "Vector::assign(std::initializer_list<T> init_list) updates vector with "
+    "new data.",
+    "[vector]")
+{
+   swtl::Vector<int> vec(10UZ);
+   std::initializer_list<int> const init_list{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+   vec.assign(init_list);
+
+   REQUIRE(std::ranges::equal(vec, init_list));
+   // assign(std::initializer_list<T> init_list) calls the iterator helper under
+   // the hood, this is well tested as
+   // Vector::assign(InputIterator src_begin, Sentinel src_end) above.
 }
 
 TEMPLATE_TEST_CASE(

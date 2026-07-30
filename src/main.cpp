@@ -52,7 +52,4 @@ does_it_work()
 
 int
 main()
-{
-   std::puts("");
-   std::puts("");
-}
+{}

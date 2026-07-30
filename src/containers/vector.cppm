@@ -1,5 +1,5 @@
 module;
-#include <type_traits>
+#include <iterator>
 export module swtl_vector;
 
 import std;
@@ -338,10 +338,13 @@ public:
       elem_guard.dismiss();
    }
 
-   template <std::input_iterator InputIterator>
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
    constexpr Vector(
        InputIterator src_begin,
-       InputIterator src_end,
+       Sentinel src_end,
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
@@ -379,7 +382,6 @@ public:
    }
 
    // ** ASSIGNMENT **
-
    constexpr void
    assign(size_type count, T const &value)
    {
@@ -411,22 +413,23 @@ public:
                   ++elem_guard.end;
                }
 
+               mem_guard.reassign(this->data_begin_, capacity());
                elem_guard.reassign(
                    this->data_begin_,
                    std::exchange(this->data_end_, elem_guard.end));
+
+               this->data_begin_ = ptr;
+               this->capacity_end_ = ptr + size;
             }
-            mem_guard.reassign(this->data_begin_, capacity());
-            this->data_begin_ = ptr;
-            this->capacity_end_ = ptr + size;
          }
       }
       else
       {
          auto current = this->data_begin_;
 
-         for (; current != this->data_end_ && count != 0UZ; --count, ++current)
+         for (; current != this->data_end_ && count != 0UZ; --count)
          {
-            *current = value;
+            *current++ = value;
          }
 
          if (current < this->data_end_)
@@ -438,80 +441,26 @@ public:
          for (; count != 0UZ; --count)
          {
             a_traits::construct(this->allocator_, this->data_end_, value);
-            ++this->data_end_;
+            ++this->data_end_;  // Only increment after successful construction.
          }
       }
    }
 
-   template <std::input_iterator InputIterator>
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
    constexpr void
-   assign(InputIterator src_begin, [[maybe_unused]] InputIterator src_end)
+   assign(InputIterator src_begin, [[maybe_unused]] Sentinel src_end)
    {
-      if constexpr (std::forward_iterator<decltype(src_begin)>)
-      {
-         if (auto const size{
-               static_cast<size_type>(std::distance(src_begin, src_end)) };
-             capacity() < size)
-         {
-            auto [ptr, count]{ this->allocate_at_least(size) };
-
-            if constexpr (std::is_nothrow_copy_constructible_v<T>)
-            {
-               clear();
-               this->deallocate_memory();
-               this->data_begin_ = ptr;
-               this->capacity_end_ = ptr + count;
-
-               this->data_end_ = memory::uninitialized_copy(
-                   this->allocator_, src_begin, src_end, ptr);
-            }
-            else
-            {
-               memory::AllocationGuard mem_guard(this->allocator_, ptr, count);
-
-               auto new_end{ memory::uninitialized_copy(
-                   this->allocator_, src_begin, src_end, ptr) };
-
-               clear();
-               mem_guard.reassign(this->data_begin_, capacity());
-               this->data_begin_ = ptr;
-               this->data_end_ = std::to_address(new_end);
-               this->capacity_end_ = ptr + count;
-            }
-         }
-         else
-         {
-            auto new_end{ std::copy(src_begin, src_end, begin()) };
-            memory::destroy(this->allocator_, new_end, end());
-            this->data_end_ = std::to_address(new_end);
-         }
-      }
-      else
-      {
-         auto current{ begin() };
-
-         while (src_begin != src_end && current != end())
-         {
-            *current++ = *src_begin++;
-         }
-
-         if (src_begin == src_end)
-         {
-            memory::destroy(this->allocator_, current, end());
-            this->data_end_ = std::to_address(current);
-            return;
-         }
-
-         while (src_begin != src_end)
-         {
-            emplace_back(*src_begin++);
-         }
-      }
+      assign_from_range(src_begin, src_end);
    }
 
    constexpr void
    assign(std::initializer_list<T> init_list)
-   {}
+   {
+      assign_from_range(init_list.begin(), init_list.end());
+   }
 
    // TODO: assign_range
    // TODO: get_allocator
@@ -1007,13 +956,13 @@ public:
       std::swap(this->capacity_end_, other.capacity_end_);
    }
 
+   // ** NON-MEMBER FUNCTIONS **
    constexpr friend auto
    swap(Vector &lhs, Vector &rhs) noexcept -> void
    {
       lhs.swap(rhs);
    }
 
-   // ** NON-MEMBER FUNCTIONS **
    constexpr friend auto
    operator==(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() == std::declval<T>())) -> bool
@@ -1043,6 +992,98 @@ public:
    }
 
 private:
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
+   constexpr void
+   assign_from_range(InputIterator src_begin, Sentinel src_end)
+   {
+      auto current{ begin() };
+
+      while (src_begin != src_end && current != end())
+      {
+         *current++ = *src_begin++;
+      }
+
+      if (src_begin == src_end)
+      {
+         memory::destroy(this->allocator_, current, end());
+         this->data_end_ = std::to_address(current);
+         return;
+      }
+
+      while (src_begin != src_end)
+      {
+         push_back(*src_begin++);
+      }
+   }
+
+   template <
+       std::forward_iterator ForwardIterator,
+       std::sentinel_for<ForwardIterator> Sentinel
+   >
+   constexpr void
+   assign_from_range(ForwardIterator src_begin, Sentinel src_end)
+       pre(!std::sized_sentinel_for<Sentinel, ForwardIterator>
+           || (src_end - src_begin) >= 0)
+   {
+      if (auto const input_size{
+            static_cast<size_type>(std::distance(src_begin, src_end)) };
+          capacity() < input_size)
+      {
+         auto [ptr, count]{ this->allocate_at_least(input_size) };
+
+         if constexpr (std::is_nothrow_copy_constructible_v<T>)
+         {
+            clear();
+            this->deallocate_memory();
+            this->data_begin_ = ptr;
+            this->capacity_end_ = ptr + count;
+
+            this->data_end_ = memory::uninitialized_copy(
+                this->allocator_, src_begin, src_end, ptr);
+         }
+         else
+         {
+            memory::AllocationGuard mem_guard(this->allocator_, ptr, count);
+
+            auto new_end{ memory::uninitialized_copy(
+                this->allocator_, src_begin, src_end, ptr) };
+
+            clear();
+            mem_guard.reassign(this->data_begin_, capacity());
+
+            this->data_begin_ = ptr;
+            this->data_end_ = new_end;  // Assign AFTER the call to clear().
+            this->capacity_end_ = ptr + count;
+         }
+      }
+      else
+      {
+         auto current{ begin() };
+
+         while (src_begin != src_end && current != end())
+         {
+            *current++ = *src_begin++;
+         }
+
+         if (src_begin == src_end)
+         {
+            memory::destroy(this->allocator_, current, end());
+            this->data_end_ = std::to_address(current);
+            return;
+         }
+
+         while (src_begin != src_end)
+         {
+            a_traits::construct(
+                this->allocator_, this->data_end_, *src_begin++);
+            ++this->data_end_;  // Only increment after successful construction.
+         }
+      }
+   }
+
    [[nodiscard]]
    constexpr size_type
    calculate_growth_size(size_type target_growth = 1UZ)
@@ -1088,17 +1129,15 @@ private:
             memory::uninitialized_move_if_noexcept(
                 this->allocator_, begin(), end(), ptr);
 
-            elem_guard.reassign(
-                this->data_begin_,
-                std::exchange(this->data_end_, new_element_end));
-         }
-         mem_guard.reassign(this->data_begin_, capacity());
-      }
+            elem_guard.reassign(this->data_begin_, this->data_end_);
+            mem_guard.reassign(this->data_begin_, capacity());
 
-      this->data_begin_ = ptr;
-      this->data_end_ = new_element_end;
-      this->capacity_end_ = ptr + count;
-      return back();
+            this->data_begin_ = ptr;
+            this->data_end_ = new_element_end;
+            this->capacity_end_ = ptr + count;
+            return back();
+         }
+      }
    }
 };
 
