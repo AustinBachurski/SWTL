@@ -61,28 +61,6 @@ does_it_work()
 
 }  // namespace
 
-template <
-    std::input_iterator InputIterator,
-    std::sentinel_for<InputIterator> Sentinel
->
-constexpr void
-func(
-    [[maybe_unused]] InputIterator src_begin, [[maybe_unused]] Sentinel src_end)
-    pre(!std::sized_sentinel_for<Sentinel, InputIterator>
-        || (src_end - src_begin >= 0
-            && "Are your iterator arguments backwards?"))
-{
-   std::puts("entered function body");
-   if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
-   {
-      std::puts("if constexpr entered");
-      contract_assert(
-          src_end - src_begin >= 0 && "Exploded in the function body!");
-   }
-
-   std::puts("function exit success");
-}
-
 int
 main()
 {
@@ -93,17 +71,6 @@ main()
 
    helpers::TestInputIterator ti{ source.data() };
    helpers::TestInputIterator tie{ source.data() + source.size() };
-
-   /*
-   func(source.begin(), source.end());
-   std::puts("that should've worked");
-
-   func(ti, tie);
-   std::puts("that should've worked too");
-
-   func(source.end(), source.begin());
-   std::puts("rut roe...");
-   */
 
    vec.assign(source.begin(), source.end());
    std::puts("that should've worked");

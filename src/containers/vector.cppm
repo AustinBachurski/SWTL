@@ -452,14 +452,22 @@ public:
    >
    constexpr void
    assign(InputIterator src_begin, Sentinel src_end)
+   // Preconditions seem to be broken entirely, even `pre(false)` doesn't
+   // trigger.  The code won't compile in a contract_assert, so I'm not sure if
+   // it'll even work in a precondition - but we should try when preconditions
+   // get fixed.
+   /*
        pre(!std::sized_sentinel_for<Sentinel, InputIterator>
            || (src_end - src_begin >= 0
                && "Are your iterator arguments backwards?"))
+   */
    {
-      std::puts("entered function body");
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
+      {
          contract_assert(
-             src_end - src_begin >= 0 && "Exploded in the function body!");
+             src_end - src_begin >= 0
+             && "Are your iterator arguments backwards?");
+      }
 
       assign_from_range(src_begin, src_end);
    }

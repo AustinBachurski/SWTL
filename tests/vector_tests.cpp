@@ -980,8 +980,6 @@ TEST_CASE(
 }
 
 // ** ASSIGNMENT **
-
-/*
 TEMPLATE_TEST_CASE(
     "Vector::assign(size_type count, T const &value) updates vector with new "
     "data.",
@@ -1141,7 +1139,7 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) triggers a "
-    "contract assert if arguments are reversed and iterator supports "
+    "contract assert if arguments are reversed and the iterator supports "
     "operator-.",
     "[vector]")
 {
@@ -1150,10 +1148,10 @@ TEST_CASE(
    };
    swtl::Vector<int> vec;
 
+   REQUIRE_NOTHROW(vec.assign(source.begin(), source.end()));
    REQUIRE_THROWS_AS(
        vec.assign(source.end(), source.begin()), std::logic_error);
 }
-*/
 
 TEST_CASE(
     "Vector::assign(std::initializer_list<T> init_list) updates vector with "
