@@ -6,6 +6,7 @@ import std;
 import swtl_format;
 import swtl_memory;
 
+/// The Strictly Worse Template Library
 namespace swtl
 {
 
@@ -14,11 +15,13 @@ concept container_compatible_range
     = std::ranges::input_range<Range>
    && std::convertible_to<std::ranges::range_reference_t<Range>, T>;
 
+///
 export template <typename T>
 class VectorIterator
 {
 public:
-   using iterator_category = std::contiguous_iterator_tag;
+   using iterator_concept = std::contiguous_iterator_tag;
+   using iterator_category = std::random_access_iterator_tag;
    using value_type = std::remove_cv_t<T>;
    using difference_type = std::ptrdiff_t;
    using pointer = T *;

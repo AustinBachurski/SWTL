@@ -63,21 +63,4 @@ does_it_work()
 
 int
 main()
-{
-   auto const source{
-      helpers::generate_populated_container<swtl::Vector<int>>()
-   };
-   swtl::Vector<int> vec;
-
-   helpers::TestInputIterator ti{ source.data() };
-   helpers::TestInputIterator tie{ source.data() + source.size() };
-
-   vec.assign(source.begin(), source.end());
-   std::puts("that should've worked");
-
-   vec.assign(ti, tie);
-   std::puts("that should've too");
-
-   vec.assign(source.end(), source.begin());
-   std::puts("rut roe...");
-}
+{}
