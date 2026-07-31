@@ -1,24 +1,31 @@
 add_library(swtl)
 
 target_sources(swtl PUBLIC
-  FILE_SET CXX_MODULES
-  BASE_DIRS
-  "${PROJECT_SOURCE_DIR}/src"
+   FILE_SET CXX_MODULES
+   BASE_DIRS
+   "${PROJECT_SOURCE_DIR}/src"
 
-  FILES
-  "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
-  "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
-  "${PROJECT_SOURCE_DIR}/src/core/memory.cppm"
-  "${PROJECT_SOURCE_DIR}/src/core/format.cppm"
+   FILES
+   "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
+   "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
+   "${PROJECT_SOURCE_DIR}/src/core/memory.cppm"
+   "${PROJECT_SOURCE_DIR}/src/core/format.cppm"
 )
+
+enable_warnings_for_target(swtl)
+enable_address_sanitizer_for_target(swtl)
+enable_undefined_behavior_sanitizer_for_target(swtl)
 
 add_executable(example)
 
 target_sources(example PRIVATE
-  main.cpp
+   main.cpp
 )
 
-target_link_libraries(example PRIVATE swtl)
+target_link_libraries(example PRIVATE
+   swtl
+   swtl_test_helpers
+)
 
 enable_warnings_for_target(example)
 enable_address_sanitizer_for_target(example)

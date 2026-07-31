@@ -21,8 +21,10 @@ cmake --preset ${build_preset}
 echo -e "\n--- Building (${build_preset}) ---"
 cmake --build --preset ${build_preset}
 
-echo -e "\n--- Running Tests ${test_preset} ---"
-ctest --preset ${test_preset}
-
-echo -e "\n--- Executing Binary ---"
-./out/bin/${build_preset}/"${binary}"
+if [[ $1 == "--test" ]]; then
+   echo -e "\n--- Running Tests ${test_preset} ---"
+   ctest --preset ${test_preset}
+else
+   echo -e "\n--- Executing Binary ---\n"
+   ./out/bin/${build_preset}/"${binary}"
+fi

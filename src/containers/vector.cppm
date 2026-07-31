@@ -1,3 +1,5 @@
+module;
+#include <iterator>
 export module swtl_vector;
 
 import std;
@@ -235,7 +237,7 @@ struct VectorBase
    }
 
    constexpr void
-   deallocate_memory_of_this() noexcept
+   deallocate_memory() noexcept
    {
       a_traits::deallocate(allocator_, data_begin_, allocated_capacity());
       data_begin_ = data_end_ = capacity_end_ = nullptr;
@@ -309,7 +311,7 @@ public:
       memory::ElementGuard elem_guard(
           this->allocator_, this->data_begin_, this->data_begin_);
 
-      for (auto const _ : std::views::iota(0UZ, count))
+      for (; count != 0UZ; --count)
       {
          a_traits::construct(this->allocator_, elem_guard.end);
          ++elem_guard.end;
@@ -326,7 +328,7 @@ public:
       memory::ElementGuard elem_guard(
           this->allocator_, this->data_begin_, this->data_begin_);
 
-      for (auto const _ : std::views::iota(0UZ, count))
+      for (; count != 0UZ; --count)
       {
          a_traits::construct(this->allocator_, elem_guard.end, value);
          ++elem_guard.end;
@@ -336,25 +338,18 @@ public:
       elem_guard.dismiss();
    }
 
-   template <std::input_iterator InputIterator>
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
    constexpr Vector(
        InputIterator src_begin,
-       InputIterator src_end,
+       Sentinel src_end,
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      auto const distance{ std::ranges::distance(src_begin, src_end) };
-
-      if (distance < 0)
-      {
-         throw std::invalid_argument(
-             "Vector constructor: 'src_end' must be "
-             "reachable from 'src_begin'");
-      }
-
-      auto const count{ static_cast<size_type>(distance) };
-      this->create_storage(count);
-
+      this->create_storage(
+          static_cast<size_type>(std::distance(src_begin, src_end)));
       this->data_end_ = memory::uninitialized_copy(
           this->allocator_, src_begin, src_end, this->data_begin_);
    }
@@ -386,8 +381,115 @@ public:
       }
    }
 
-   // TODO: assign_range
-   // TODO: get_allocator
+   // ** ASSIGNMENT **
+   constexpr void
+   assign(size_type count, T const &value)
+   {
+      if (capacity() < count)
+      {
+         auto [ptr, size]{ this->allocate_at_least(count) };
+
+         if constexpr (std::is_nothrow_copy_constructible_v<T>)
+         {
+            clear();
+            this->deallocate_memory();
+            this->data_begin_ = this->data_end_ = ptr;
+            this->capacity_end_ = ptr + size;
+
+            for (; count != 0UZ; --count)
+            {
+               a_traits::construct(this->allocator_, this->data_end_++, value);
+            }
+         }
+         else
+         {
+            memory::AllocationGuard mem_guard(this->allocator_, ptr, size);
+            {
+               memory::ElementGuard elem_guard(this->allocator_, ptr, ptr);
+
+               for (; count != 0UZ; --count)
+               {
+                  a_traits::construct(this->allocator_, elem_guard.end, value);
+                  ++elem_guard.end;
+               }
+
+               mem_guard.reassign(this->data_begin_, capacity());
+               elem_guard.reassign(
+                   this->data_begin_,
+                   std::exchange(this->data_end_, elem_guard.end));
+
+               this->data_begin_ = ptr;
+               this->capacity_end_ = ptr + size;
+            }
+         }
+      }
+      else
+      {
+         auto current = this->data_begin_;
+
+         for (; current != this->data_end_ && count != 0UZ; --count)
+         {
+            *current++ = value;
+         }
+
+         if (current < this->data_end_)
+         {
+            memory::destroy(this->allocator_, current, this->data_end_);
+            this->data_end_ = current;
+         }
+
+         for (; count != 0UZ; --count)
+         {
+            a_traits::construct(this->allocator_, this->data_end_, value);
+            ++this->data_end_;  // Only increment after successful construction.
+         }
+      }
+   }
+
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
+   constexpr void
+   assign(InputIterator src_begin, Sentinel src_end)
+   // Preconditions seem to be broken entirely, even `pre(false)` doesn't
+   // trigger.  The code won't compile in a contract_assert, so I'm not sure if
+   // it'll even work in a precondition - but we should try when preconditions
+   // get fixed.
+   /*
+       pre(!std::sized_sentinel_for<Sentinel, InputIterator>
+           || (src_end - src_begin >= 0
+               && "Are your iterator arguments backwards?"))
+   */
+   {
+      if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
+      {
+         contract_assert(
+             src_end - src_begin >= 0
+             && "Are your iterator arguments backwards?");
+      }
+
+      assign_from_range(src_begin, src_end);
+   }
+
+   constexpr void
+   assign(std::initializer_list<T> init_list)
+   {
+      assign_from_range(init_list.begin(), init_list.end());
+   }
+
+   template <container_compatible_range<T> Range>
+   constexpr void
+   assign_range(Range &&range)
+   {
+      assign_from_range(std::ranges::begin(range), std::ranges::end(range));
+   }
+
+   constexpr allocator_type
+   get_allocator() const noexcept
+   {
+      return this->allocator_;
+   }
 
    // ** SPECIAL MEMBER FUNCTIONS **
    constexpr Vector(Vector const &other)
@@ -523,7 +625,7 @@ public:
          // Allocator can be moved with the container - noexcept.
 
          clear();
-         this->deallocate_memory_of_this();
+         this->deallocate_memory();
          this->allocator_ = std::move(other.allocator_);
          this->data_begin_ = other.data_begin_;
          this->data_end_ = other.data_end_;
@@ -538,7 +640,7 @@ public:
          // noexcept.
 
          clear();
-         this->deallocate_memory_of_this();
+         this->deallocate_memory();
          this->data_begin_ = other.data_begin_;
          this->data_end_ = other.data_end_;
          this->capacity_end_ = other.capacity_end_;
@@ -880,13 +982,13 @@ public:
       std::swap(this->capacity_end_, other.capacity_end_);
    }
 
+   // ** NON-MEMBER FUNCTIONS **
    constexpr friend auto
    swap(Vector &lhs, Vector &rhs) noexcept -> void
    {
       lhs.swap(rhs);
    }
 
-   // ** NON-MEMBER FUNCTIONS **
    constexpr friend auto
    operator==(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() == std::declval<T>())) -> bool
@@ -916,6 +1018,96 @@ public:
    }
 
 private:
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
+   constexpr void
+   assign_from_range(InputIterator src_begin, Sentinel src_end)
+   {
+      auto current{ begin() };
+
+      while (src_begin != src_end && current != end())
+      {
+         *current++ = *src_begin++;
+      }
+
+      if (src_begin == src_end)
+      {
+         memory::destroy(this->allocator_, current, end());
+         this->data_end_ = std::to_address(current);
+         return;
+      }
+
+      while (src_begin != src_end)
+      {
+         push_back(*src_begin++);
+      }
+   }
+
+   template <
+       std::forward_iterator ForwardIterator,
+       std::sentinel_for<ForwardIterator> Sentinel
+   >
+   constexpr void
+   assign_from_range(ForwardIterator src_begin, Sentinel src_end)
+   {
+      if (auto const input_size{
+            static_cast<size_type>(std::distance(src_begin, src_end)) };
+          capacity() < input_size)
+      {
+         auto [ptr, count]{ this->allocate_at_least(input_size) };
+
+         if constexpr (std::is_nothrow_copy_constructible_v<T>)
+         {
+            clear();
+            this->deallocate_memory();
+            this->data_begin_ = ptr;
+            this->capacity_end_ = ptr + count;
+
+            this->data_end_ = memory::uninitialized_copy(
+                this->allocator_, src_begin, src_end, ptr);
+         }
+         else
+         {
+            memory::AllocationGuard mem_guard(this->allocator_, ptr, count);
+
+            auto new_end{ memory::uninitialized_copy(
+                this->allocator_, src_begin, src_end, ptr) };
+
+            clear();
+            mem_guard.reassign(this->data_begin_, capacity());
+
+            this->data_begin_ = ptr;
+            this->data_end_ = new_end;  // Assign AFTER the call to clear().
+            this->capacity_end_ = ptr + count;
+         }
+      }
+      else
+      {
+         auto current{ begin() };
+
+         while (src_begin != src_end && current != end())
+         {
+            *current++ = *src_begin++;
+         }
+
+         if (src_begin == src_end)
+         {
+            memory::destroy(this->allocator_, current, end());
+            this->data_end_ = std::to_address(current);
+            return;
+         }
+
+         while (src_begin != src_end)
+         {
+            a_traits::construct(
+                this->allocator_, this->data_end_, *src_begin++);
+            ++this->data_end_;  // Only increment after successful construction.
+         }
+      }
+   }
+
    [[nodiscard]]
    constexpr size_type
    calculate_growth_size(size_type target_growth = 1UZ)
@@ -961,17 +1153,15 @@ private:
             memory::uninitialized_move_if_noexcept(
                 this->allocator_, begin(), end(), ptr);
 
-            elem_guard.reassign(
-                this->data_begin_,
-                std::exchange(this->data_end_, new_element_end));
-         }
-         mem_guard.reassign(this->data_begin_, capacity());
-      }
+            elem_guard.reassign(this->data_begin_, this->data_end_);
+            mem_guard.reassign(this->data_begin_, capacity());
 
-      this->data_begin_ = ptr;
-      this->data_end_ = new_element_end;
-      this->capacity_end_ = ptr + count;
-      return back();
+            this->data_begin_ = ptr;
+            this->data_end_ = new_element_end;
+            this->capacity_end_ = ptr + count;
+            return back();
+         }
+      }
    }
 };
 
