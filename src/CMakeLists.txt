@@ -6,10 +6,28 @@ target_sources(swtl PUBLIC
    "${PROJECT_SOURCE_DIR}/src"
 
    FILES
+   # ** PRIMARY MODULE INTERFACE **
+   "${PROJECT_SOURCE_DIR}/src/swtl.cppm"
+
+   # ** CONTAINERS **
+   "${PROJECT_SOURCE_DIR}/src/containers/containers.cppm"
+   "${PROJECT_SOURCE_DIR}/src/containers/concepts.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
-   "${PROJECT_SOURCE_DIR}/src/core/memory.cppm"
-   "${PROJECT_SOURCE_DIR}/src/core/format.cppm"
+
+   # ** FORMAT **
+   "${PROJECT_SOURCE_DIR}/src/format/format.cppm"
+
+   # ** ITERATORS **
+   "${PROJECT_SOURCE_DIR}/src/iterators/iterators.cppm"
+   "${PROJECT_SOURCE_DIR}/src/iterators/contiguous_iterator.cppm"
+
+   # ** MEMORY **
+   "${PROJECT_SOURCE_DIR}/src/memory/memory.cppm"
+   "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_destroy.cppm"
+   "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_guards.cppm"
+   "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_uninitialized.cppm"
+   "${PROJECT_SOURCE_DIR}/src/memory/concepts.cppm"
 )
 
 enable_warnings_for_target(swtl)

@@ -1,8 +1,8 @@
-export module swtl_format;
+export module swtl.format;
 
 import std;
 
-namespace swtl::format
+namespace swtl
 {
 
 export template <std::integral T>
@@ -28,4 +28,4 @@ integral_to_string(T value)
    }
 }
 
-}  // namespace swtl::format
+}  // namespace swtl

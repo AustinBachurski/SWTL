@@ -1,161 +1,20 @@
-module;
-#include <iterator>
-export module swtl_vector;
+export module swtl.vector;
 
 import std;
-import swtl_format;
-import swtl_memory;
+
+import swtl.container_concepts;
+import swtl.contiguous_iterator;
+import swtl.format;
+import swtl.memory;
 
 /// The Strictly Worse Template Library
 namespace swtl
 {
 
-template <typename Range, typename T>
-concept container_compatible_range
-    = std::ranges::input_range<Range>
-   && std::convertible_to<std::ranges::range_reference_t<Range>, T>;
-
-///
-export template <typename T>
-class VectorIterator
+template <typename T, typename Allocator>
+class VectorBase
 {
 public:
-   using iterator_concept = std::contiguous_iterator_tag;
-   using iterator_category = std::random_access_iterator_tag;
-   using value_type = std::remove_cv_t<T>;
-   using difference_type = std::ptrdiff_t;
-   using pointer = T *;
-   using reference = T &;
-
-   template <typename U>
-   friend class VectorIterator;
-
-   template <typename U>
-      requires std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>
-   constexpr VectorIterator(VectorIterator<U> const &other)
-       : ptr_{ other.ptr_ }
-   {}
-
-   constexpr VectorIterator() = default;
-
-   constexpr explicit VectorIterator(pointer ptr)
-       : ptr_{ ptr }
-   {}
-
-   [[nodiscard]]
-   constexpr reference
-   operator*() const noexcept
-   {
-      return *ptr_;
-   }
-
-   [[nodiscard]]
-   constexpr pointer
-   operator->() const noexcept
-   {
-      return ptr_;
-   }
-
-   [[nodiscard]]
-   constexpr reference
-   operator[](difference_type idx) const noexcept
-   {
-      return ptr_[idx];
-   }
-
-   constexpr VectorIterator &
-   operator++() noexcept
-   {
-      ++ptr_;
-      return *this;
-   }
-
-   constexpr VectorIterator
-   operator++(int) noexcept
-   {
-      auto temp{ *this };
-      ++ptr_;
-      return temp;
-   }
-
-   constexpr VectorIterator &
-   operator--() noexcept
-   {
-      --ptr_;
-      return *this;
-   }
-
-   constexpr VectorIterator
-   operator--(int) noexcept
-   {
-      auto temp{ *this };
-      --ptr_;
-      return temp;
-   }
-
-   constexpr VectorIterator &
-   operator+=(difference_type distance) noexcept
-   {
-      ptr_ += distance;
-      return *this;
-   }
-
-   constexpr VectorIterator &
-   operator-=(difference_type distance) noexcept
-   {
-      ptr_ -= distance;
-      return *this;
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator+(VectorIterator const &lhs, difference_type distance) noexcept
-       -> VectorIterator
-   {
-      return VectorIterator{ lhs.ptr_ + distance };
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator+(difference_type distance, VectorIterator const &rhs) noexcept
-       -> VectorIterator
-   {
-      return VectorIterator{ rhs + distance };
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator-(VectorIterator const &lhs, difference_type distance) noexcept
-       -> VectorIterator
-   {
-      return VectorIterator{ lhs.ptr_ - distance };
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator-(VectorIterator const &lhs, VectorIterator const &rhs) noexcept
-       -> difference_type
-   {
-      return lhs.ptr_ - rhs.ptr_;
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator<=>(VectorIterator const &lhs, VectorIterator const &rhs) noexcept
-       = default;
-
-private:
-   pointer ptr_{};
-};
-
-// Ensures that the iterator meets the
-// requirements for the appropriate iterator tag.
-static_assert(std::contiguous_iterator<VectorIterator<int>>);
-static_assert(std::contiguous_iterator<VectorIterator<int const>>);
-
-template <typename T, typename Allocator>
-struct VectorBase
-{
    using a_traits = std::allocator_traits<Allocator>;
    using allocator_type = Allocator;
    using value_type = a_traits::value_type;
@@ -166,21 +25,21 @@ struct VectorBase
    constexpr VectorBase() = default;
 
    constexpr VectorBase(Allocator const &allocator)
-       : allocator_{ allocator }
+       : m_allocator{ allocator }
    {}
 
    constexpr VectorBase(VectorBase const &other) noexcept
-       : allocator_{ a_traits::select_on_container_copy_construction(
-             other.allocator_) }
+       : m_allocator{ a_traits::select_on_container_copy_construction(
+             other.m_allocator) }
    {}
 
    constexpr VectorBase(VectorBase &&other) noexcept
-       : allocator_{ std::move(other.allocator_) }
-       , data_begin_{ other.data_begin_ }
-       , data_end_{ other.data_end_ }
-       , capacity_end_{ other.capacity_end_ }
+       : m_allocator{ std::move(other.m_allocator) }
+       , m_start{ other.m_start }
+       , m_finish{ other.m_finish }
+       , m_end_of_storage{ other.m_end_of_storage }
    {
-      other.data_begin_ = other.data_end_ = other.capacity_end_ = nullptr;
+      other.m_start = other.m_finish = other.m_end_of_storage = nullptr;
    }
 
    constexpr VectorBase &
@@ -193,18 +52,19 @@ struct VectorBase
 
    constexpr ~VectorBase()
    {
-      if (data_begin_ != nullptr)
+      if (m_start != nullptr)
       {
          a_traits::deallocate(
-             allocator_,
-             data_begin_,
-             static_cast<size_type>(capacity_end_ - data_begin_));
+             m_allocator,
+             m_start,
+             static_cast<size_type>(m_end_of_storage - m_start));
       }
    }
 
+protected:
    [[nodiscard]]
    constexpr std::allocation_result<pointer, size_type>
-   allocate_at_least(size_type num_elements)
+   allocate_memory_for_at_least(size_type num_elements)
    {
       if (num_elements == 0)
       {
@@ -212,7 +72,7 @@ struct VectorBase
       }
 
       auto [ptr, count]{ a_traits::allocate_at_least(
-          allocator_, num_elements) };
+          m_allocator, num_elements) };
       auto max{ max_allocatable_elements() };
 
       if (count > max)
@@ -227,23 +87,23 @@ struct VectorBase
    constexpr size_type
    allocated_capacity() const noexcept
    {
-      return static_cast<size_type>(capacity_end_ - data_begin_);
+      return static_cast<size_type>(m_end_of_storage - m_start);
    }
 
    constexpr void
    create_storage(size_type num_elements)
    {
-      auto [ptr, count]{ allocate_at_least(num_elements) };
+      auto [ptr, count]{ allocate_memory_for_at_least(num_elements) };
 
-      data_begin_ = data_end_ = ptr;
-      capacity_end_ = data_begin_ + count;
+      m_start = m_finish = ptr;
+      m_end_of_storage = m_start + count;
    }
 
    constexpr void
    deallocate_memory() noexcept
    {
-      a_traits::deallocate(allocator_, data_begin_, allocated_capacity());
-      data_begin_ = data_end_ = capacity_end_ = nullptr;
+      a_traits::deallocate(m_allocator, m_start, allocated_capacity());
+      m_start = m_finish = m_end_of_storage = nullptr;
    }
 
    [[nodiscard]]
@@ -251,15 +111,15 @@ struct VectorBase
    max_allocatable_elements() const noexcept
    {
       return std::min<size_type>(
-          a_traits::max_size(allocator_),
+          a_traits::max_size(m_allocator),
           std::numeric_limits<difference_type>::max() / sizeof(T));
    }
 
    [[no_unique_address]]
-   Allocator allocator_;
-   pointer data_begin_{};
-   pointer data_end_{};
-   pointer capacity_end_{};
+   Allocator m_allocator;
+   pointer m_start{};
+   pointer m_finish{};
+   pointer m_end_of_storage{};
 };
 
 export template <typename T, typename Allocator = std::allocator<T>>
@@ -279,8 +139,8 @@ public:
    using const_reference = value_type const &;
    using pointer = Base::pointer;
    using const_pointer = a_traits::const_pointer;
-   using iterator = VectorIterator<T>;
-   using const_iterator = VectorIterator<T const>;
+   using iterator = ContiguousIterator<T>;
+   using const_iterator = ContiguousIterator<T const>;
    using reverse_iterator = std::reverse_iterator<iterator>;
    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -298,11 +158,8 @@ public:
        : Base{ allocator }
    {
       this->create_storage(init_list.size());
-      this->data_end_ = memory::uninitialized_copy(
-          this->allocator_,
-          init_list.begin(),
-          init_list.end(),
-          this->data_begin_);
+      this->m_finish = uninitialized_copy(
+          this->m_allocator, init_list.begin(), init_list.end(), this->m_start);
    }
 
    constexpr explicit Vector(
@@ -311,16 +168,16 @@ public:
    {
       this->create_storage(count);
 
-      memory::ElementGuard elem_guard(
-          this->allocator_, this->data_begin_, this->data_begin_);
+      detail::ElementGuard elem_guard(
+          this->m_allocator, this->m_start, this->m_start);
 
       for (; count != 0UZ; --count)
       {
-         a_traits::construct(this->allocator_, elem_guard.end);
-         ++elem_guard.end;
+         a_traits::construct(this->m_allocator, elem_guard.finish);
+         ++elem_guard.finish;
       }
 
-      this->data_end_ = elem_guard.end;
+      this->m_finish = elem_guard.finish;
       elem_guard.dismiss();
    }
 
@@ -328,16 +185,16 @@ public:
    {
       this->create_storage(count);
 
-      memory::ElementGuard elem_guard(
-          this->allocator_, this->data_begin_, this->data_begin_);
+      detail::ElementGuard elem_guard(
+          this->m_allocator, this->m_start, this->m_start);
 
       for (; count != 0UZ; --count)
       {
-         a_traits::construct(this->allocator_, elem_guard.end, value);
-         ++elem_guard.end;
+         a_traits::construct(this->m_allocator, elem_guard.finish, value);
+         ++elem_guard.finish;
       }
 
-      this->data_end_ = elem_guard.end;
+      this->m_finish = elem_guard.finish;
       elem_guard.dismiss();
    }
 
@@ -353,8 +210,8 @@ public:
    {
       this->create_storage(
           static_cast<size_type>(std::distance(src_begin, src_end)));
-      this->data_end_ = memory::uninitialized_copy(
-          this->allocator_, src_begin, src_end, this->data_begin_);
+      this->m_finish = uninitialized_copy(
+          this->m_allocator, src_begin, src_end, this->m_start);
    }
 
    template <container_compatible_range<T> Range>
@@ -365,21 +222,21 @@ public:
          auto const count{ static_cast<size_type>(std::ranges::size(range)) };
          this->create_storage(count);
 
-         this->data_end_ = memory::uninitialized_copy(
-             this->allocator_, range.begin(), range.end(), this->data_begin_);
+         this->m_finish = uninitialized_copy(
+             this->m_allocator, range.begin(), range.end(), this->m_start);
       }
       else
       {
-         memory::ElementGuard elem_guard(
-             this->allocator_, this->data_begin_, this->data_begin_);
+         detail::ElementGuard elem_guard(
+             this->m_allocator, this->m_start, this->m_start);
 
          for (auto &&element : range)
          {
-            a_traits::construct(this->allocator_, elem_guard.end, element);
-            ++elem_guard.end;
+            a_traits::construct(this->m_allocator, elem_guard.finish, element);
+            ++elem_guard.finish;
          }
 
-         this->data_end_ = elem_guard.end;
+         this->m_finish = elem_guard.finish;
          elem_guard.dismiss();
       }
    }
@@ -390,61 +247,62 @@ public:
    {
       if (capacity() < count)
       {
-         auto [ptr, size]{ this->allocate_at_least(count) };
+         auto [ptr, size]{ this->allocate_memory_for_at_least(count) };
 
          if constexpr (std::is_nothrow_copy_constructible_v<T>)
          {
             clear();
             this->deallocate_memory();
-            this->data_begin_ = this->data_end_ = ptr;
-            this->capacity_end_ = ptr + size;
+            this->m_start = this->m_finish = ptr;
+            this->m_end_of_storage = ptr + size;
 
             for (; count != 0UZ; --count)
             {
-               a_traits::construct(this->allocator_, this->data_end_++, value);
+               a_traits::construct(this->m_allocator, this->m_finish++, value);
             }
          }
          else
          {
-            memory::AllocationGuard mem_guard(this->allocator_, ptr, size);
+            detail::AllocationGuard mem_guard(this->m_allocator, ptr, size);
             {
-               memory::ElementGuard elem_guard(this->allocator_, ptr, ptr);
+               detail::ElementGuard elem_guard(this->m_allocator, ptr, ptr);
 
                for (; count != 0UZ; --count)
                {
-                  a_traits::construct(this->allocator_, elem_guard.end, value);
-                  ++elem_guard.end;
+                  a_traits::construct(
+                      this->m_allocator, elem_guard.finish, value);
+                  ++elem_guard.finish;
                }
 
-               mem_guard.reassign(this->data_begin_, capacity());
+               mem_guard.reassign(this->m_start, capacity());
                elem_guard.reassign(
-                   this->data_begin_,
-                   std::exchange(this->data_end_, elem_guard.end));
+                   this->m_start,
+                   std::exchange(this->m_finish, elem_guard.finish));
 
-               this->data_begin_ = ptr;
-               this->capacity_end_ = ptr + size;
+               this->m_start = ptr;
+               this->m_end_of_storage = ptr + size;
             }
          }
       }
       else
       {
-         auto current = this->data_begin_;
+         auto current = this->m_start;
 
-         for (; current != this->data_end_ && count != 0UZ; --count)
+         for (; current != this->m_finish && count != 0UZ; --count)
          {
             *current++ = value;
          }
 
-         if (current < this->data_end_)
+         if (current < this->m_finish)
          {
-            memory::destroy(this->allocator_, current, this->data_end_);
-            this->data_end_ = current;
+            destroy(this->m_allocator, current, this->m_finish);
+            this->m_finish = current;
          }
 
          for (; count != 0UZ; --count)
          {
-            a_traits::construct(this->allocator_, this->data_end_, value);
-            ++this->data_end_;  // Only increment after successful construction.
+            a_traits::construct(this->m_allocator, this->m_finish, value);
+            ++this->m_finish;  // Only increment after successful construction.
          }
       }
    }
@@ -491,7 +349,7 @@ public:
    constexpr allocator_type
    get_allocator() const noexcept
    {
-      return this->allocator_;
+      return this->m_allocator;
    }
 
    // ** SPECIAL MEMBER FUNCTIONS **
@@ -499,8 +357,8 @@ public:
        : Base{ other }
    {
       this->create_storage(other.size());
-      this->data_end_ = memory::uninitialized_copy(
-          this->allocator_, other.begin(), other.end(), this->data_begin_);
+      this->m_finish = uninitialized_copy(
+          this->m_allocator, other.begin(), other.end(), this->m_start);
    }
 
    constexpr Vector &
@@ -516,7 +374,7 @@ public:
          // If propagate is true, the source allocator must be copied into the
          // destination.
 
-         if (this->allocator_ != other.allocator_)
+         if (this->m_allocator != other.m_allocator)
          {
             // If allocators do not compare as equal, the source allocator
             // cannot manage the memory allocated by the destination allocator
@@ -525,25 +383,25 @@ public:
             // allocator must free it's memory before being replaced with a
             // copy of the source allocator.
 
-            Allocator new_alloc{ other.allocator_ };
+            Allocator new_alloc{ other.m_allocator };
             auto [ptr, count]{ a_traits::allocate_at_least(
                 new_alloc, other.size()) };
 
             {
-               memory::AllocationGuard mem_guard{ new_alloc, ptr, count };
+               detail::AllocationGuard mem_guard{ new_alloc, ptr, count };
 
-               auto const new_end{ memory::uninitialized_copy(
+               auto const new_finish{ uninitialized_copy(
                    new_alloc, other.begin(), other.end(), ptr) };
 
                clear();
-               this->data_end_ = new_end;
-               mem_guard.switch_allocator(this->allocator_);
-               mem_guard.reassign(this->data_begin_, capacity());
+               this->m_finish = new_finish;
+               mem_guard.switch_allocator(this->m_allocator);
+               mem_guard.reassign(this->m_start, capacity());
             }
 
-            this->allocator_ = new_alloc;
-            this->data_begin_ = ptr;
-            this->capacity_end_ = ptr + count;
+            this->m_allocator = new_alloc;
+            this->m_start = ptr;
+            this->m_end_of_storage = ptr + count;
             return *this;
          }
          else
@@ -553,7 +411,7 @@ public:
             // be copied per the propagate_on_container_copy_assignment
             // condition.
 
-            this->allocator_ = other.allocator_;
+            this->m_allocator = other.m_allocator;
          }
       }
 
@@ -569,7 +427,7 @@ public:
 
          if (capacity() >= other.capacity())
          {
-            auto end_of_copied_data{ this->data_begin_ };
+            auto end_of_copied_data{ this->m_start };
 
             for (auto pair : std::views::zip(*this, other))
             {
@@ -580,10 +438,9 @@ public:
             // After data is copied, destroy the existing elements that were
             // not overwritten with the copied data so there's no phantom
             // elements hanging around.
-            memory::destroy(
-                this->allocator_, end_of_copied_data, this->data_end_);
+            destroy(this->m_allocator, end_of_copied_data, this->m_finish);
 
-            this->data_end_ = end_of_copied_data;
+            this->m_finish = end_of_copied_data;
             return *this;
          }
       }
@@ -591,21 +448,21 @@ public:
       // If copy assignment may throw, allocate new memory to maintain strong
       // exception safety guarantees.
 
-      auto [ptr, count]{ this->allocate_at_least(other.size()) };
+      auto [ptr, count]{ this->allocate_memory_for_at_least(other.size()) };
 
       {
-         memory::AllocationGuard mem_guard{ this->allocator_, ptr, count };
+         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
 
-         auto const new_end{ memory::uninitialized_copy(
-             this->allocator_, other.begin(), other.end(), ptr) };
+         auto const new_finish{ uninitialized_copy(
+             this->m_allocator, other.begin(), other.end(), ptr) };
 
          clear();
-         this->data_end_ = new_end;
-         mem_guard.reassign(this->data_begin_, capacity());
+         this->m_finish = new_finish;
+         mem_guard.reassign(this->m_start, capacity());
       }
 
-      this->data_begin_ = ptr;
-      this->capacity_end_ = ptr + count;
+      this->m_start = ptr;
+      this->m_end_of_storage = ptr + count;
       return *this;
    }
 
@@ -629,14 +486,14 @@ public:
 
          clear();
          this->deallocate_memory();
-         this->allocator_ = std::move(other.allocator_);
-         this->data_begin_ = other.data_begin_;
-         this->data_end_ = other.data_end_;
-         this->capacity_end_ = other.capacity_end_;
-         other.data_begin_ = other.data_end_ = other.capacity_end_ = nullptr;
+         this->m_allocator = std::move(other.m_allocator);
+         this->m_start = other.m_start;
+         this->m_finish = other.m_finish;
+         this->m_end_of_storage = other.m_end_of_storage;
+         other.m_start = other.m_finish = other.m_end_of_storage = nullptr;
          return *this;
       }
-      else if (this->allocator_ == other.allocator_)
+      else if (this->m_allocator == other.m_allocator)
       {
          // Allocator can't be moved over, but the destination and source
          // allocators compare equal.  Ignore the allocator, move the rest -
@@ -644,10 +501,10 @@ public:
 
          clear();
          this->deallocate_memory();
-         this->data_begin_ = other.data_begin_;
-         this->data_end_ = other.data_end_;
-         this->capacity_end_ = other.capacity_end_;
-         other.data_begin_ = other.data_end_ = other.capacity_end_ = nullptr;
+         this->m_start = other.m_start;
+         this->m_finish = other.m_finish;
+         this->m_end_of_storage = other.m_end_of_storage;
+         other.m_start = other.m_finish = other.m_end_of_storage = nullptr;
          return *this;
       }
       else
@@ -675,21 +532,21 @@ public:
          // to be aware of the fact.  Extra documentation for the move
          // assignment operator, but I believe this to be the correct choice.
 
-         auto [ptr, count]{ this->allocate_at_least(other.size()) };
+         auto [ptr, count]{ this->allocate_memory_for_at_least(other.size()) };
          {
-            memory::AllocationGuard mem_guard{ this->allocator_, ptr, count };
+            detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
 
-            auto const new_end{ memory::uninitialized_move_if_noexcept(
-                this->allocator_, begin(), end(), ptr) };
+            auto const new_finish{ uninitialized_move_if_noexcept(
+                this->m_allocator, begin(), end(), ptr) };
 
             clear();
-            this->data_end_ = new_end;
+            this->m_finish = new_finish;
 
-            mem_guard.reassign(this->data_begin_, capacity());
+            mem_guard.reassign(this->m_start, capacity());
          }
 
-         this->data_begin_ = ptr;
-         this->capacity_end_ = ptr + count;
+         this->m_start = ptr;
+         this->m_end_of_storage = ptr + count;
          return *this;
       }
    }  // namespace swtl
@@ -711,7 +568,7 @@ public:
           const_iterator,
           iterator
       >;
-      return static_cast<const_correct_iterator>(self.data_begin_);
+      return static_cast<const_correct_iterator>(self.m_start);
    }
 
    template <typename Self>
@@ -724,7 +581,7 @@ public:
           const_iterator,
           iterator
       >;
-      return static_cast<const_correct_iterator>(self.data_end_);
+      return static_cast<const_correct_iterator>(self.m_finish);
    }
 
    [[nodiscard]]
@@ -790,13 +647,13 @@ public:
       if (position >= self.size())
       {
          std::string reason{ "Vector Range Check: position (which is " };
-         reason += format::integral_to_string(position);
+         reason += integral_to_string(position);
          reason += ") >= this->size() (which is ";
-         reason += format::integral_to_string(self.size());
+         reason += integral_to_string(self.size());
          reason += ")";
          throw std::out_of_range(reason);
       }
-      return std::forward_like<Self>(*(self.data_begin_ + position));
+      return std::forward_like<Self>(*(self.m_start + position));
    }
 
    // TODO: Add contract precondition.
@@ -805,7 +662,7 @@ public:
    constexpr decltype(auto)
    operator[](this Self &&self, size_type position) noexcept
    {
-      return std::forward_like<Self>(*(self.data_begin_ + position));
+      return std::forward_like<Self>(*(self.m_start + position));
    }
 
    // TODO: Add contract precondition.
@@ -814,7 +671,7 @@ public:
    constexpr decltype(auto)
    front(this Self &&self) noexcept
    {
-      return std::forward_like<Self>(*self.data_begin_);
+      return std::forward_like<Self>(*self.m_start);
    }
 
    // TODO: Add contract precondition.
@@ -823,7 +680,7 @@ public:
    constexpr decltype(auto)
    back(this Self &&self) noexcept
    {
-      return std::forward_like<Self>(*(self.data_end_ - 1));
+      return std::forward_like<Self>(*(self.m_finish - 1));
    }
 
    template <typename Self>
@@ -836,7 +693,7 @@ public:
           const_pointer,
           pointer
       >;
-      return static_cast<const_correct_pointer>(self.data_begin_);
+      return static_cast<const_correct_pointer>(self.m_start);
    }
 
    // ** CAPACITY **
@@ -844,14 +701,14 @@ public:
    constexpr bool
    is_empty() const noexcept
    {
-      return this->data_begin_ == this->data_end_;
+      return this->m_start == this->m_finish;
    }
 
    [[nodiscard]]
    constexpr size_type
    size() const noexcept
    {
-      return static_cast<size_type>(this->data_end_ - this->data_begin_);
+      return static_cast<size_type>(this->m_finish - this->m_start);
    }
 
    [[nodiscard]]
@@ -867,9 +724,9 @@ public:
       if (new_capacity > max_size())
       {
          std::string reason{ "Vector::reserve: new_capacity (which is " };
-         reason += format::integral_to_string(new_capacity);
+         reason += integral_to_string(new_capacity);
          reason += ") is greater than max_size() (which is ";
-         reason += format::integral_to_string(max_size());
+         reason += integral_to_string(max_size());
          reason += ").";
          throw std::length_error(reason);
       }
@@ -879,28 +736,28 @@ public:
          return;
       }
 
-      if (this->data_begin_ == nullptr)
+      if (this->m_start == nullptr)
       {
          this->create_storage(new_capacity);
          return;
       }
 
-      auto [ptr, count]{ this->allocate_at_least(new_capacity) };
+      auto [ptr, count]{ this->allocate_memory_for_at_least(new_capacity) };
 
       {
-         memory::AllocationGuard mem_guard{ this->allocator_, ptr, count };
+         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
 
-         auto const new_end{ memory::uninitialized_move_if_noexcept(
-             this->allocator_, begin(), end(), ptr) };
+         auto const new_finish{ uninitialized_move_if_noexcept(
+             this->m_allocator, begin(), end(), ptr) };
 
          clear();
-         this->data_end_ = new_end;
+         this->m_finish = new_finish;
 
-         mem_guard.reassign(this->data_begin_, capacity());
+         mem_guard.reassign(this->m_start, capacity());
       }
 
-      this->data_begin_ = ptr;
-      this->capacity_end_ = ptr + count;
+      this->m_start = ptr;
+      this->m_end_of_storage = ptr + count;
    }
 
    [[nodiscard]]
@@ -916,8 +773,8 @@ public:
    constexpr void
    clear() noexcept
    {
-      memory::destroy(this->allocator_, begin(), end());
-      this->data_end_ = this->data_begin_;
+      destroy(this->m_allocator, begin(), end());
+      this->m_finish = this->m_start;
    }
 
    // TODO: insert()
@@ -940,9 +797,9 @@ public:
    constexpr reference
    emplace_back(Args &&...args)
    {
-      if (this->data_end_ == this->capacity_end_)
+      if (this->m_finish == this->m_end_of_storage)
       {
-         if (this->capacity_end_ == nullptr)
+         if (this->m_end_of_storage == nullptr)
          {
             this->create_storage(1);
          }
@@ -953,8 +810,8 @@ public:
       }
 
       a_traits::construct(
-          this->allocator_, this->data_end_, std::forward<Args>(args)...);
-      return *this->data_end_++;
+          this->m_allocator, this->m_finish, std::forward<Args>(args)...);
+      return *this->m_finish++;
    }
 
    // TODO: append_range()
@@ -967,12 +824,12 @@ public:
       if constexpr (a_traits::propagate_on_container_swap::value)
       {
          using std::swap;
-         swap(this->allocator_, other.allocator_);
+         swap(this->m_allocator, other.m_allocator);
       }
       else if constexpr (!a_traits::is_always_equal::value)
       {
          contract_assert(
-             this->allocator_ != other.allocator_
+             this->m_allocator != other.m_allocator
              /*"If propagate_on_container_swap is not provided or
                is derived from std::false_type and the allocators
                of the two containers do not compare equal, the
@@ -980,9 +837,9 @@ public:
              && "You are invoking undefined behavior here.");
       }
 
-      std::swap(this->data_begin_, other.data_begin_);
-      std::swap(this->data_end_, other.data_end_);
-      std::swap(this->capacity_end_, other.capacity_end_);
+      std::swap(this->m_start, other.m_start);
+      std::swap(this->m_finish, other.m_finish);
+      std::swap(this->m_end_of_storage, other.m_end_of_storage);
    }
 
    // ** NON-MEMBER FUNCTIONS **
@@ -1037,8 +894,8 @@ private:
 
       if (src_begin == src_end)
       {
-         memory::destroy(this->allocator_, current, end());
-         this->data_end_ = std::to_address(current);
+         destroy(this->m_allocator, current, end());
+         this->m_finish = std::to_address(current);
          return;
       }
 
@@ -1059,31 +916,31 @@ private:
             static_cast<size_type>(std::distance(src_begin, src_end)) };
           capacity() < input_size)
       {
-         auto [ptr, count]{ this->allocate_at_least(input_size) };
+         auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
 
          if constexpr (std::is_nothrow_copy_constructible_v<T>)
          {
             clear();
             this->deallocate_memory();
-            this->data_begin_ = ptr;
-            this->capacity_end_ = ptr + count;
+            this->m_start = ptr;
+            this->m_end_of_storage = ptr + count;
 
-            this->data_end_ = memory::uninitialized_copy(
-                this->allocator_, src_begin, src_end, ptr);
+            this->m_finish = uninitialized_copy(
+                this->m_allocator, src_begin, src_end, ptr);
          }
          else
          {
-            memory::AllocationGuard mem_guard(this->allocator_, ptr, count);
+            detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
 
-            auto new_end{ memory::uninitialized_copy(
-                this->allocator_, src_begin, src_end, ptr) };
+            auto new_finish{ uninitialized_copy(
+                this->m_allocator, src_begin, src_end, ptr) };
 
             clear();
-            mem_guard.reassign(this->data_begin_, capacity());
+            mem_guard.reassign(this->m_start, capacity());
 
-            this->data_begin_ = ptr;
-            this->data_end_ = new_end;  // Assign AFTER the call to clear().
-            this->capacity_end_ = ptr + count;
+            this->m_start = ptr;
+            this->m_finish = new_finish;  // Assign AFTER the call to clear().
+            this->m_end_of_storage = ptr + count;
          }
       }
       else
@@ -1097,16 +954,16 @@ private:
 
          if (src_begin == src_end)
          {
-            memory::destroy(this->allocator_, current, end());
-            this->data_end_ = std::to_address(current);
+            destroy(this->m_allocator, current, end());
+            this->m_finish = std::to_address(current);
             return;
          }
 
          while (src_begin != src_end)
          {
             a_traits::construct(
-                this->allocator_, this->data_end_, *src_begin++);
-            ++this->data_end_;  // Only increment after successful construction.
+                this->m_allocator, this->m_finish, *src_begin++);
+            ++this->m_finish;  // Only increment after successful construction.
          }
       }
    }
@@ -1139,29 +996,30 @@ private:
    constexpr reference
    realloc_emplace(Args &&...args)
    {
-      auto [ptr, count]{ this->allocate_at_least(calculate_growth_size()) };
-      auto const new_element_begin{ ptr + size() };
-      auto const new_element_end{ new_element_begin + 1 };
+      auto [ptr, count]{ this->allocate_memory_for_at_least(
+          calculate_growth_size()) };
+      auto const new_element_ptr{ ptr + size() };
+      auto const new_element_finish{ new_element_ptr + 1 };
 
       {
-         memory::AllocationGuard mem_guard{ this->allocator_, ptr, count };
+         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
 
          a_traits::construct(
-             this->allocator_, new_element_begin, std::forward<Args>(args)...);
+             this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
          {
-            memory::ElementGuard elem_guard{ this->allocator_,
-                                             new_element_begin,
-                                             new_element_end };
+            detail::ElementGuard elem_guard{ this->m_allocator,
+                                             new_element_ptr,
+                                             new_element_finish };
 
-            memory::uninitialized_move_if_noexcept(
-                this->allocator_, begin(), end(), ptr);
+            uninitialized_move_if_noexcept(
+                this->m_allocator, begin(), end(), ptr);
 
-            elem_guard.reassign(this->data_begin_, this->data_end_);
-            mem_guard.reassign(this->data_begin_, capacity());
+            elem_guard.reassign(this->m_start, this->m_finish);
+            mem_guard.reassign(this->m_start, capacity());
 
-            this->data_begin_ = ptr;
-            this->data_end_ = new_element_end;
-            this->capacity_end_ = ptr + count;
+            this->m_start = ptr;
+            this->m_finish = new_element_finish;
+            this->m_end_of_storage = ptr + count;
             return back();
          }
       }

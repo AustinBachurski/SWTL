@@ -1,9 +1,10 @@
-export module swtl_test_helper_functions;
+export module swtl.test_helpers:functions;
 
 import std;
-import swtl_vector;
 
-export namespace swtl_test_helpers
+import swtl.vector;
+
+export namespace swtl::test_helpers
 {
 
 template <typename Container>
@@ -80,4 +81,4 @@ generate_vector_of_count(std::size_t count)
    return vec;
 }
 
-}  // namespace swtl_test_helpers
+}  // namespace swtl::test_helpers

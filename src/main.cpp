@@ -1,11 +1,7 @@
 import std;
-import swtl_vector;
-import swtl_forward_list;
 
-import swtl_test_helper_functions;
-import swtl_test_helper_objects;
-
-namespace helpers = swtl_test_helpers;
+import swtl;
+import swtl.test_helpers;
 
 void
 handle_contract_violation(std::contracts::contract_violation const &violation)
@@ -36,27 +32,6 @@ printAll(swtl::Vector<T> const &vec)
       std::print("{}, ", element);
    }
    std::println();
-}
-
-consteval auto
-does_it_work()
-{
-   constexpr auto count{ 10UZ };
-   swtl::Vector<std::size_t> vec;
-
-   for (auto const num : std::views::iota(0UZ, count))
-   {
-      vec.push_back(num);
-   }
-
-   std::array<std::size_t, count> values;
-
-   for (auto &&[idx, num] : std::views::enumerate(vec))
-   {
-      values.at(idx) = num;
-   }
-
-   return values;
 }
 
 }  // namespace
