@@ -9,6 +9,32 @@ import :alloc_aware_guards;
 namespace swtl
 {
 
+/// @brief Copies elements in the range `[first, last)` to uninitialized memory
+/// via the allocator.
+///
+/// Copy-constructs elements from the source range into uninitialized storage
+/// starting at `dest` using `std::allocator_traits<Allocator>::construct`.
+///
+/// @note This function initializes object lifetimes but does not allocate
+/// storage.
+///
+/// @param allocator Reference to the allocator that allocated the memory
+/// pointed to by dest.
+/// @param first Iterator to the first element in the source range.
+/// @param last Sentinel marking the end of the source range.
+/// @param dest Iterator to the start of the uninitialized destination range.
+///
+/// @return An iterator pointing one past the last element constructed in
+/// `dest`.
+///
+/// @pre `[first, last)` must denote a valid range.
+/// @pre The destination range must contain sufficient uninitialized storage.
+/// @pre The source and destination ranges must not overlap.
+///
+/// @note Exception Safety: Strong guarantee.  If an exception is thrown during
+/// construction, any elements already constructed in the destination range are
+/// destroyed.  The original elements remain untouched.
+///
 export template <
     AllocatorType Allocator,
     std::input_iterator SourceIterator,
@@ -49,6 +75,33 @@ uninitialized_copy(
    }
 }
 
+/// @brief Moves elements in the range `[first, last)` to uninitialized memory
+/// via the allocator.
+///
+/// Move-constructs elements from the source range into uninitialized storage
+/// starting at `dest` using `std::allocator_traits<Allocator>::construct`.
+///
+/// @note This function initializes object lifetimes but does not allocate
+/// storage.
+///
+/// @param allocator Reference to the allocator that allocated the memory
+/// pointed to by dest.
+/// @param first Iterator to the first element in the source range.
+/// @param last Sentinel marking the end of the source range.
+/// @param dest Iterator to the start of the uninitialized destination range.
+///
+/// @return An iterator pointing one past the last element constructed in
+/// `dest`.
+///
+/// @pre `[first, last)` must denote a valid range.
+/// @pre The destination range must contain sufficient uninitialized storage.
+/// @pre The source and destination ranges must not overlap.
+///
+/// @note Exception Safety: Basic guarantee.  If an exception is thrown during
+/// construction, any elements that were successfully constructed in the
+/// destination range are destroyed.  Source elements that were already moved
+/// from remain in a valid but unspecified state.
+///
 export template <
     AllocatorType Allocator,
     std::input_iterator SourceIterator,
@@ -91,6 +144,34 @@ uninitialized_move(
    }
 }
 
+/// @brief Moves elements to uninitialized memory if moving is `noexcept`;
+/// otherwise copies.
+///
+/// Dispatches to `uninitialized_move` if the element type is
+/// nothrow_move_constructible or move-only.  Otherwise, falls back to
+/// `uninitialized_copy` to protect source elements from modification if
+/// construction throws.
+///
+/// @param allocator Reference to the allocator that allocated the memory
+/// pointed to by dest.
+/// @param first Iterator to the first element in the source range.
+/// @param last Sentinel marking the end of the source range.
+/// @param dest Iterator to the start of the uninitialized destination range.
+///
+/// @return An iterator pointing one past the last element constructed in
+/// `dest`.
+///
+/// @pre `[first, last)` must denote a valid range.
+/// @pre The destination range must contain sufficient uninitialized storage.
+/// @pre The source and destination ranges must not overlap.
+///
+/// @note Exception Safety: Nothrow if object construction is noexcept; strong
+/// guarantee for the source range when copying is used; otherwise basic
+/// guarantee.  If an exception is thrown during construction, any elements that
+/// were successfully constructed in the destination range are destroyed. Source
+/// elements that were already moved from remain in a valid but unspecified
+/// state.
+///
 export template <
     AllocatorType Allocator,
     std::input_iterator SourceIterator,
