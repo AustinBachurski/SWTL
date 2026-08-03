@@ -7,15 +7,16 @@ import :concepts;
 namespace swtl
 {
 
-/// @brief Destroys the objects in the range `[first, last)` via the allocator.
+/// @brief Destroys the elements in the range `[first, last)` via the allocator.
 ///
-/// @note Destroys the objects but does not deallocate their underlying storage.
+/// @note Destroys the elements but does not deallocate their underlying
+/// storage.
 ///
-/// Destroys objects in the range `[first, last)` using
+/// Destroys elements in the range `[first, last)` using
 /// `std::allocator_traits<Alloctaor>::destroy`.
 ///
-/// @param allocator Reference to the allocator that constructed the objects.
-/// @param first Iterator to the first object in the range to be destroyed.
+/// @param allocator Reference to the allocator that constructed the elements.
+/// @param first Iterator to the first element in the range to be destroyed.
 /// @param last Sentinel marking the end of the range.
 ///
 /// @pre `[first, last)` must denote a valid range.
