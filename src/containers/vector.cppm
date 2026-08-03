@@ -203,15 +203,14 @@ public:
        std::sentinel_for<InputIterator> Sentinel
    >
    constexpr Vector(
-       InputIterator src_begin,
-       Sentinel src_end,
+       InputIterator first,
+       Sentinel last,
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      this->create_storage(
-          static_cast<size_type>(std::distance(src_begin, src_end)));
-      this->m_finish = uninitialized_copy(
-          this->m_allocator, src_begin, src_end, this->m_start);
+      this->create_storage(static_cast<size_type>(std::distance(first, last)));
+      this->m_finish
+          = uninitialized_copy(this->m_allocator, first, last, this->m_start);
    }
 
    template <container_compatible_range<T> Range>
@@ -312,25 +311,26 @@ public:
        std::sentinel_for<InputIterator> Sentinel
    >
    constexpr void
-   assign(InputIterator src_begin, Sentinel src_end)
+   assign(InputIterator first, Sentinel last)
    // Preconditions seem to be broken entirely, even `pre(false)` doesn't
    // trigger.  The code won't compile in a contract_assert, so I'm not sure if
    // it'll even work in a precondition - but we should try when preconditions
    // get fixed.
    /*
        pre(!std::sized_sentinel_for<Sentinel, InputIterator>
-           || (src_end - src_begin >= 0
+           || (last - first >= 0
                && "Are your iterator arguments backwards?"))
    */
    {
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
       {
          contract_assert(
-             src_end - src_begin >= 0
-             && "Are your iterator arguments backwards?");
+            last - first >= 0
+            && "Contract violation: last is not reachable from first."
+            "Are your iterator arguments reversed?");
       }
 
-      assign_from_range(src_begin, src_end);
+      assign_from_range(first, last);
    }
 
    constexpr void
@@ -883,25 +883,25 @@ private:
        std::sentinel_for<InputIterator> Sentinel
    >
    constexpr void
-   assign_from_range(InputIterator src_begin, Sentinel src_end)
+   assign_from_range(InputIterator first, Sentinel last)
    {
       auto current{ begin() };
 
-      while (src_begin != src_end && current != end())
+      while (first != last && current != end())
       {
-         *current++ = *src_begin++;
+         *current++ = *first++;
       }
 
-      if (src_begin == src_end)
+      if (first == last)
       {
          destroy(this->m_allocator, current, end());
          this->m_finish = std::to_address(current);
          return;
       }
 
-      while (src_begin != src_end)
+      while (first != last)
       {
-         push_back(*src_begin++);
+         push_back(*first++);
       }
    }
 
@@ -910,10 +910,10 @@ private:
        std::sentinel_for<ForwardIterator> Sentinel
    >
    constexpr void
-   assign_from_range(ForwardIterator src_begin, Sentinel src_end)
+   assign_from_range(ForwardIterator first, Sentinel last)
    {
       if (auto const input_size{
-            static_cast<size_type>(std::distance(src_begin, src_end)) };
+            static_cast<size_type>(std::distance(first, last)) };
           capacity() < input_size)
       {
          auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
@@ -925,15 +925,15 @@ private:
             this->m_start = ptr;
             this->m_end_of_storage = ptr + count;
 
-            this->m_finish = uninitialized_copy(
-                this->m_allocator, src_begin, src_end, ptr);
+            this->m_finish
+                = uninitialized_copy(this->m_allocator, first, last, ptr);
          }
          else
          {
             detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
 
             auto new_finish{ uninitialized_copy(
-                this->m_allocator, src_begin, src_end, ptr) };
+                this->m_allocator, first, last, ptr) };
 
             clear();
             mem_guard.reassign(this->m_start, capacity());
@@ -947,22 +947,21 @@ private:
       {
          auto current{ begin() };
 
-         while (src_begin != src_end && current != end())
+         while (first != last && current != end())
          {
-            *current++ = *src_begin++;
+            *current++ = *first++;
          }
 
-         if (src_begin == src_end)
+         if (first == last)
          {
             destroy(this->m_allocator, current, end());
             this->m_finish = std::to_address(current);
             return;
          }
 
-         while (src_begin != src_end)
+         while (first != last)
          {
-            a_traits::construct(
-                this->m_allocator, this->m_finish, *src_begin++);
+            a_traits::construct(this->m_allocator, this->m_finish, *first++);
             ++this->m_finish;  // Only increment after successful construction.
          }
       }
