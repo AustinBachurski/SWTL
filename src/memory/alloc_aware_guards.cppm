@@ -13,7 +13,7 @@ namespace swtl::detail
 ///
 /// If the lifetime of the guard ends without a call to `dismiss()`, the managed
 /// memory block is returned to the allocator via
-/// `std::allocator_traits<Allocator>::deallocate(allocator, ptr, count)`.
+/// `std::allocator_traits<Allocator>::deallocate`.
 ///
 /// @tparam Allocator The type of the allocator that was used to allocate the
 /// memory to be managed.
@@ -113,8 +113,7 @@ struct AllocationGuard
 /// unless dismissed.
 ///
 /// If the lifetime of the guard ends without a call to `dismiss()`, the managed
-/// objects are destroyed via
-/// `std::allocator_traits<Allocator>::destroy(allocator, address_of_element)`.
+/// objects are destroyed via `std::allocator_traits<Allocator>::destroy`.
 ///
 /// @tparam Allocator The type of the allocator that was used to construct the
 /// managed objects.
@@ -146,7 +145,7 @@ struct ElementGuard
        , finish{ finish_ptr }
    {}
 
-   /// @brief Destroys all objects in the range `[start, finish)` if
+   /// @brief Destroys the objects in the range `[start, finish)` if
    /// `dismiss()` was not called prior to destruction.
    ///
    constexpr ~ElementGuard()

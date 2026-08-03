@@ -11,15 +11,14 @@ namespace swtl
 ///
 /// @note Destroys the objects but does not deallocate their underlying storage.
 ///
-/// Invokes `std::allocator_traits<Allocator>::destroy(allocator,
-/// std::to_address(iter))` for each iterator `iter` in the range.
+/// Destroys objects in the range `[first, last)` using
+/// `std::allocator_traits<Alloctaor>::destroy`.
 ///
 /// @param allocator Reference to the allocator that constructed the objects.
 /// @param first Iterator to the first object in the range to be destroyed.
 /// @param last Sentinel marking the end of the range.
 ///
-/// @pre `[first, last)` must denote a valid range (`last` is reachable from
-/// `first`).
+/// @pre `[first, last)` must denote a valid range.
 ///
 export template <
     AllocatorType Allocator,
