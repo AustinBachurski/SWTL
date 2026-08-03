@@ -18,31 +18,30 @@ export template <
 constexpr DestinationIterator
 uninitialized_copy(
     Allocator &allocator,
-    SourceIterator src_begin,
-    Sentinel src_end,
-    DestinationIterator destination)
+    SourceIterator first,
+    Sentinel last,
+    DestinationIterator dest)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
    if constexpr (std::is_nothrow_copy_constructible_v<value_type>)
    {
-      for (; src_begin != src_end; ++src_begin, ++destination)
+      for (; first != last; ++first, ++dest)
       {
-         a_traits::construct(
-             allocator, std::to_address(destination), *src_begin);
+         a_traits::construct(allocator, std::to_address(dest), *first);
       }
-      return DestinationIterator{ destination };
+      return DestinationIterator{ dest };
    }
    else
    {
       detail::ElementGuard elem_guard{ allocator,
-                                       std::to_address(destination),
-                                       std::to_address(destination) };
+                                       std::to_address(dest),
+                                       std::to_address(dest) };
 
-      for (; src_begin != src_end; ++src_begin, ++elem_guard.finish)
+      for (; first != last; ++first, ++elem_guard.finish)
       {
-         a_traits::construct(allocator, elem_guard.finish, *src_begin);
+         a_traits::construct(allocator, elem_guard.finish, *first);
       }
 
       elem_guard.dismiss();
@@ -59,33 +58,32 @@ export template <
 constexpr DestinationIterator
 uninitialized_move(
     Allocator &allocator,
-    SourceIterator src_begin,
-    Sentinel src_end,
-    DestinationIterator destination)
+    SourceIterator first,
+    Sentinel last,
+    DestinationIterator dest)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
    if constexpr (std::is_nothrow_move_constructible_v<value_type>)
    {
-      for (; src_begin != src_end; ++src_begin, ++destination)
+      for (; first != last; ++first, ++dest)
       {
          a_traits::construct(
-             allocator, std::to_address(destination), std::move(*src_begin));
+             allocator, std::to_address(dest), std::move(*first));
       }
 
-      return DestinationIterator{ destination };
+      return DestinationIterator{ dest };
    }
    else
    {
       detail::ElementGuard elem_guard{ allocator,
-                                       std::to_address(destination),
-                                       std::to_address(destination) };
+                                       std::to_address(dest),
+                                       std::to_address(dest) };
 
-      for (; src_begin != src_end; ++src_begin, ++elem_guard.finish)
+      for (; first != last; ++first, ++elem_guard.finish)
       {
-         a_traits::construct(
-             allocator, elem_guard.finish, std::move(*src_begin));
+         a_traits::construct(allocator, elem_guard.finish, std::move(*first));
       }
 
       elem_guard.dismiss();
@@ -102,9 +100,9 @@ export template <
 constexpr DestinationIterator
 uninitialized_move_if_noexcept(
     Allocator &allocator,
-    SourceIterator src_begin,
-    Sentinel src_end,
-    DestinationIterator destination)
+    SourceIterator first,
+    Sentinel last,
+    DestinationIterator dest)
 {
    using value_type = std::allocator_traits<Allocator>::value_type;
 
@@ -112,11 +110,11 @@ uninitialized_move_if_noexcept(
        std::is_nothrow_move_constructible_v<value_type>
        || !std::is_copy_constructible_v<value_type>)
    {
-      return uninitialized_move(allocator, src_begin, src_end, destination);
+      return uninitialized_move(allocator, first, last, dest);
    }
    else
    {
-      return uninitialized_copy(allocator, src_begin, src_end, destination);
+      return uninitialized_copy(allocator, first, last, dest);
    }
 }
 
