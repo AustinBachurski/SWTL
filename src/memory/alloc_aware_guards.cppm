@@ -11,8 +11,8 @@ namespace swtl::detail
 /// @brief RAII scope guard that deallocates uninitialized memory on destruction
 /// unless dismissed.
 ///
-/// If the lifetime of the guard ends without a call to `dismiss()`, the managed
-/// memory block is returned to the allocator via
+/// If the lifetime of the guard ends without a call to `dismiss()`,
+/// the managed memory block is returned to the allocator via
 /// `std::allocator_traits<Allocator>::deallocate`.
 ///
 /// @tparam Allocator The type of the allocator that was used to allocate the
@@ -23,8 +23,14 @@ namespace swtl::detail
 export template <AllocatorType Allocator>
 struct AllocationGuard
 {
+   /// @name Allocator Types
+   /// Type definitions derived from the allocator.
+   /// @{
+   ///
    using pointer = std::allocator_traits<Allocator>::pointer;
    using size_type = std::allocator_traits<Allocator>::size_type;
+
+   ///@}
 
    /// @brief Constructs a guard that manages the block of memory.
    ///
@@ -103,54 +109,60 @@ struct AllocationGuard
       count = element_count;
    }
 
-   Allocator &alloc;
-   pointer ptr;
-   size_type count;
+   Allocator &alloc;  ///< Reference to the allocator that allocated the memory.
+   pointer ptr;       ///< Pointer to the start of the memory block.
+   size_type count;  ///< Capacity of the allocated block in number of elements.
 };
 
 /// @internal
-/// @brief RAII scope guard that destroys a range of objects on destruction
+/// @brief RAII scope guard that destroys a range of elements on destruction
 /// unless dismissed.
 ///
-/// If the lifetime of the guard ends without a call to `dismiss()`, the managed
-/// objects are destroyed via `std::allocator_traits<Allocator>::destroy`.
+/// @details If the lifetime of the guard ends without a call to `dismiss()`,
+/// the managed elements are destroyed via
+/// `std::allocator_traits<Allocator>::destroy`.
 ///
 /// @tparam Allocator The type of the allocator that was used to construct the
-/// managed objects.
+/// managed elements.
 ///
 /// @note ElementGuard is strictly non-copyable and non-movable.
 ///
 export template <AllocatorType Allocator>
 struct ElementGuard
 {
-   using value_type = std::allocator_traits<Allocator>::value_type;
+   /// @name Allocator Types
+   /// Type definitions derived from the allocator.
+   /// @{
+   ///
    using pointer = std::allocator_traits<Allocator>::pointer;
+   using size_type = std::allocator_traits<Allocator>::size_type;
+
+   ///@}
 
    /// @brief Constructs a guard that manages the lifetime of a range of
-   /// objects.
+   /// elements.
    ///
-   /// @param allocator Reference to the allocator that constructed the
-   /// managed objects.
-   /// @param start Pointer to the start of the range of objects.
-   /// @param finish Pointer to the end of the range of objects (one past the
-   /// last object to be destroyed).
+   /// @param allocator Reference to the allocator that constructed the managed
+   /// elements.
+   /// @param first_ptr Pointer to the first element in the range.
+   /// @param last_ptr Pointer to the end of the range of elements.
    ///
    /// @warning The allocator reference passed to the constructor must outlive
    /// the guard.
    ///
    constexpr ElementGuard(
-       Allocator &allocator, pointer start_ptr, pointer finish_ptr) noexcept
+       Allocator &allocator, pointer first_ptr, pointer last_ptr) noexcept
        : alloc{ allocator }
-       , start{ start_ptr }
-       , finish{ finish_ptr }
+       , first{ first_ptr }
+       , last{ last_ptr }
    {}
 
-   /// @brief Destroys the objects in the range `[start, finish)` if
-   /// `dismiss()` was not called prior to destruction.
+   /// @brief Destroys the elements in the range `[first, last)` if `dismiss()`
+   /// was not called prior to destruction.
    ///
    constexpr ~ElementGuard()
    {
-      destroy(alloc, start, finish);
+      destroy(alloc, first, last);
    }
 
    ElementGuard() = delete ("Must provide a reference to an allocator.");
@@ -161,18 +173,18 @@ struct ElementGuard
    auto
    operator=(ElementGuard &&other) = delete;
 
-   /// @brief Prevents the guard from destroying any objects when it is
+   /// @brief Prevents the guard from destroying any elements when it is
    /// destroyed.
    ///
-   /// @post `start == finish`
+   /// @post `first == last`
    ///
    constexpr void
    dismiss() noexcept
    {
-      start = finish;
+      first = last;
    };
 
-   /// @brief Replaces the reference to the allocator used to destroy objects.
+   /// @brief Replaces the reference to the allocator used to destroy elements.
    ///
    /// @param new_allocator Reference to the new allocator.
    ///
@@ -185,22 +197,23 @@ struct ElementGuard
       alloc = new_allocator;
    }
 
-   /// @brief Assigns the guard to a new range of objects.
+   /// @brief Assigns the guard to a new range of elements.
    ///
-   /// @param start Pointer to the start of the range of objects.
-   /// @param finish Pointer to the end of the range of objects (one past the
-   /// last object to be destroyed).
+   /// @param first_ptr Pointer to the first element in the range.
+   /// @param last_ptr Pointer to the end of the range of elements (one past
+   /// the last element to be destroyed).
    ///
    constexpr void
-   reassign(pointer start_ptr, pointer finish_ptr) noexcept
+   reassign(pointer first_ptr, pointer last_ptr) noexcept
    {
-      start = start_ptr;
-      finish = finish_ptr;
+      first = first_ptr;
+      last = last_ptr;
    }
 
-   Allocator &alloc;
-   pointer start;
-   pointer finish;
+   Allocator
+       &alloc;  ///< Reference to the allocator that constructed the elements.
+   pointer first;  ///< Pointer to the first element in the range.
+   pointer last;   ///< Pointer to the end of the range of elements.
 };
 
 }  // namespace swtl::detail
