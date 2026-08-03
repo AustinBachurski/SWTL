@@ -118,7 +118,7 @@ struct AllocationGuard
 /// @brief RAII scope guard that destroys a range of elements on destruction
 /// unless dismissed.
 ///
-/// @details If the lifetime of the guard ends without a call to `dismiss()`,
+/// If the lifetime of the guard ends without a call to `dismiss()`,
 /// the managed elements are destroyed via
 /// `std::allocator_traits<Allocator>::destroy`.
 ///
