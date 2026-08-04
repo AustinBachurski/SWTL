@@ -24,10 +24,14 @@ export template <AllocatorType Allocator>
 struct AllocationGuard
 {
    /// @name Allocator Types
-   /// Type definitions derived from the allocator.
-   /// @{
    ///
+   /// Type definitions derived from the allocator.
+   ///
+   /// @{
+
+   /// Pointer type.
    using pointer = std::allocator_traits<Allocator>::pointer;
+   /// Unsigned size type.
    using size_type = std::allocator_traits<Allocator>::size_type;
 
    ///@}
@@ -131,10 +135,14 @@ export template <AllocatorType Allocator>
 struct ElementGuard
 {
    /// @name Allocator Types
-   /// Type definitions derived from the allocator.
-   /// @{
    ///
+   /// Type definitions derived from the allocator.
+   ///
+   /// @{
+
+   /// Pointer type.
    using pointer = std::allocator_traits<Allocator>::pointer;
+   /// Unsigned size type.
    using size_type = std::allocator_traits<Allocator>::size_type;
 
    ///@}

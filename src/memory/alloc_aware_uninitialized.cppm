@@ -51,6 +51,14 @@ uninitialized_copy(
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
+   if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
+   {
+      contract_assert(
+            last - first >= 0
+            && "Contract violation: `last` is not reachable from `first`."
+            "Are your iterator arguments reversed?");
+   }
+
    if constexpr (std::is_nothrow_copy_constructible_v<value_type>)
    {
       for (; first != last; ++first, ++dest)
@@ -65,13 +73,13 @@ uninitialized_copy(
                                        std::to_address(dest),
                                        std::to_address(dest) };
 
-      for (; first != last; ++first, ++elem_guard.finish)
+      for (; first != last; ++first, ++elem_guard.last)
       {
-         a_traits::construct(allocator, elem_guard.finish, *first);
+         a_traits::construct(allocator, elem_guard.last, *first);
       }
 
       elem_guard.dismiss();
-      return DestinationIterator{ elem_guard.finish };
+      return DestinationIterator{ elem_guard.last };
    }
 }
 
@@ -118,6 +126,14 @@ uninitialized_move(
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
+   if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
+   {
+      contract_assert(
+            last - first >= 0
+            && "Contract violation: `last` is not reachable from `first`."
+            "Are your iterator arguments reversed?");
+   }
+
    if constexpr (std::is_nothrow_move_constructible_v<value_type>)
    {
       for (; first != last; ++first, ++dest)
@@ -134,13 +150,13 @@ uninitialized_move(
                                        std::to_address(dest),
                                        std::to_address(dest) };
 
-      for (; first != last; ++first, ++elem_guard.finish)
+      for (; first != last; ++first, ++elem_guard.last)
       {
-         a_traits::construct(allocator, elem_guard.finish, std::move(*first));
+         a_traits::construct(allocator, elem_guard.last, std::move(*first));
       }
 
       elem_guard.dismiss();
-      return DestinationIterator{ elem_guard.finish };
+      return DestinationIterator{ elem_guard.last };
    }
 }
 

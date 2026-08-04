@@ -33,7 +33,7 @@ destroy(Allocator &allocator, Iterator first, Sentinel last) noexcept
    {
       contract_assert(
             last - first >= 0
-            && "Contract violation: last is not reachable from first."
+            && "Contract violation: `last` is not reachable from `first`."
             "Are your iterator arguments reversed?");
    }
 
