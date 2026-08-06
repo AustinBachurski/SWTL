@@ -125,7 +125,7 @@ private:
 
 template <typename T>
 constexpr void
-reset_instance_counts_of() noexcept
+reset_counts_and_set_nothrow() noexcept
 {
    if constexpr (std::derived_from<T, LifetimeTracker<T>>)
    {
@@ -135,6 +135,7 @@ reset_instance_counts_of() noexcept
    if constexpr (std::derived_from<T, ThrowingObject<T>>)
    {
       T::reset_throwing_instance_count();
+      T::throw_when_constructing_instance(0UZ);
    }
 }
 
