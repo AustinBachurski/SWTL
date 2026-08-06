@@ -1,3 +1,4 @@
+/// FILE DISABLED IN DOXYGEN CONFIG!
 export module swtl.forward_list;
 
 import std;
