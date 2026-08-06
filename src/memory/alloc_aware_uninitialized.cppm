@@ -54,9 +54,7 @@ uninitialized_copy(
    if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
    {
       contract_assert(
-            last - first >= 0
-            && "Contract violation: `last` is not reachable from `first`."
-            "Are your iterator arguments reversed?");
+          last - first >= 0 && "`last` must be reachable from `first`");
    }
 
    if constexpr (std::is_nothrow_copy_constructible_v<value_type>)
@@ -129,9 +127,7 @@ uninitialized_move(
    if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
    {
       contract_assert(
-            last - first >= 0
-            && "Contract violation: `last` is not reachable from `first`."
-            "Are your iterator arguments reversed?");
+          last - first >= 0 && "`last` must be reachable from `first`");
    }
 
    if constexpr (std::is_nothrow_move_constructible_v<value_type>)
