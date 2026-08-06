@@ -2,6 +2,8 @@ export module swtl.algorithm;
 
 import std;
 
+import swtl.config;
+
 namespace swtl
 {
 
@@ -44,6 +46,7 @@ struct ZipCopyResult
 ///
 /// @note `noexcept` if assigning the value referenced by the source iterator to
 /// the destination iterator is nothrow.
+/// @note `noexcept` is disabled during testing.
 ///
 export template <
     std::input_iterator SourceIterator,
@@ -56,7 +59,9 @@ zip_copy(
     SourceIterator src_first,
     SourceSentinel src_last,
     DestinationIterator dest_first,
-    DestinationSentinel dest_last) noexcept(noexcept(*dest_first = *src_first))
+    DestinationSentinel dest_last)
+    noexcept(
+        swtl::config::nothrow_contracts && noexcept(*dest_first = *src_first))
 {
    if constexpr (std::sized_sentinel_for<SourceSentinel, SourceIterator>)
    {
@@ -95,6 +100,7 @@ zip_copy(
 ///
 /// @note `noexcept` if assignment from the source iterator's reference type to
 /// the destination iterator's reference type is nothrow.
+/// @note `noexcept` is disabled during testing.
 ///
 export template <
     std::ranges::range SourceRange,
@@ -102,7 +108,9 @@ export template <
 >
 constexpr auto
 zip_copy(SourceRange &&src_range, DestinationRange &&dest_range) noexcept(
-    noexcept(*std::ranges::begin(dest_range) = *std::ranges::begin(src_range)))
+    swtl::config::nothrow_contracts
+    && noexcept(
+        *std::ranges::begin(dest_range) = *std::ranges::begin(src_range)))
 {
    return zip_copy(
        std::ranges::begin(src_range),
