@@ -2,37 +2,72 @@ export module swtl.vector;
 
 import std;
 
+import swtl.config;
+
+import swtl.algorithm;
 import swtl.container_concepts;
 import swtl.contiguous_iterator;
 import swtl.format;
 import swtl.memory;
 
-/// The Strictly Worse Template Library
 namespace swtl
 {
 
+/// @internal
+/// @brief Resource management base class for `Vector`.
+///
+/// Handles raw memory allocation, deallocation, and allocator propagation
+/// mechanics independently of element construction and destruction.
+///
+/// @tparam T The type of element to allocate storage for.
+/// @tparam Allocator The allocator type used to acquire and release memory.
+///
 template <typename T, typename Allocator>
 class VectorBase
 {
 public:
-   using a_traits = std::allocator_traits<Allocator>;
-   using allocator_type = Allocator;
-   using value_type = a_traits::value_type;
-   using size_type = a_traits::size_type;
-   using difference_type = a_traits::difference_type;
-   using pointer = a_traits::pointer;
+   /// @name Member Types
+   /// @{
 
+   using a_traits = std::allocator_traits<Allocator>;  ///< Allocator traits.
+   using allocator_type = Allocator;                   ///< Allocator type.
+   using value_type = a_traits::value_type;            ///< Value type.
+   using size_type = a_traits::size_type;              ///< Unsigned size type.
+   using difference_type
+       = a_traits::difference_type;    ///< Signed difference type.
+   using pointer = a_traits::pointer;  ///< Pointer to element.
+
+   /// @}
+
+   /// @brief Default constructor. Initializes with a default-constructed
+   /// allocator and null storage pointers.
+   ///
    constexpr VectorBase() = default;
 
+   /// @brief Constructs the base storage with a specific allocator copy.
+   ///
+   /// @param allocator The allocator to copy.
+   ///
    constexpr VectorBase(Allocator const &allocator)
        : m_allocator{ allocator }
    {}
 
+   /// @brief Copy constructor. Copies the allocator using
+   /// `select_on_container_copy_construction`.
+   ///
+   /// @param other The base storage object to copy the allocator from.
+   ///
    constexpr VectorBase(VectorBase const &other) noexcept
        : m_allocator{ a_traits::select_on_container_copy_construction(
              other.m_allocator) }
    {}
 
+   /// @brief Move constructor. Transfers storage ownership and moves the
+   /// allocator.
+   ///
+   /// @param other The base storage object to move from. Leaves `other` with
+   /// null storage pointers.
+   ///
    constexpr VectorBase(VectorBase &&other) noexcept
        : m_allocator{ std::move(other.m_allocator) }
        , m_start{ other.m_start }
@@ -50,6 +85,11 @@ public:
    operator=(VectorBase &&other)
        = delete ("Move assignment must be handled by the Vector container.");
 
+   /// @brief Destructor. Deallocates any held memory storage.
+   ///
+   /// @note Does not destroy elements; element destruction is the
+   /// responsibility of the derived container class.
+   ///
    constexpr ~VectorBase()
    {
       if (m_start != nullptr)
@@ -62,6 +102,18 @@ public:
    }
 
 protected:
+   /// @brief Allocates raw storage for at least `num_elements`.
+   ///
+   /// Uses `allocate_at_least` to take advantage of any excess capacity
+   /// provided by the underlying allocator, capping the reported count at
+   /// `max_allocatable_elements()`.
+   ///
+   /// @param num_elements The minimum number of elements to allocate storage
+   /// for.
+   ///
+   /// @return `std::allocation_result` containing the pointer and actual
+   /// capacity allocated.
+   ///
    [[nodiscard]]
    constexpr std::allocation_result<pointer, size_type>
    allocate_memory_for_at_least(size_type num_elements)
@@ -83,6 +135,11 @@ protected:
       return { .ptr = ptr, .count = count };
    }
 
+   /// @brief Returns the current allocated storage capacity in number of
+   /// elements.
+   ///
+   /// @return The allocated capacity.
+   ///
    [[nodiscard]]
    constexpr size_type
    allocated_capacity() const noexcept
@@ -90,6 +147,17 @@ protected:
       return static_cast<size_type>(m_end_of_storage - m_start);
    }
 
+   /// @brief Allocates storage and initializes `m_start`, `m_finish`, and
+   /// `m_end_of_storage`.
+   ///
+   /// @param num_elements The number of elements to allocate storage for.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown,
+   /// no resources are leaked and the vector is unmodified.
+   ///
    constexpr void
    create_storage(size_type num_elements)
    {
@@ -99,6 +167,11 @@ protected:
       m_end_of_storage = m_start + count;
    }
 
+   /// @brief Deallocates all currently owned storage and resets pointers to
+   /// null.
+   ///
+   /// @note Does not destroy elements prior to deallocation.
+   ///
    constexpr void
    deallocate_memory() noexcept
    {
@@ -106,6 +179,12 @@ protected:
       m_start = m_finish = m_end_of_storage = nullptr;
    }
 
+   /// @brief Computes the theoretical maximum number of elements this allocator
+   /// can hold.
+   ///
+   /// @return The minimum of `allocator_traits::max_size` and pointer
+   /// difference limits.
+   ///
    [[nodiscard]]
    constexpr size_type
    max_allocatable_elements() const noexcept
@@ -115,43 +194,100 @@ protected:
           std::numeric_limits<difference_type>::max() / sizeof(T));
    }
 
+   /// Underlying memory allocator instance.
    [[no_unique_address]]
    Allocator m_allocator;
+   /// Pointer to the beginning of allocated storage.
    pointer m_start{};
+   /// Pointer to one-past-the-end of constructed elements.
    pointer m_finish{};
+   /// Pointer to one-past-the-end of allocated storage.
    pointer m_end_of_storage{};
 };
 
+/// @brief A dynamically resizable contiguous array container.
+///
+/// Satisfies the standard container requirements, contiguous container
+/// requirements, and allocator-aware container requirements.
+///
+/// @tparam T The type of element stored in the vector.
+/// @tparam Allocator The allocator type used for memory management.
+///
 export template <typename T, typename Allocator = std::allocator<T>>
 class Vector : protected VectorBase<T, Allocator>
 {
 private:
+   /// @publicsection
+   ///
+   /// @name Shorthand
+   /// @{
+   ///
    using Base = VectorBase<T, Allocator>;
    using a_traits = std::allocator_traits<Allocator>;
 
-public:
-   // ** MEMBER TYPES **
-   using value_type = std::remove_cv_t<T>;
-   using allocator_type = Base::allocator_type;
-   using size_type = std::size_t;
-   using difference_type = std::ptrdiff_t;
-   using reference = value_type &;
-   using const_reference = value_type const &;
-   using pointer = Base::pointer;
-   using const_pointer = a_traits::const_pointer;
-   using iterator = ContiguousIterator<T>;
-   using const_iterator = ContiguousIterator<T const>;
-   using reverse_iterator = std::reverse_iterator<iterator>;
-   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+   /// @}
 
 public:
-   // ** CONSTRUCTORS **
+   /// @name Member Types
+   /// @{
+
+   /// Element value type.
+   using value_type = std::remove_cv_t<T>;
+   /// Allocator type.
+   using allocator_type = Base::allocator_type;
+   /// Unsigned size type.
+   using size_type = std::size_t;
+   /// Signed difference type.
+   using difference_type = std::ptrdiff_t;
+   /// Reference type.
+   using reference = value_type &;
+   /// Const reference type.
+   using const_reference = value_type const &;
+   /// Pointer type.
+   using pointer = Base::pointer;
+   /// Const pointer type.
+   using const_pointer = a_traits::const_pointer;
+   /// Random-access contiguous iterator.
+   using iterator = ContiguousIterator<T>;
+   /// Const contiguous iterator.
+   using const_iterator = ContiguousIterator<T const>;
+   /// Reverse contiguous iterator.
+   using reverse_iterator = std::reverse_iterator<iterator>;
+   /// Const reverse contiguous iterator.
+   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+   /// @}
+
+public:
+   /// @name Constructors
+   /// @{
+
+   /// @brief Default constructor. Constructs an empty vector with an optional
+   /// allocator.
+   ///
+   /// @param allocator The allocator to use for memory allocation.
+   ///
    constexpr Vector(Allocator const &allocator = Allocator())
        : Base{ allocator }
    {}
 
-   // Should not be marked as explicit to allow for conversion from braced init
-   // list.
+   /// @brief Constructs a vector with copies of the elements from an
+   /// initializer list.
+   ///
+   /// @param init_list The initializer list to copy elements from.
+   /// @param allocator The allocator to use for memory allocation.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, all elements that were constructed prior to the
+   /// exception are destroyed and any allocated memory is deallocated.
+   ///
+   /// @note Not marked as explicit to allow for implicit conversion from a
+   /// braced initializer list.
+   ///
    constexpr Vector(
        std::initializer_list<T> const &init_list,
        Allocator const &allocator = Allocator())
@@ -162,6 +298,19 @@ public:
           this->m_allocator, init_list.begin(), init_list.end(), this->m_start);
    }
 
+   /// @brief Constructs a vector with `count` default-inserted elements.
+   ///
+   /// @param count The number of elements to construct.
+   /// @param allocator The allocator to use for memory allocation.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, all elements that were constructed prior to the
+   /// exception are destroyed and any allocated memory is deallocated.
+   ///
    constexpr explicit Vector(
        size_type count, Allocator const &allocator = Allocator())
        : Base{ allocator }
@@ -173,14 +322,27 @@ public:
 
       for (; count != 0UZ; --count)
       {
-         a_traits::construct(this->m_allocator, elem_guard.finish);
-         ++elem_guard.finish;
+         a_traits::construct(this->m_allocator, elem_guard.last);
+         ++elem_guard.last;
       }
 
-      this->m_finish = elem_guard.finish;
+      this->m_finish = elem_guard.last;
       elem_guard.dismiss();
    }
 
+   /// @brief Constructs a vector with `count` copies of `value`.
+   ///
+   /// @param count The number of elements to construct.
+   /// @param value The value to copy-construct elements from.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, all elements that were constructed prior to the
+   /// exception are destroyed and any allocated memory is deallocated.
+   ///
    constexpr Vector(size_type count, T const &value)
    {
       this->create_storage(count);
@@ -190,14 +352,32 @@ public:
 
       for (; count != 0UZ; --count)
       {
-         a_traits::construct(this->m_allocator, elem_guard.finish, value);
-         ++elem_guard.finish;
+         a_traits::construct(this->m_allocator, elem_guard.last, value);
+         ++elem_guard.last;
       }
 
-      this->m_finish = elem_guard.finish;
+      this->m_finish = elem_guard.last;
       elem_guard.dismiss();
    }
 
+   /// @brief Constructs a vector with the contents of the range `[first,
+   /// last)`.
+   ///
+   /// @tparam InputIterator An iterator type satisfying `std::input_iterator`.
+   /// @tparam Sentinel A sentinel type for `InputIterator`.
+   ///
+   /// @param first The beginning of the range to copy.
+   /// @param last The end of the range to copy.
+   /// @param allocator The allocator to use for memory allocation.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, all elements that were constructed prior to the
+   /// exception are destroyed and any allocated memory is deallocated.
+   ///
    template <
        std::input_iterator InputIterator,
        std::sentinel_for<InputIterator> Sentinel
@@ -208,11 +388,26 @@ public:
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      this->create_storage(static_cast<size_type>(std::distance(first, last)));
+      this->create_storage(
+          static_cast<size_type>(std::ranges::distance(first, last)));
       this->m_finish
           = uninitialized_copy(this->m_allocator, first, last, this->m_start);
    }
 
+   /// @brief Constructs a vector from a container-compatible range.
+   ///
+   /// @tparam Range A range type compatible with `T`.
+   ///
+   /// @param range The input range to copy or move elements from.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, all elements that were constructed prior to the
+   /// exception are destroyed and any allocated memory is deallocated.
+   ///
    template <container_compatible_range<T> Range>
    constexpr Vector(std::from_range_t, Range &&range)
    {
@@ -231,16 +426,40 @@ public:
 
          for (auto &&element : range)
          {
-            a_traits::construct(this->m_allocator, elem_guard.finish, element);
-            ++elem_guard.finish;
+            a_traits::construct(this->m_allocator, elem_guard.last, element);
+            ++elem_guard.last;
          }
 
-         this->m_finish = elem_guard.finish;
+         this->m_finish = elem_guard.last;
          elem_guard.dismiss();
       }
    }
 
-   // ** ASSIGNMENT **
+   /// @}
+
+   /// @name Assignment
+   /// @{
+
+   /// @brief Replaces the vector's contents with `count` copies of `value`.
+   ///
+   /// @param count The new size of the vector.
+   /// @param value The value to assign to all elements.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if reallocation occurs: if an
+   /// exception is thrown during reallocation, any new elements that were
+   /// constructed prior to the exception are destroyed, any newly allocated
+   /// memory is deallocated, and the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if no reallocation occurs: if
+   /// an exception is thrown during element assignment or construction, the
+   /// vector is left in a valid but unspecified state and no resources are
+   /// leaked.
+   ///
    constexpr void
    assign(size_type count, T const &value)
    {
@@ -269,14 +488,14 @@ public:
                for (; count != 0UZ; --count)
                {
                   a_traits::construct(
-                      this->m_allocator, elem_guard.finish, value);
-                  ++elem_guard.finish;
+                      this->m_allocator, elem_guard.last, value);
+                  ++elem_guard.last;
                }
 
                mem_guard.reassign(this->m_start, capacity());
                elem_guard.reassign(
                    this->m_start,
-                   std::exchange(this->m_finish, elem_guard.finish));
+                   std::exchange(this->m_finish, elem_guard.last));
 
                this->m_start = ptr;
                this->m_end_of_storage = ptr + size;
@@ -294,8 +513,8 @@ public:
 
          if (current < this->m_finish)
          {
-            destroy(this->m_allocator, current, this->m_finish);
-            this->m_finish = current;
+            this->m_finish
+                = destroy(this->m_allocator, current, this->m_finish);
          }
 
          for (; count != 0UZ; --count)
@@ -306,39 +525,108 @@ public:
       }
    }
 
+   /// @brief Replaces the vector's contents with the elements from the range
+   /// `[first, last)`.
+   ///
+   /// @tparam InputIterator An iterator type satisfying `std::input_iterator`.
+   /// @tparam Sentinel A sentinel type for `InputIterator`.
+   ///
+   /// @param first The beginning of the range.
+   /// @param last The end of the range.
+   ///
+   /// @note Elements are copied or moved depending on the value category of
+   /// `*first` (e.g., passing a `std::move_iterator` will move elements into
+   /// the container).
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if the size of the range can
+   /// be checked and reallocation occurs: if an exception is thrown during
+   /// reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if the size of the range
+   /// cannot be checked: if an exception is thrown during element assignment or
+   /// construction, the vector is left in a valid but unspecified state and no
+   /// resources are leaked.
+   ///
+   /// @note If `first` is a move iterator and an exception is thrown, any
+   /// previously processed elements in the source range remain in a moved-from
+   /// state.
+   ///
    template <
        std::input_iterator InputIterator,
        std::sentinel_for<InputIterator> Sentinel
    >
    constexpr void
    assign(InputIterator first, Sentinel last)
-   // Preconditions seem to be broken entirely, even `pre(false)` doesn't
-   // trigger.  The code won't compile in a contract_assert, so I'm not sure if
-   // it'll even work in a precondition - but we should try when preconditions
-   // get fixed.
-   /*
-       pre(!std::sized_sentinel_for<Sentinel, InputIterator>
-           || (last - first >= 0
-               && "Are your iterator arguments backwards?"))
-   */
    {
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
       {
          contract_assert(
-            last - first >= 0
-            && "Contract violation: last is not reachable from first."
-            "Are your iterator arguments reversed?");
+             last - first >= 0 && "`last` must be reachable from `first`");
       }
 
       assign_from_range(first, last);
    }
 
+   /// @brief Replaces the vector's contents with the elements from an
+   /// initializer list.
+   ///
+   /// @param init_list The initializer list to copy from.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if reallocation occurs: if an
+   /// exception is thrown during reallocation, any new elements that were
+   /// constructed prior to the exception are destroyed, any newly allocated
+   /// memory is deallocated, and the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if no reallocation occurs: if
+   /// an exception is thrown during element assignment or construction, the
+   /// vector is left in a valid but unspecified state and no resources are
+   /// leaked.
+   ///
    constexpr void
    assign(std::initializer_list<T> init_list)
    {
       assign_from_range(init_list.begin(), init_list.end());
    }
 
+   /// @brief Replaces the vector's contents with the elements from a
+   /// container-compatible range.
+   ///
+   /// @tparam Range A range type compatible with `T`.
+   ///
+   /// @param range The range to copy or move elements from.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if the size of the range can
+   /// be checked and reallocation occurs: if an exception is thrown during
+   /// reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if the size of the range
+   /// cannot be checked: if an exception is thrown during element assignment or
+   /// construction, the vector is left in a valid but unspecified state and no
+   /// resources are leaked.
+   ///
+   /// @note If elements are moved from the source range and an exception is
+   /// thrown, any previously processed elements in the source range remain in a
+   /// moved-from state.
+   ///
    template <container_compatible_range<T> Range>
    constexpr void
    assign_range(Range &&range)
@@ -346,13 +634,25 @@ public:
       assign_from_range(std::ranges::begin(range), std::ranges::end(range));
    }
 
-   constexpr allocator_type
-   get_allocator() const noexcept
-   {
-      return this->m_allocator;
-   }
+   /// @}
 
-   // ** SPECIAL MEMBER FUNCTIONS **
+   /// @name Special Member Functions
+   /// @{
+
+   /// @brief Copy constructor. Constructs a container with a copy of `other`'s
+   /// elements.
+   ///
+   /// @param other The vector to copy from.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during construction, any new elements that were constructed prior to the
+   /// exception are destroyed and any newly allocated memory is deallocated.
+   /// The source vector remains in an unmodified state.
+   ///
    constexpr Vector(Vector const &other)
        : Base{ other }
    {
@@ -361,6 +661,39 @@ public:
           this->m_allocator, other.begin(), other.end(), this->m_start);
    }
 
+   /// @brief Copy assignment operator. Replaces the vector's contents with a
+   /// copy of `other`.
+   ///
+   /// Observes `propagate_on_container_copy_assignment` to determine
+   /// whether the destination allocator should be replaced.
+   ///
+   /// @param other The vector to copy from.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs or
+   /// the allocators do not compare as equal to one another.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if
+   /// `propagate_on_container_copy_assignment` is true and the destination and
+   /// source allocators do not compare as equal to one another: if an
+   /// exception is thrown during copy assignment, any new elements that were
+   /// constructed prior to the exception are destroyed, any newly allocated
+   /// memory is deallocated, and the vector is unmodified.
+   ///
+   /// @note Provides a strong exception guarantee if reallocation occurs: if an
+   /// exception is thrown during reallocation, any new elements that were
+   /// constructed prior to the exception are destroyed, any newly allocated
+   /// memory is deallocated, and the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if the elements from `other`
+   /// will fit in the existing storage of `*this`: if an exception is thrown
+   /// during element assignment, the vector is left in a valid but unspecified
+   /// state and no resources are leaked.
+   ///
    constexpr Vector &
    operator=(Vector const &other)
    {
@@ -420,56 +753,51 @@ public:
       // destination retains it's allocator. Simply copy over the elements from
       // source.
 
-      if constexpr (std::is_nothrow_copy_assignable_v<T>)
-      {
-         // If copy assignment is nothrow, the existing memory may be able to be
-         // reused if there's enough capacity to do so.
-
-         if (capacity() >= other.capacity())
-         {
-            auto end_of_copied_data{ this->m_start };
-
-            for (auto pair : std::views::zip(*this, other))
-            {
-               std::get<0>(pair) = std::get<1>(pair);
-               ++end_of_copied_data;
-            }
-
-            // After data is copied, destroy the existing elements that were
-            // not overwritten with the copied data so there's no phantom
-            // elements hanging around.
-            destroy(this->m_allocator, end_of_copied_data, this->m_finish);
-
-            this->m_finish = end_of_copied_data;
-            return *this;
-         }
-      }
-
-      // If copy assignment may throw, allocate new memory to maintain strong
-      // exception safety guarantees.
-
-      auto [ptr, count]{ this->allocate_memory_for_at_least(other.size()) };
-
-      {
-         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
-
-         auto const new_finish{ uninitialized_copy(
-             this->m_allocator, other.begin(), other.end(), ptr) };
-
-         clear();
-         this->m_finish = new_finish;
-         mem_guard.reassign(this->m_start, capacity());
-      }
-
-      this->m_start = ptr;
-      this->m_end_of_storage = ptr + count;
+      assign_from_range(other.begin(), other.end());
       return *this;
    }
 
+   /// @brief Move constructor. Transfers ownership of `other`'s storage.
+   ///
+   /// @param other The vector to move from.
+   ///
+   /// @note Move construction is handled by `VectorBase`.
+   ///
    constexpr Vector(Vector &&other) noexcept
        : Base(std::move(other))
    {}
 
+   /// @brief Move assignment operator. Transfers ownership or moves elements
+   /// from `other`.
+   ///
+   /// Observes `propagate_on_container_move_assignment` to determine allocator
+   /// behavior.
+   ///
+   /// @warning If allocators are not propagated nor compare equal, new storage
+   /// is allocated and elements are moved individually.  The storage of `other`
+   /// remains and its elements are in a moved-from state.  This may result in
+   /// a loss of data if an exception occurs during element move construction.
+   ///
+   /// @param other The vector to move from.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   /// @throws noexcept If `noexcept(
+   /// std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
+   /// || std::allocator_traits<Allocator>::is_always_equal::value)`
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the allocators do not
+   /// propagate nor compare as equal to one another.
+   /// @throws (...) Any exception thrown by T during element construction if
+   /// the allocators do not propagate nor compare as equal to one another.
+   ///
+   /// @note Provides a basic exception guarantee if the allocators do not
+   /// propagate nor compare equal: if an exception is thrown during
+   /// construction, any new elements that were constructed prior to the
+   /// exception are destroyed and any newly allocated memory is deallocated.
+   /// Any previously processed elements in the source vector remain in a
+   /// moved-from state.
+   ///
    constexpr Vector &
    operator=(Vector &&other) noexcept(
        a_traits::propagate_on_container_move_assignment::value
@@ -549,15 +877,48 @@ public:
          this->m_end_of_storage = ptr + count;
          return *this;
       }
-   }  // namespace swtl
+   }
 
+   /// @brief Destructor. Destroys all elements; storage deallocation is handled
+   /// by `VectorBase`.
+   ///
    constexpr ~Vector()
    {
       clear();
       // Deallocation is handled by VectorBase.
    }
 
-   // ** ITERATORS **
+   /// @}
+
+   /// @name Allocator
+   /// @{
+
+   /// @brief Returns a copy of the allocator associated with the container.
+   ///
+   /// @return The underlying allocator copy.
+   ///
+   constexpr allocator_type
+   get_allocator() const noexcept
+   {
+      return this->m_allocator;
+   }
+
+   /// @}
+
+   /// @name Iterators
+   /// @{
+
+   /// @brief Returns an iterator to the beginning of the vector.
+   ///
+   /// Uses explicit object parameter deduction to yield either `iterator` or
+   /// `const_iterator` depending on the const-qualification of `self`.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @return An iterator to the first element.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr auto
@@ -571,6 +932,17 @@ public:
       return static_cast<const_correct_iterator>(self.m_start);
    }
 
+   /// @brief Returns an iterator to one past the end of the vector.
+   ///
+   /// Uses explicit object parameter deduction to yield either `iterator` or
+   /// `const_iterator` depending on the const-qualification of `self`.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @return An iterator to the element following the last element.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr auto
@@ -584,6 +956,10 @@ public:
       return static_cast<const_correct_iterator>(self.m_finish);
    }
 
+   /// @brief Returns a const iterator to the beginning of the vector.
+   ///
+   /// @return A `const_iterator` pointing to the first element.
+   ///
    [[nodiscard]]
    constexpr const_iterator
    cbegin() const noexcept
@@ -591,6 +967,10 @@ public:
       return begin();
    }
 
+   /// @brief Returns a const iterator to one past the end of the vector.
+   ///
+   /// @return A `const_iterator` pointing one past the last element.
+   ///
    [[nodiscard]]
    constexpr const_iterator
    cend() const noexcept
@@ -598,6 +978,19 @@ public:
       return end();
    }
 
+   /// @brief Returns a reverse iterator to the first element of the reversed
+   /// vector.
+   ///
+   /// Uses explicit object parameter deduction to yield either `iterator` or
+   /// `const_iterator` depending on the const-qualification of `self`.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @return A reverse iterator pointing to the last element of the
+   /// non-reversed vector.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr auto
@@ -611,6 +1004,19 @@ public:
       return static_cast<const_correct_reverse_iterator>(self.end());
    }
 
+   /// @brief Returns a reverse iterator to one past the end of the reversed
+   /// vector.
+   ///
+   /// Uses explicit object parameter deduction to yield either `iterator` or
+   /// `const_iterator` depending on the const-qualification of `self`.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @return A reverse iterator pointing one before the first element of the
+   /// non-reversed vector.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr auto
@@ -624,6 +1030,11 @@ public:
       return static_cast<const_correct_reverse_iterator>(self.begin());
    }
 
+   /// @brief Returns a const reverse iterator to the beginning of the reversed
+   /// vector.
+   ///
+   /// @return A `const_reverse_iterator` pointing to the last element.
+   ///
    [[nodiscard]]
    constexpr const_reverse_iterator
    crbegin() const noexcept
@@ -631,6 +1042,11 @@ public:
       return rbegin();
    }
 
+   /// @brief Returns a const reverse iterator to one past the end of the
+   /// reversed vector.
+   ///
+   /// @return A `const_reverse_iterator` pointing one before the first element.
+   ///
    [[nodiscard]]
    constexpr const_reverse_iterator
    crend() const noexcept
@@ -638,7 +1054,26 @@ public:
       return rend();
    }
 
-   // ** ELEMENT ACCESS **
+   /// @}
+
+   /// @name Element Access
+   /// @{
+
+   /// @brief Accesses the element at `position` with bounds checking.
+   ///
+   /// Uses explicit object parameter deduction to yield either `reference` or
+   /// `const_reference` depending on the const-qualification of `self`.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   /// @param position The index of the element to access.
+   ///
+   /// @throws std::out_of_range If `position >= size()`.
+   ///
+   /// @return A reference to the requested element, matching the const/value
+   /// category of `self`.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr decltype(auto)
@@ -656,33 +1091,88 @@ public:
       return std::forward_like<Self>(*(self.m_start + position));
    }
 
-   // TODO: Add contract precondition.
+   /// @brief Accesses the element at `position` without bounds checking.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   /// @param position The index of the element to access.
+   ///
+   /// @pre `position < size()`.
+   ///
+   /// @return A reference to the requested element, matching the const/value
+   /// category of `self`.
+   ///
+   /// @note `noexcept` outside of testing;
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr decltype(auto)
-   operator[](this Self &&self, size_type position) noexcept
+   operator[](this Self &&self, size_type position)
+       noexcept(swtl::config::nothrow_contracts)
    {
+      // TODO: Move to `pre()` once it is supported for methods.
+      //       Then you can drop the noexcept doc comment.
+      contract_assert(position < self.size());
       return std::forward_like<Self>(*(self.m_start + position));
    }
 
-   // TODO: Add contract precondition.
+   /// @brief Accesses the first element of the vector.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @pre The container must not be empty.
+   ///
+   /// @return A reference to the first element.
+   ///
+   /// @note `noexcept` outside of testing;
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr decltype(auto)
-   front(this Self &&self) noexcept
+   front(this Self &&self) noexcept(swtl::config::nothrow_contracts)
    {
+      // TODO: Move to `pre()` once it is supported for methods.
+      //       Then you can drop the noexcept doc comment.
+      contract_assert(!self.is_empty());
       return std::forward_like<Self>(*self.m_start);
    }
 
-   // TODO: Add contract precondition.
+   /// @brief Accesses the last element of the vector.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @pre The container must not be empty.
+   ///
+   /// @return A reference to the last element.
+   ///
+   /// @note `noexcept` outside of testing;
+   ///
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr decltype(auto)
-   back(this Self &&self) noexcept
+   back(this Self &&self) noexcept(swtl::config::nothrow_contracts)
    {
+      // TODO: Move to `pre()` once it is supported for methods.
+      //       Then you can drop the noexcept doc comment.
+      contract_assert(!self.is_empty());
       return std::forward_like<Self>(*(self.m_finish - 1));
    }
 
+   /// @brief Returns a pointer to the underlying array.
+   ///
+   /// @tparam Self Deduced self type.
+   ///
+   /// @param self The vector object.
+   ///
+   /// @return A pointer to the first element, or null if the storage is
+   /// unallocated.
+   ///
    template <typename Self>
    [[nodiscard]]
    constexpr auto
@@ -696,7 +1186,15 @@ public:
       return static_cast<const_correct_pointer>(self.m_start);
    }
 
-   // ** CAPACITY **
+   /// @}
+
+   /// @name Capacity
+   /// @{
+
+   /// @brief Checks whether the container is empty.
+   ///
+   /// @return `true` if `size() == 0`, otherwise `false`.
+   ///
    [[nodiscard]]
    constexpr bool
    is_empty() const noexcept
@@ -704,6 +1202,10 @@ public:
       return this->m_start == this->m_finish;
    }
 
+   /// @brief Returns the number of elements currently stored in the vector.
+   ///
+   /// @return The element count.
+   ///
    [[nodiscard]]
    constexpr size_type
    size() const noexcept
@@ -711,6 +1213,11 @@ public:
       return static_cast<size_type>(this->m_finish - this->m_start);
    }
 
+   /// @brief Returns the maximum number of elements the vector is theoretically
+   /// capable of holding.
+   ///
+   /// @return The maximum number of allocatable elements.
+   ///
    [[nodiscard]]
    constexpr size_type
    max_size() const noexcept
@@ -718,6 +1225,23 @@ public:
       return this->max_allocatable_elements();
    }
 
+   /// @brief Ensures that the capacity is at least `new_capacity`.
+   ///
+   /// Reallocates storage and moves existing elements if `new_capacity >
+   /// capacity()`. Does nothing if `new_capacity <= capacity()`.
+   ///
+   /// @param new_capacity The minimum desired capacity in elements.
+   ///
+   /// @throws std::length_error If `new_capacity > max_size()`.
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
    constexpr void
    reserve(size_type new_capacity)
    {
@@ -760,6 +1284,11 @@ public:
       this->m_end_of_storage = ptr + count;
    }
 
+   /// @brief Returns the total number of elements that can be held without
+   /// reallocation.
+   ///
+   /// @return The current allocated capacity in number of elements.
+   ///
    [[nodiscard]]
    constexpr size_type
    capacity() const noexcept
@@ -769,30 +1298,106 @@ public:
 
    // shrink_to_fit()
 
-   // ** MODIFIERS **
+   /// @}
+
+   /// @name Modifiers
+   /// @{
+
+   /// @brief Destroys all elements in the container, leaving `size() == 0`.
+   ///
+   /// @note Does not deallocate any allocated memory.
+   ///
    constexpr void
    clear() noexcept
    {
-      destroy(this->m_allocator, begin(), end());
-      this->m_finish = this->m_start;
+      this->m_finish
+          = destroy(this->m_allocator, this->m_start, this->m_finish);
    }
 
    // TODO: insert()
    // TODO: insert_range()
    // TODO: emplace()
    // TODO: erase()
+
+   /// @brief Appends a copy of `value` to the end of the container.
+   ///
+   /// @param value The value to copy into the new element.
+   ///
+   /// @throws (...) Any exception thrown by T during element construction.
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @warning If T is move-only and the move constructor of T is not
+   /// `noexcept`, the vector is forced to use the throwing move constructor and
+   /// the guarantee is reduced to a basic exception guarantee: if an exception
+   /// is thrown during reallocation, all new elements that were constructed
+   /// prior to the exception are destroyed, any newly allocated memory is
+   /// deallocated and the vector is left in a valid but unspecified state.
+   ///
    constexpr void
    push_back(T const &value)
    {
       emplace_back(value);
    }
 
+   /// @brief Appends `value` to the end of the container via move semantics.
+   ///
+   /// @param value The value to move into the new element.
+   ///
+   /// @throws (...) Any exception thrown by T during element construction.
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @warning If T is move-only and the move constructor of T is not
+   /// `noexcept`, the vector is forced to use the throwing move constructor and
+   /// the guarantee is reduced to a basic exception guarantee: if an exception
+   /// is thrown during reallocation, all new elements that were constructed
+   /// prior to the exception are destroyed, any newly allocated memory is
+   /// deallocated, and the vector as well as `value` are left in a valid but
+   /// unspecified state.
+   ///
    constexpr void
    push_back(T &&value)
    {
       emplace_back(std::move(value));
    }
 
+   /// @brief Constructs a new element in-place at the end of the container.
+   ///
+   /// Reallocates storage if `size() == capacity()`.
+   ///
+   /// @tparam Args Parameter pack of constructor argument types for `T`.
+   ///
+   /// @param args Forwarded arguments to construct the element with.
+   ///
+   /// @return A reference to the newly constructed element.
+   ///
+   /// @throws (...) Any exception thrown by T during element construction.
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @warning If T is move-only and the move constructor of T is not
+   /// `noexcept`, the vector is forced to use the throwing move constructor and
+   /// the guarantee is reduced to a basic exception guarantee: if an exception
+   /// is thrown during reallocation, all new elements that were constructed
+   /// prior to the exception are destroyed, any newly allocated memory is
+   /// deallocated and the vector is left in a valid but unspecified state.
+   ///
    template <typename... Args>
    constexpr reference
    emplace_back(Args &&...args)
@@ -818,6 +1423,18 @@ public:
    // TODO: pop_back()
    // TODO: resize()
 
+   /// @brief Swaps the contents and storage of this container with `other`.
+   ///
+   /// Observes `propagate_on_container_swap` to determine if allocators should
+   /// be swapped.
+   ///
+   /// @pre
+   /// `std::allocator_traits<Allocator>::propagate_on_container_swap::value` is
+   /// provided and is `std::true_type`, or the allocators must compare equal to
+   /// one another.
+   ///
+   /// @param other The container to swap contents with.
+   ///
    constexpr void
    swap(Vector &other) noexcept
    {
@@ -826,15 +1443,14 @@ public:
          using std::swap;
          swap(this->m_allocator, other.m_allocator);
       }
+      // If the allocators always compare equal there's no point in checking the
+      // contract_assert.
       else if constexpr (!a_traits::is_always_equal::value)
       {
          contract_assert(
              this->m_allocator != other.m_allocator
-             /*"If propagate_on_container_swap is not provided or
-               is derived from std::false_type and the allocators
-               of the two containers do not compare equal, the
-               behavior of container swap is undefined."*/
-             && "You are invoking undefined behavior here.");
+             && "swap requires that allocators compare equal when "
+                "`propagate_on_container_swap` is false");
       }
 
       std::swap(this->m_start, other.m_start);
@@ -842,16 +1458,39 @@ public:
       std::swap(this->m_end_of_storage, other.m_end_of_storage);
    }
 
-   // ** NON-MEMBER FUNCTIONS **
-   constexpr friend auto
-   swap(Vector &lhs, Vector &rhs) noexcept -> void
+   /// @}
+
+   /// @name Non-Member Functions
+   /// @{
+
+   /// @brief Swaps the contents of two vectors.
+   ///
+   /// @param lhs The first vector.
+   /// @param rhs The second vector.
+   ///
+   constexpr friend void
+   swap(Vector &lhs, Vector &rhs) noexcept
    {
       lhs.swap(rhs);
    }
 
-   constexpr friend auto
+   /// @brief Equality comparison operator.
+   ///
+   /// Compares sizes first, then delegates element-wise equality to
+   /// `std::ranges::equal`.
+   ///
+   /// @param lhs The left-hand vector.
+   /// @param rhs The right-hand vector.
+   ///
+   /// @return `true` if sizes and all elements compare equal, otherwise
+   /// `false`.
+   ///
+   /// @throws noexcept If `noexcept(noexcept(std::declval<T>() ==
+   /// std::declval<T>()))`
+   ///
+   constexpr friend bool
    operator==(Vector const &lhs, Vector const &rhs)
-       noexcept(noexcept(std::declval<T>() == std::declval<T>())) -> bool
+       noexcept(noexcept(std::declval<T>() == std::declval<T>()))
       requires std::equality_comparable<T>
    {
       if (rhs.size() != lhs.size())
@@ -861,15 +1500,23 @@ public:
       return std::ranges::equal(lhs, rhs);
    }
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// Performs lexicographical comparison of elements.
+   ///
+   /// @param lhs The left-hand vector.
+   /// @param rhs The right-hand vector.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
    constexpr friend auto
    operator<=>(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() <=> std::declval<T>()))
       requires std::three_way_comparable<T>
    {
-      for (auto const pair : std::views::zip(lhs, rhs))
+      for (auto [left, right] : std::views::zip(lhs, rhs))
       {
-         if (auto const comparison{ std::get<0>(pair) <=> std::get<1>(pair) };
-             comparison != 0)
+         if (auto const comparison{ left <=> right }; comparison != 0)
          {
             return comparison;
          }
@@ -877,7 +1524,40 @@ public:
       return lhs.size() <=> rhs.size();
    }
 
+   /// @}
+
 private:
+   /// @internal
+   /// @brief Replaces the vector's contents with the elements from the range
+   /// `[first, last)`.
+   ///
+   /// Reuses existing memory if possible, overwriting old element and appending
+   /// new ones, or reallocates new memory for the elements.  Reallocation is
+   /// done ahead of time if the distance between the iterator and the sentinel;
+   /// if distance cannot be calculated reallocation is accomplished via calls
+   /// to `push_back()`.
+   ///
+   /// @tparam InputIterator An input iterator type.
+   /// @tparam Sentinel A sentinel type for `InputIterator`.
+   ///
+   /// @param first The start of the range.
+   /// @param last The end of the range.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element assignment or
+   /// construction.
+   ///
+   /// @note Provides a strong exception guarantee if reallocation occurs: if an
+   /// exception is thrown during reallocation, any new elements that were
+   /// constructed prior to the exception are destroyed, any newly allocated
+   /// memory is deallocated, and the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee if no reallocation occurs: if
+   /// an exception is thrown during element assignment or construction, the
+   /// vector is left in a valid but unspecified state and no resources are
+   /// leaked.
+   ///
    template <
        std::input_iterator InputIterator,
        std::sentinel_for<InputIterator> Sentinel
@@ -885,91 +1565,88 @@ private:
    constexpr void
    assign_from_range(InputIterator first, Sentinel last)
    {
-      auto current{ begin() };
-
-      while (first != last && current != end())
+      // If distance can be checked then do so and reallocate or overwrite
+      // elements as necessary.
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
       {
-         *current++ = *first++;
-      }
-
-      if (first == last)
-      {
-         destroy(this->m_allocator, current, end());
-         this->m_finish = std::to_address(current);
-         return;
-      }
-
-      while (first != last)
-      {
-         push_back(*first++);
-      }
-   }
-
-   template <
-       std::forward_iterator ForwardIterator,
-       std::sentinel_for<ForwardIterator> Sentinel
-   >
-   constexpr void
-   assign_from_range(ForwardIterator first, Sentinel last)
-   {
-      if (auto const input_size{
-            static_cast<size_type>(std::distance(first, last)) };
-          capacity() < input_size)
-      {
-         auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
-
-         if constexpr (std::is_nothrow_copy_constructible_v<T>)
+         if (auto const input_size{
+               static_cast<size_type>(std::ranges::distance(first, last)) };
+             capacity() < input_size)
          {
-            clear();
-            this->deallocate_memory();
-            this->m_start = ptr;
-            this->m_end_of_storage = ptr + count;
+            auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
 
-            this->m_finish
-                = uninitialized_copy(this->m_allocator, first, last, ptr);
+            if constexpr (std::is_nothrow_copy_constructible_v<T>)
+            {
+               clear();
+               this->deallocate_memory();
+               this->m_start = ptr;
+               this->m_end_of_storage = ptr + count;
+
+               this->m_finish
+                   = uninitialized_copy(this->m_allocator, first, last, ptr);
+            }
+            else
+            {
+               detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+
+               auto const new_finish{ uninitialized_copy(
+                   this->m_allocator, first, last, ptr) };
+
+               clear();
+               mem_guard.reassign(this->m_start, capacity());
+
+               this->m_start = ptr;
+               this->m_finish
+                   = new_finish;  // Assign AFTER the call to clear().
+               this->m_end_of_storage = ptr + count;
+            }
          }
          else
          {
-            detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+            auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
 
-            auto new_finish{ uninitialized_copy(
-                this->m_allocator, first, last, ptr) };
+            this->m_finish
+                = std::to_address(destroy(this->m_allocator, dest_pos, end()));
 
-            clear();
-            mem_guard.reassign(this->m_start, capacity());
-
-            this->m_start = ptr;
-            this->m_finish = new_finish;  // Assign AFTER the call to clear().
-            this->m_end_of_storage = ptr + count;
+            while (src_pos != last)
+            {
+               a_traits::construct(
+                   this->m_allocator, this->m_finish, *src_pos++);
+               ++this->m_finish;  // Increment after successful construction.
+            }
          }
       }
+      // If distance cannot be checked, overwrite existing elements and then let
+      // push_back resize if needed.
       else
       {
-         auto current{ begin() };
+         auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
 
-         while (first != last && current != end())
-         {
-            *current++ = *first++;
-         }
+         this->m_finish
+             = std::to_address(destroy(this->m_allocator, dest_pos, end()));
 
-         if (first == last)
+         while (src_pos != last)
          {
-            destroy(this->m_allocator, current, end());
-            this->m_finish = std::to_address(current);
-            return;
-         }
-
-         while (first != last)
-         {
-            a_traits::construct(this->m_allocator, this->m_finish, *first++);
-            ++this->m_finish;  // Only increment after successful construction.
+            push_back(*src_pos++);
          }
       }
    }
 
+   /// @internal
+   /// @brief Calculates the new capacity required for reallocation during
+   /// growth.
+   ///
+   /// @param target_growth The minimum number of additional elements required.
+   ///
+   /// @throws std::length_error If the growth request exceeds `max_size()`.
+   ///
+   /// @return The newly calculated capacity in elements.
+   ///
    [[nodiscard]]
    constexpr size_type
-   calculate_growth_size(size_type target_growth = 1UZ)
+   calculate_growth_size(size_type target_growth = 1UZ) const
    {
       auto const current_size{ size() };
       auto const max_possible_growth{ max_size() - current_size };
@@ -991,6 +1668,34 @@ private:
       return current_size + target_growth;
    }
 
+   /// @internal
+   /// @brief Reallocates storage and constructs a new element at the end.
+   ///
+   /// The new element is constructed prior to moving or copying the old
+   /// elements to new storage.
+   ///
+   /// @tparam Args Parameter pack of constructor argument types for `T`.
+   ///
+   /// @param args Forwarded arguments to construct the element with.
+   ///
+   /// @return A reference to the newly constructed element.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if reallocation occurs.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// during reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @warning If T is move-only and the move constructor of T is not
+   /// `noexcept`, the vector is forced to use the throwing move constructor and
+   /// the guarantee is reduced to a basic exception guarantee: if an exception
+   /// is thrown during reallocation, all new elements that were constructed
+   /// prior to the exception are destroyed, any newly allocated memory is
+   /// deallocated and the vector is left in a valid but unspecified state.
+   ///
    template <typename... Args>
    constexpr reference
    realloc_emplace(Args &&...args)
@@ -1025,15 +1730,23 @@ private:
    }
 };
 
-// Explicit Deduction Guides for CTAD.
+/// @name Explicit Deduction Guides
+/// @{
+
+/// @brief Deduces the element type from an iterator/sentinel pair.
+///
 template <
     std::input_iterator InputIterator,
     std::sentinel_for<InputIterator> Sentinel
 >
 Vector(InputIterator, Sentinel) -> Vector<std::iter_value_t<InputIterator>>;
 
+/// @brief Deduces the element type from a container-compatible range.
+///
 template <std::ranges::input_range Range>
 Vector(std::from_range_t, Range &&)
     -> Vector<std::ranges::range_value_t<Range>>;
+
+/// @}
 
 }  // namespace swtl
