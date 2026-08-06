@@ -1,21 +1,49 @@
 import std;
 
 import swtl;
-import swtl.test_helpers;
+import swtl.test.helpers;
 
-void
-handle_contract_violation(std::contracts::contract_violation const &violation)
-{
-   throw std::logic_error(
-       std::format(
-           "Contract Violation: {}\nLocation: {}:{}",
-           violation.comment(),
-           violation.location().file_name(),
-           violation.location().line()));
-}
+namespace helpers = swtl::test_helpers;
 
 namespace
 {
+
+struct S
+{
+   S()
+   {
+      std::puts("S()");
+   };
+
+   S(S const &)
+   {
+      std::puts("S(S const &)");
+   }
+
+   S(S &&)
+   {
+      std::puts("S(S &&)");
+   }
+
+   S &
+   operator=(S const &)
+   {
+      std::puts("operator=(S const &)");
+      return *this;
+   }
+
+   S &
+   operator=(S &&)
+   {
+      std::puts("operator=(S &&)");
+      return *this;
+   }
+
+   ~S()
+   {
+      std::puts("~S()");
+   }
+};
 
 template <typename T>
 void
@@ -38,4 +66,9 @@ printAll(swtl::Vector<T> const &vec)
 
 int
 main()
-{}
+{
+   swtl::Vector vec{ 1, 2, 3 };
+
+   [[maybe_unused]]
+   auto x = vec[100];
+}
