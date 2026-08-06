@@ -19,6 +19,8 @@ namespace swtl
 /// @param first Iterator to the first element in the range to be destroyed.
 /// @param last Sentinel marking the end of the range.
 ///
+/// @return An unmodified copy of `first`.
+///
 /// @pre `[first, last)` must denote a valid range.
 ///
 export template <
@@ -26,22 +28,24 @@ export template <
     std::input_or_output_iterator Iterator,
     std::sentinel_for<Iterator> Sentinel
 >
-constexpr void
+constexpr Iterator
 destroy(Allocator &allocator, Iterator first, Sentinel last) noexcept
 {
    if constexpr (std::sized_sentinel_for<Sentinel, Iterator>)
    {
       contract_assert(
-            last - first >= 0
-            && "Contract violation: `last` is not reachable from `first`."
-            "Are your iterator arguments reversed?");
+          last - first >= 0 && "`last` must be reachable from `first`");
    }
+
+   auto const destroy_start{ first };
 
    while (first != last)
    {
       std::allocator_traits<Allocator>::destroy(
           allocator, std::to_address(first++));
    }
+
+   return destroy_start;
 }
 
 }  // namespace swtl
