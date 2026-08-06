@@ -221,8 +221,10 @@ private:
    ///
    /// @name Shorthand
    /// @{
-   ///
+
+   /// VectorBase Alias
    using Base = VectorBase<T, Allocator>;
+   /// Allocator Traits Alias
    using a_traits = std::allocator_traits<Allocator>;
 
    /// @}
