@@ -8,20 +8,9 @@ import std;
 
 import swtl.vector;
 import swtl.contiguous_iterator;
-import swtl.test_helpers;
+import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
-
-void
-handle_contract_violation(std::contracts::contract_violation const &violation)
-{
-   throw std::logic_error(
-       std::format(
-           "Contract Violation: {}\nLocation: {}:{}",
-           violation.comment(),
-           violation.location().file_name(),
-           violation.location().line()));
-}
 
 TEST_CASE(
     "Default construction creates an empty Vector.", "[vector][constructor]")
@@ -749,9 +738,9 @@ TEMPLATE_TEST_CASE(
    swtl::Vector<TestType> vec(base_count);
 
    INFO(
-       "BAD TEST: initial capacity (which was "
-       << vec.capacity() << ") must be less than new_count (which was "
-       << new_count << ") for test to trigger reallocation - test is invalid!");
+       "INFO: if the initial vec.capacity() (which was "
+       << vec.capacity() << ") is not less than `new_count` (which was "
+       << new_count << ") this test is invalid.");
    REQUIRE(vec.capacity() < new_count);
 
    vec.assign(new_count, TestType{});
@@ -877,9 +866,9 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) triggers a "
-    "contract assert if arguments are reversed and the iterator supports "
+    "contract violation if arguments are reversed and the iterator supports "
     "operator-.",
-    "[vector][assign]")
+    "[vector][contracts][assign]")
 {
    auto const source{
       helpers::generate_populated_container<std::vector<int>>()
@@ -888,7 +877,7 @@ TEST_CASE(
 
    REQUIRE_NOTHROW(vec.assign(source.begin(), source.end()));
    REQUIRE_THROWS_AS(
-       vec.assign(source.end(), source.begin()), std::logic_error);
+       vec.assign(source.end(), source.begin()), ContractException);
 }
 
 TEST_CASE(
@@ -1042,6 +1031,24 @@ TEST_CASE(
    }
 }
 
+TEST_CASE(
+    "Vector::operator[] triggers a contract violation when accessing out of "
+    "bounds access.",
+    "[vector][contract]")
+{
+   auto const out_of_bounds_index{ 100UZ };
+   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+
+   INFO(
+       "INFO: If `out_of_bounds_index` (which was "
+       << out_of_bounds_index
+       << ") is not greater than or equal to `vec.size()` (which was "
+       << vec.size() << ") this test is invalid.");
+   REQUIRE(out_of_bounds_index >= vec.size());
+
+   REQUIRE_THROWS_AS(vec[out_of_bounds_index], ContractException);
+}
+
 TEST_CASE("Element modification via front().")
 {
    swtl::Vector<int> actual{ 2, 2, 3, 4 };
@@ -1052,6 +1059,17 @@ TEST_CASE("Element modification via front().")
    REQUIRE(actual == expected);
 }
 
+TEST_CASE(
+    "Vector::front() triggers a contract violation when called on an empty "
+    "vector."
+    "vector.",
+    "[vector][contracts]")
+{
+   swtl::Vector<int> const vec;
+
+   REQUIRE_THROWS_AS(vec.front(), ContractException);
+}
+
 TEST_CASE("Element modification via back().")
 {
    swtl::Vector<int> actual{ 1, 2, 3, 5 };
@@ -1060,6 +1078,16 @@ TEST_CASE("Element modification via back().")
    actual.back() = 4;
 
    REQUIRE(actual == expected);
+}
+
+TEST_CASE(
+    "Vector::back() triggers a contract violation when called on an empty "
+    "vector.",
+    "[vector][contracts]")
+{
+   swtl::Vector<int> const vec;
+
+   REQUIRE_THROWS_AS(vec.back(), ContractException);
 }
 
 TEMPLATE_TEST_CASE(
