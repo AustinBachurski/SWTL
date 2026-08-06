@@ -21,6 +21,11 @@
       }
     },
     {
+      "name": "test-flags",
+      "hidden": true,
+      "cacheVariables": { "SWTL_ENABLE_CONTRACT_TESTS": "ON" }
+    },
+    {
       "name": "gnu-compiler",
       "hidden": true,
       "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" }
@@ -47,7 +52,7 @@
     },
     {
       "name": "x64-gcc-debug",
-      "inherits": ["base-config", "gnu-compiler", "debug-build"]
+      "inherits": ["base-config", "gnu-compiler", "debug-build", "test-flags"]
     },
     {
       "name": "x64-gcc-release",
@@ -55,7 +60,7 @@
     },
     {
       "name": "x64-clang-debug",
-      "inherits": ["base-config", "clang-compiler", "debug-build"]
+      "inherits": ["base-config", "clang-compiler", "debug-build", "test-flags"]
     },
     {
       "name": "x64-clang-release",

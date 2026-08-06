@@ -9,6 +9,13 @@ target_sources(swtl PUBLIC
    # ** PRIMARY MODULE INTERFACE **
    "${PROJECT_SOURCE_DIR}/src/swtl.cppm"
 
+   # ** CONFIGURATION **
+   "${PROJECT_SOURCE_DIR}/src/config/swtl_config.cppm"
+
+   # ** ALGORITHM **
+   "${PROJECT_SOURCE_DIR}/src/algorithm/algorithm.cppm"
+
+
    # ** CONTAINERS **
    "${PROJECT_SOURCE_DIR}/src/containers/containers.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/concepts.cppm"
@@ -33,6 +40,19 @@ target_sources(swtl PUBLIC
 enable_warnings_for_target(swtl)
 enable_address_sanitizer_for_target(swtl)
 enable_undefined_behavior_sanitizer_for_target(swtl)
+
+# Used to conditionally disable noexcept on functions that trigger contract 
+# assertions so that they can be tested via exceptions.
+option(SWTL_ENABLE_CONTRACT_TESTS
+   "Enable throwing contract assertions for unit testing"
+   OFF
+)
+if(SWTL_ENABLE_CONTRACT_TESTS)
+   target_compile_definitions(swtl PUBLIC "SWTL_TESTING_DISABLE_NOEXCEPT=1")
+else()
+   target_compile_definitions(swtl PUBLIC "SWTL_TESTING_DISABLE_NOEXCEPT=0")
+endif()
+
 
 add_executable(example)
 
