@@ -6,290 +6,14 @@
 
 import std;
 
-import swtl_vector;
-import swtl_test_helper_functions;
-import swtl_test_helper_objects;
+import swtl.vector;
+import swtl.contiguous_iterator;
+import swtl.test.helpers;
 
-namespace helpers = swtl_test_helpers;
+namespace helpers = swtl::test_helpers;
 
-void
-handle_contract_violation(std::contracts::contract_violation const &violation)
-{
-   throw std::logic_error(
-       std::format(
-           "Contract Violation: {}\nLocation: {}:{}",
-           violation.comment(),
-           violation.location().file_name(),
-           violation.location().line()));
-}
-
-// ** VECTOR ITERATOR TESTS **
-TEST_CASE("VectorIterator initialization.", "[vector_iterator]")
-{
-   SECTION("Valid initalization.")
-   {
-      swtl::Vector<int> empty_vec;
-      swtl::Vector<int> non_empty_vec{ 1, 2, 3 };
-      swtl::VectorIterator empty_iter{ empty_vec.data() };
-      swtl::VectorIterator populated_iter{ non_empty_vec.data() };
-
-      REQUIRE(empty_vec.data() == std::to_address(empty_iter));
-      REQUIRE(non_empty_vec.data() == std::to_address(populated_iter));
-      REQUIRE(
-          std::addressof(non_empty_vec.front())
-          == std::to_address(populated_iter));
-   }
-}
-
-TEST_CASE("VectorIterator const conversion.", "[vector_iterator]")
-{
-   SECTION("Non-const to const.")
-   {
-      swtl::Vector<int> vec{ 1, 2, 3 };
-      auto iter{ vec.begin() };
-      auto const_iter{ vec.cbegin() };
-
-      STATIC_REQUIRE(
-          std::is_convertible_v<decltype(iter), decltype(const_iter)>);
-   }
-}
-
-TEST_CASE("VectorIterator access operators.", "[vector_iterator]")
-{
-   struct CustomObject
-   {
-      int value{};
-      std::string string{};
-   };
-
-   CustomObject base{ 1, "that" };
-   CustomObject const const_base{ 4, "it's mine" };
-
-   swtl::Vector<CustomObject> vec{
-      { 1, "that"   },
-      { 2, "tasted" },
-      { 3, "purple" }
-   };
-   swtl::Vector<CustomObject> const const_vec{
-      { 4, "it's mine" },
-      { 5, "I"         },
-      { 6, "licked it" }
-   };
-
-   auto iter{ vec.begin() };
-   auto const_iter{ const_vec.begin() };
-
-   SECTION("operator* returns a reference to the underlying element.")
-   {
-      // Non-const element reference expected.
-      REQUIRE(std::is_lvalue_reference_v<decltype(*iter)>);
-      REQUIRE(!std::is_const_v<std::remove_reference_t<decltype(*iter)>>);
-      REQUIRE(
-          std::is_same_v<
-              std::remove_reference_t<decltype(*iter)>,
-              decltype(base)
-          >);
-
-      REQUIRE((*iter).value == base.value);
-      REQUIRE((*iter).string == base.string);
-
-      // Const element reference expected.
-      REQUIRE(std::is_lvalue_reference_v<decltype(*const_iter)>);
-      REQUIRE(std::is_const_v<std::remove_reference_t<decltype(*const_iter)>>);
-      REQUIRE(
-          std::is_same_v<
-              std::remove_reference_t<decltype(*const_iter)>,
-              decltype(const_base)
-          >);
-
-      REQUIRE((*const_iter).value == const_base.value);
-      REQUIRE((*const_iter).string == const_base.string);
-   }
-
-   SECTION("operator-> accesses the underlying object via pointer semantics.")
-   {
-      // Non-const pointer to element expected.
-      REQUIRE(std::is_same_v<decltype(iter.operator->()), decltype(base) *>);
-
-      REQUIRE(iter->value == base.value);
-      REQUIRE(iter->string == base.string);
-
-      // Const pointer to element expected.
-      REQUIRE(
-          std::is_same_v<
-              decltype(const_iter.operator->()),
-              decltype(const_base) *
-          >);
-
-      REQUIRE(const_iter->value == const_base.value);
-      REQUIRE(const_iter->string == const_base.string);
-   }
-
-   SECTION(
-       "operator[] returns a reference to the element at the specified "
-       "offset.")
-   {
-      // Non-const element reference expected.
-      REQUIRE(std::is_lvalue_reference_v<decltype(iter[0])>);
-      REQUIRE(!std::is_const_v<std::remove_reference_t<decltype(iter[0])>>);
-      REQUIRE(
-          std::is_same_v<
-              std::remove_reference_t<decltype(iter[0])>,
-              decltype(base)
-          >);
-
-      REQUIRE(iter[0].value == 1);
-      REQUIRE(iter[0].string == "that");
-      REQUIRE(iter[1].value == 2);
-      REQUIRE(iter[1].string == "tasted");
-      REQUIRE(iter[2].value == 3);
-      REQUIRE(iter[2].string == "purple");
-
-      // Const element reference expected.
-      REQUIRE(std::is_lvalue_reference_v<decltype(const_iter[0])>);
-      REQUIRE(
-          std::is_const_v<std::remove_reference_t<decltype(const_iter[0])>>);
-      REQUIRE(
-          std::is_same_v<
-              std::remove_reference_t<decltype(const_iter[0])>,
-              decltype(const_base)
-          >);
-
-      REQUIRE(const_iter[0].value == 4);
-      REQUIRE(const_iter[0].string == "it's mine");
-      REQUIRE(const_iter[1].value == 5);
-      REQUIRE(const_iter[1].string == "I");
-      REQUIRE(const_iter[2].value == 6);
-      REQUIRE(const_iter[2].string == "licked it");
-   }
-}
-
-TEST_CASE("VectorIterator arithmetic operators.", "[vector_iterator]")
-{
-   std::array const values{ 1, 2, 3, 4, 5 };
-   swtl::Vector const vec(values.begin(), values.end());
-
-   auto begin_iter{ vec.begin() };
-   auto end_iter{ vec.end() };
-
-   SECTION("operator++ increments the iterator.")
-   {
-      REQUIRE(*begin_iter++ == values.front());
-      REQUIRE(*begin_iter == values[1]);
-      REQUIRE(*++begin_iter == values[2]);
-   }
-
-   SECTION("operator-- decrements the iterator.")
-   {
-      REQUIRE(*--end_iter == values.back());
-      REQUIRE(*end_iter-- == values.back());
-      REQUIRE(*end_iter == values[3]);
-   }
-
-   SECTION("operator+= increments the iterator by n.")
-   {
-      REQUIRE(*(begin_iter += 1) == values[1]);
-      REQUIRE(*(begin_iter += 2) == values[3]);
-   }
-
-   SECTION("operator-= decrements the iterator by n.")
-   {
-      REQUIRE(*(end_iter -= 1) == values.back());
-      REQUIRE(*(end_iter -= 2) == values[2]);
-   }
-
-   SECTION(
-       "operator+(iterator, difference_type) returns a new iterator "
-       "incremented by n.")
-   {
-      REQUIRE(*(begin_iter + 2) == values[2]);
-      REQUIRE(*begin_iter == values.front());
-      REQUIRE(*(begin_iter + values.size() - 1) == values.back());
-   }
-
-   SECTION(
-       "operator+(difference_type, iterator) returns a new iterator "
-       "incremented by n.")
-   {
-      REQUIRE(*(2 + begin_iter) == values[2]);
-      REQUIRE(*begin_iter == values.front());
-      REQUIRE(*(values.size() - 1 + begin_iter) == values.back());
-   }
-
-   SECTION(
-       "operator-(iterator, difference_type) returns a new iterator "
-       "decremented by n.")
-   {
-      REQUIRE(*(end_iter - 2) == values[3]);
-      REQUIRE(end_iter == vec.end());
-      REQUIRE(*(end_iter - values.size()) == values.front());
-   }
-
-   SECTION(
-       "operator-(iterator, iterator) returns the distance between two "
-       "iterators.")
-   {
-      REQUIRE(begin_iter - end_iter == -5);
-      REQUIRE(end_iter - (begin_iter + 2) == 3);
-      REQUIRE(begin_iter + 2 - vec.begin() == 2);
-      REQUIRE(std::cmp_equal(vec.end() - vec.begin(), vec.size()));
-   }
-}
-
-TEST_CASE("VectorIterator comparison operators.", "[vector_iterator]")
-{
-   std::array const values{ 0, 1 };
-   swtl::Vector const vec(values.begin(), values.end());
-
-   auto first{ vec.begin() };
-   auto middle{ vec.begin() + 1 };
-   auto last{ vec.end() };
-
-   SECTION("operator==")
-   {
-      REQUIRE(first == middle - 1);
-      REQUIRE(middle == last - 1);
-      REQUIRE(first + 2 == last);
-   }
-
-   SECTION("operator!=.")
-   {
-      REQUIRE(first != last);
-      REQUIRE(first != middle);
-      REQUIRE(middle != last);
-   }
-
-   SECTION("operator<.")
-   {
-      REQUIRE(first < middle);
-      REQUIRE(first < last);
-      REQUIRE(middle < last);
-   }
-
-   SECTION("operator<=.")
-   {
-      REQUIRE(first <= first);
-      REQUIRE(first <= middle);
-      REQUIRE(first <= last);
-   }
-
-   SECTION("operator>.")
-   {
-      REQUIRE(last > middle);
-      REQUIRE(last > first);
-      REQUIRE(middle > first);
-   }
-
-   SECTION("operator>=.")
-   {
-      REQUIRE(last >= last);
-      REQUIRE(last >= middle);
-      REQUIRE(last >= first);
-   }
-}
-
-// ** VECTOR TESTS **
-TEST_CASE("Default construction creates an empty Vector.", "[vector]")
+TEST_CASE(
+    "Default construction creates an empty Vector.", "[vector][constructor]")
 {
    swtl::Vector<int> const vec;
 
@@ -302,7 +26,7 @@ TEST_CASE("Default construction creates an empty Vector.", "[vector]")
 TEST_CASE(
     "Vector(std::initializer_list) creates a Vector with elements from "
     "the initializer list.",
-    "[vector]")
+    "[vector][constructor]")
 {
    std::initializer_list<int> const init_list{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
    swtl::Vector<int> const vec(init_list);
@@ -316,7 +40,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector(size_type count) creates a Vector with count elements of type T.",
-    "[vector]")
+    "[vector][constructor]")
 {
    swtl::Vector<int> const should_be_empty(0);
    swtl::Vector<int> const expected{ 0, 0, 0, 0, 0 };
@@ -333,7 +57,7 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector(size_type count, T const &value) creates a Vector with count "
     "elements of type T equal to value.",
-    "[vector]",
+    "[vector][constructor]",
     int,
     double,
     std::string)
@@ -373,7 +97,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector(iterator, iterator) creates a Vector with elements from the "
     "source container.",
-    "[vector]",
+    "[vector][constructor]",
     bool,
     unsigned char,
     int,
@@ -395,7 +119,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector(std::from_range, range) creates a Vector with elements from "
     "the provided range.",
-    "[vector]",
+    "[vector][constructor]",
     bool,
     unsigned char,
     int,
@@ -416,7 +140,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "CTAD correctly deduces types.",
-    "[vector]",
+    "[vector][constructor]",
     int,
     bool,
     unsigned char,
@@ -444,7 +168,8 @@ TEMPLATE_TEST_CASE(
    }
 }
 
-TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
+TEST_CASE(
+    "Iterator calls return a const correct iterators.", "[vector][iterator]")
 {
    auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const const_vec{ vec };
@@ -455,11 +180,11 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
        "const iterator from a const container..")
    {
       STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.begin()), swtl::VectorIterator<int>>);
+          std::is_same_v<decltype(vec.begin()), swtl::ContiguousIterator<int>>);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.begin()),
-              swtl::VectorIterator<int const>
+              swtl::ContiguousIterator<int const>
           >);
    }
 
@@ -468,11 +193,11 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
        "const iterator from a const container..")
    {
       STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.end()), swtl::VectorIterator<int>>);
+          std::is_same_v<decltype(vec.end()), swtl::ContiguousIterator<int>>);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.end()),
-              swtl::VectorIterator<int const>
+              swtl::ContiguousIterator<int const>
           >);
    }
 
@@ -481,24 +206,26 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.cbegin()),
-              swtl::VectorIterator<int const>
+              swtl::ContiguousIterator<int const>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.cbegin()),
-              swtl::VectorIterator<int const>
+              swtl::ContiguousIterator<int const>
           >);
    }
 
    SECTION("cend() returns a const iterator regardless of the container.")
    {
       STATIC_REQUIRE(
-          std::
-              is_same_v<decltype(vec.cend()), swtl::VectorIterator<int const>>);
+          std::is_same_v<
+              decltype(vec.cend()),
+              swtl::ContiguousIterator<int const>
+          >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.cend()),
-              swtl::VectorIterator<int const>
+              swtl::ContiguousIterator<int const>
           >);
    }
 
@@ -510,12 +237,12 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.rbegin()),
-              std::reverse_iterator<swtl::VectorIterator<int>>
+              std::reverse_iterator<swtl::ContiguousIterator<int>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.rbegin()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
    }
 
@@ -526,12 +253,12 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.rend()),
-              std::reverse_iterator<swtl::VectorIterator<int>>
+              std::reverse_iterator<swtl::ContiguousIterator<int>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.rend()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
    }
 
@@ -540,12 +267,12 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.crbegin()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.crbegin()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
    }
 
@@ -554,12 +281,12 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.crend()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.crend()),
-              std::reverse_iterator<swtl::VectorIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<int const>>
           >);
    }
 }
@@ -567,7 +294,7 @@ TEST_CASE("Iterator calls return a const correct iterators.", "[vector]")
 TEST_CASE(
     "Iteration moves in the correct direction and returns const correct "
     "elements.",
-    "[vector]")
+    "[vector][iterator]")
 {
    auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
@@ -633,7 +360,7 @@ TEST_CASE(
    }
 }
 
-TEST_CASE("Non-const iterator mutability.", "[vector]")
+TEST_CASE("Non-const iterator mutability.", "[vector][iterator]")
 {
    auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
 
@@ -846,7 +573,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector(size_type count) exception safety.",
-    "[vector][constructors][exception safety]")
+    "[vector][constructor][exception safety]")
 {
    helpers::reset_instance_counts_of<helpers::TestObject>();
 
@@ -876,7 +603,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector(size_type count, T const &value) exception safety.",
-    "[vector][constructors][exception safety]")
+    "[vector][constructor][exception safety]")
 {
    helpers::TestObject reference_object;
    helpers::reset_instance_counts_of<helpers::TestObject>();
@@ -909,7 +636,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector(InputIterator src_begin, Sentinel src_end) exception safety.",
-    "[vector][constructors][exception safety]")
+    "[vector][constructor][exception safety]")
 {
    auto const source_count{ 5UZ };
    std::vector<helpers::TestObject> const source(source_count);
@@ -945,7 +672,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector(std::from_range_t, Range, &&range) exception safety.",
-    "[vector][constructors][exception safety]")
+    "[vector][constructor][exception safety]")
 {
    auto const source_count{ 5UZ };
    std::vector<helpers::TestObject> const source(source_count);
@@ -983,7 +710,7 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector::assign(size_type count, T const &value) updates vector with new "
     "data.",
-    "[vector]",
+    "[vector][assign]",
     helpers::TestObject,
     helpers::NoThrowTestObject)
 {
@@ -999,7 +726,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector::assign(size_type count, T const &value) does not leak memory when "
     "reallocating.",
-    "[vector]",
+    "[vector][assign]",
     helpers::TestObject,
     helpers::NoThrowTestObject)
 {
@@ -1011,9 +738,9 @@ TEMPLATE_TEST_CASE(
    swtl::Vector<TestType> vec(base_count);
 
    INFO(
-       "BAD TEST: initial capacity (which was "
-       << vec.capacity() << ") must be less than new_count (which was "
-       << new_count << ") for test to trigger reallocation - test is invalid!");
+       "INFO: if the initial vec.capacity() (which was "
+       << vec.capacity() << ") is not less than `new_count` (which was "
+       << new_count << ") this test is invalid.");
    REQUIRE(vec.capacity() < new_count);
 
    vec.assign(new_count, TestType{});
@@ -1025,7 +752,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE(
     "Vector::assign(size_type count, T const &value) correctly manages "
     "lifetimes of existing elements if old size > new size.",
-    "[vector]")
+    "[vector][assign]")
 {
    auto const base_count{ 10UZ };
    auto const expected_count{ 5UZ };
@@ -1044,7 +771,7 @@ TEST_CASE(
 TEST_CASE(
     "Vector::assign(size_type count, T const &value) does not leak if an "
     "exception is thrown.",
-    "[vector][exception]")
+    "[vector][assign][exception]")
 {
    auto const base_count{ 5UZ };
    auto const new_count{ 10UZ };
@@ -1063,9 +790,9 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and doesn't leak elements.",
-    "[vector]",
+    "[vector][assign]",
     helpers::TestInputIterator<helpers::TestObject const>,
-    swtl::VectorIterator<helpers::TestObject const>)
+    swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 10UZ };
    auto const initial_size{ 20UZ };
@@ -1089,9 +816,9 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and grows when needed.",
-    "[vector]",
+    "[vector][assign]",
     helpers::TestInputIterator<helpers::TestObject const>,
-    swtl::VectorIterator<helpers::TestObject const>)
+    swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -1115,9 +842,9 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) does not "
     "leak if an exception is thrown.",
-    "[vector]",
+    "[vector][assign]",
     helpers::TestInputIterator<helpers::TestObject const>,
-    swtl::VectorIterator<helpers::TestObject const>)
+    swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -1139,9 +866,9 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) triggers a "
-    "contract assert if arguments are reversed and the iterator supports "
+    "contract violation if arguments are reversed and the iterator supports "
     "operator-.",
-    "[vector]")
+    "[vector][contracts][assign]")
 {
    auto const source{
       helpers::generate_populated_container<std::vector<int>>()
@@ -1150,13 +877,13 @@ TEST_CASE(
 
    REQUIRE_NOTHROW(vec.assign(source.begin(), source.end()));
    REQUIRE_THROWS_AS(
-       vec.assign(source.end(), source.begin()), std::logic_error);
+       vec.assign(source.end(), source.begin()), ContractException);
 }
 
 TEST_CASE(
     "Vector::assign(std::initializer_list<T> init_list) updates vector with "
     "new data.",
-    "[vector]")
+    "[vector][assign]")
 {
    std::initializer_list<int> const init_list{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
    swtl::Vector<int> vec(10UZ);
@@ -1171,7 +898,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Vector::assign_range(Range &&range) updates vector with new data.",
-    "[vector]")
+    "[vector][assign]")
 {
    auto const range{
       helpers::generate_populated_container<std::vector<int>>()
@@ -1187,7 +914,9 @@ TEST_CASE(
 }
 
 // TODO: Add additional allocators via template test case.
-TEST_CASE("Vector::get_allocator() returns the correct allocator.", "[vector]")
+TEST_CASE(
+    "Vector::get_allocator() returns the correct allocator.",
+    "[vector][allocator]")
 {
    std::allocator<int> test_alloc;
    swtl::Vector<int, std::allocator<int>> vec(test_alloc);
@@ -1197,7 +926,7 @@ TEST_CASE("Vector::get_allocator() returns the correct allocator.", "[vector]")
 
 TEMPLATE_TEST_CASE(
     "Element access, const & non-const.",
-    "[vector]",
+    "[vector][accessors]",
     int,
     bool,
     bool const,
@@ -1274,7 +1003,8 @@ TEMPLATE_TEST_CASE(
    }
 }
 
-TEST_CASE("Element modification via operator[] and at().", "[vector]")
+TEST_CASE(
+    "Element modification via operator[] and at().", "[vector][accessors]")
 {
    swtl::Vector<int> actual{ 1, 4, 3, 4 };
    swtl::Vector<int> const expected{ 1, 2, 3, 4 };
@@ -1301,6 +1031,24 @@ TEST_CASE("Element modification via operator[] and at().", "[vector]")
    }
 }
 
+TEST_CASE(
+    "Vector::operator[] triggers a contract violation when accessing out of "
+    "bounds access.",
+    "[vector][contract]")
+{
+   auto const out_of_bounds_index{ 100UZ };
+   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+
+   INFO(
+       "INFO: If `out_of_bounds_index` (which was "
+       << out_of_bounds_index
+       << ") is not greater than or equal to `vec.size()` (which was "
+       << vec.size() << ") this test is invalid.");
+   REQUIRE(out_of_bounds_index >= vec.size());
+
+   REQUIRE_THROWS_AS(vec[out_of_bounds_index], ContractException);
+}
+
 TEST_CASE("Element modification via front().")
 {
    swtl::Vector<int> actual{ 2, 2, 3, 4 };
@@ -1309,6 +1057,17 @@ TEST_CASE("Element modification via front().")
    actual.front() = 1;
 
    REQUIRE(actual == expected);
+}
+
+TEST_CASE(
+    "Vector::front() triggers a contract violation when called on an empty "
+    "vector."
+    "vector.",
+    "[vector][contracts]")
+{
+   swtl::Vector<int> const vec;
+
+   REQUIRE_THROWS_AS(vec.front(), ContractException);
 }
 
 TEST_CASE("Element modification via back().")
@@ -1321,9 +1080,19 @@ TEST_CASE("Element modification via back().")
    REQUIRE(actual == expected);
 }
 
+TEST_CASE(
+    "Vector::back() triggers a contract violation when called on an empty "
+    "vector.",
+    "[vector][contracts]")
+{
+   swtl::Vector<int> const vec;
+
+   REQUIRE_THROWS_AS(vec.back(), ContractException);
+}
+
 TEMPLATE_TEST_CASE(
     "Reservation on an empty vector.",
-    "[vector]",
+    "[vector][reserve]",
     bool,
     unsigned char,
     int,
@@ -1374,7 +1143,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Reservation on a populated vector.",
-    "[vector]",
+    "[vector][reserve]",
     bool,
     unsigned char,
     int,
@@ -1419,7 +1188,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Element insertion via push_back.",
-    "[vector]",
+    "[vector][insertion]",
     bool,
     unsigned char,
     int,
@@ -1456,7 +1225,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Element insertion via emplace_back.",
-    "[vector]",
+    "[vector][insertion]",
     bool,
     unsigned char,
     int,
@@ -1493,7 +1262,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Calling emplace_back() with no arguments default constructs an object.",
-    "[vector]",
+    "[vector][insertion]",
     bool,
     unsigned char,
     int,
@@ -1510,7 +1279,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE(
     "Calling emplace_back() with arguments constructs an object using "
     "said arguments.",
-    "[vector]")
+    "[vector][insertion]")
 {
    struct CustomObject
    {
@@ -1532,7 +1301,7 @@ TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "emplace_back() returns a reference to the inserted element.",
-    "[vector]",
+    "[vector][insertion]",
     bool,
     unsigned char,
     int,
@@ -1556,7 +1325,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Reallocation growth.",
-    "[vector]",
+    "[vector][growth]",
     bool,
     unsigned char,
     int,
@@ -1606,7 +1375,7 @@ TEMPLATE_TEST_CASE(
 
 TEMPLATE_TEST_CASE(
     "Reallocation preserves existing elements.",
-    "[vector]",
+    "[vector][growth]",
     bool,
     unsigned char,
     int,
@@ -1628,7 +1397,7 @@ TEMPLATE_TEST_CASE(
    }
 }
 
-TEST_CASE("Reallocation exception safety.", "[vector][exception]")
+TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 {
    auto source{ helpers::generate_vector_of_count<helpers::TestObject>(10UZ) };
 
@@ -1647,7 +1416,9 @@ TEST_CASE("Reallocation exception safety.", "[vector][exception]")
    REQUIRE(source == expected);
 }
 
-TEST_CASE("Reallocation copies if move is not noexcept.", "[vector][exception]")
+TEST_CASE(
+    "Reallocation copies if move is not noexcept.",
+    "[vector][growth][exception]")
 {
    struct MoveThrows
    {
@@ -1692,7 +1463,8 @@ TEST_CASE("Reallocation copies if move is not noexcept.", "[vector][exception]")
 }
 
 TEST_CASE(
-    "Reallocation copies if object is not movable.", "[vector][exception]")
+    "Reallocation copies if object is not movable.",
+    "[vector][growth][exception]")
 {
    auto source{ helpers::generate_vector_of_count<helpers::CopyOnlyTestObject>(
        10UZ) };
@@ -1710,7 +1482,7 @@ TEST_CASE(
 
 TEST_CASE(
     "Reallocation exception safety with throwing move only object.",
-    "[vector][exception]")
+    "[vector][growth][exception]")
 {
    auto const element_count{ 10UZ };
    auto source{ helpers::generate_vector_of_count<helpers::MoveOnlyTestObject>(
@@ -1733,7 +1505,7 @@ TEST_CASE(
    REQUIRE(source.size() == expected);
 }
 
-TEST_CASE("Vector comparison.", "[vector]")
+TEST_CASE("Vector comparison.", "[vector][comparison]")
 {
    swtl::Vector<int> const baseline_vec{ 0, 1, 2, 3, 4, 5 };
    swtl::Vector<int> const equal_vec{ baseline_vec };
@@ -1765,7 +1537,7 @@ TEST_CASE("Vector comparison.", "[vector]")
    REQUIRE(baseline_vec >= equal_vec);
 }
 
-TEST_CASE("Vector swaps primitives correctly.", "[vector]")
+TEST_CASE("Vector swaps primitives correctly.", "[vector][swap]")
 {
    swtl::Vector<int> a{ 1, 2, 3 };
    swtl::Vector<int> b{ 4, 5 };
@@ -1781,7 +1553,7 @@ TEST_CASE("Vector swaps primitives correctly.", "[vector]")
    REQUIRE(a.data() == b_ptr);
 }
 
-TEST_CASE("Vector swaps objects correctly.", "[vector]")
+TEST_CASE("Vector swaps objects correctly.", "[vector][swap]")
 {
    swtl::Vector<std::string> a{ "Stop right there criminal scum!",
                                 "Nobody breaks the law on my watch!",
@@ -1805,7 +1577,7 @@ TEST_CASE("Vector swaps objects correctly.", "[vector]")
 
 TEMPLATE_TEST_CASE(
     "max_size() returns sane values.",
-    "[vector]",
+    "[vector][capacity]",
     unsigned char,
     int,
     double,
@@ -1818,7 +1590,7 @@ TEMPLATE_TEST_CASE(
        <= std::numeric_limits<std::ptrdiff_t>::max() / sizeof(TestType));
 }
 
-TEST_CASE("is_empty() returns the correct boolean value.", "[vector]")
+TEST_CASE("is_empty() returns the correct boolean value.", "[vector][capacity]")
 {
    swtl::Vector<int> empty_vec;
    auto const non_empty_vec{
@@ -1829,7 +1601,9 @@ TEST_CASE("is_empty() returns the correct boolean value.", "[vector]")
    REQUIRE(!non_empty_vec.is_empty());
 }
 
-TEST_CASE("size() returns the correct value as elements are added.", "[vector]")
+TEST_CASE(
+    "size() returns the correct value as elements are added.",
+    "[vector][capacity]")
 {
    swtl::Vector<int> vec;
 
@@ -1852,7 +1626,7 @@ TEST_CASE("size() returns the correct value as elements are added.", "[vector]")
    }
 }
 
-TEST_CASE("capacity() returns a sane value.", "[vector]")
+TEST_CASE("capacity() returns a sane value.", "[vector][capacity]")
 {
    swtl::Vector<int> vec;
 
@@ -1870,7 +1644,7 @@ TEST_CASE("capacity() returns a sane value.", "[vector]")
 
 TEST_CASE(
     "clear() removes all elements of the vector without affecting capacity.",
-    "[vector]")
+    "[vector][modifiers]")
 {
    auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
    auto const populated_capacity{ vec.capacity() };

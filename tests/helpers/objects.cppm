@@ -1,8 +1,8 @@
-export module swtl_test_helper_objects;
+export module swtl.test.helpers:objects;
 
 import std;
 
-export namespace swtl_test_helpers
+export namespace swtl::test_helpers
 {
 
 template <typename Derived>
@@ -272,4 +272,4 @@ private:
 // requirements for the appropriate iterator tag.
 static_assert(std::input_or_output_iterator<TestInputIterator<int>>);
 
-}  // namespace swtl_test_helpers
+}  // namespace swtl::test_helpers

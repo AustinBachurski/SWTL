@@ -6,8 +6,11 @@ target_sources(swtl_test_helpers PUBLIC
    "${PROJECT_SOURCE_DIR}/tests/helpers"
 
    FILES
-   "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helper_functions.cppm"
-   "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helper_objects.cppm"
+   "${PROJECT_SOURCE_DIR}/tests/helpers/swtl_test_helpers.cppm"
+
+   "${PROJECT_SOURCE_DIR}/tests/helpers/global_contracts.cppm"
+   "${PROJECT_SOURCE_DIR}/tests/helpers/functions.cppm"
+   "${PROJECT_SOURCE_DIR}/tests/helpers/objects.cppm"
 )
 
 target_link_libraries(swtl_test_helpers PRIVATE swtl)
@@ -20,6 +23,8 @@ add_executable(tests)
 
 target_sources(tests PRIVATE
    vector_tests.cpp
+   contiguous_iterator_tests.cpp
+   algorithm_tests.cpp
 )
 
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain
