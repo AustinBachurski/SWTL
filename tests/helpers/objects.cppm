@@ -9,142 +9,185 @@ export namespace swtl::test_helpers
 
 /// @brief CRTP base class for tracking lifetimes.
 ///
-/// Tracks lifetime via a static `count` variable, incremented in the default
-/// constructor, copy constructor, and move constructor; decremented in the
-/// destructor.  Assignment operators do nothing.
+/// Tracks lifetime via a static `instances` variable, incremented in the
+/// default constructor, copy constructor, and move constructor; decremented in
+/// the destructor.  Assignment operators do nothing.
+///
+/// @tparam Derived The inheriting class.
 ///
 template <typename Derived>
 class LifetimeTracker
 {
 public:
-   /// @brief Default constructor.
-   ///
-   /// Increments `count`.
+   /// @brief Default constructor.  Increments `instances`.
    ///
    constexpr LifetimeTracker() noexcept
    {
-      ++count;
+      ++instances;
    }
 
-   /// @brief Copy constructor.
+   /// @brief Copy constructor.  Increments `instances`.
    ///
-   /// Increments `count`.
-   ///
-   constexpr LifetimeTracker(
-       [[maybe_unused]] LifetimeTracker const &other) noexcept
+   constexpr LifetimeTracker(LifetimeTracker const &) noexcept
    {
-      ++count;
+      ++instances;
    }
 
-   /// @brief Move constructor.
+   /// @brief Move constructor.  Increments `instances`.
    ///
-   /// Increments `count`.
-   ///
-   constexpr LifetimeTracker([[maybe_unused]] LifetimeTracker &&other) noexcept
+   constexpr LifetimeTracker(LifetimeTracker &&) noexcept
    {
-      ++count;
+      ++instances;
    }
 
    /// @brief Copy assignment operator.
    ///
-   /// @note Does not modify `count`.
+   /// @note Does not modify `instances`.
    ///
    constexpr LifetimeTracker &
-   operator=([[maybe_unused]] LifetimeTracker const &other) = default;
+   operator=(LifetimeTracker const &) = default;
 
    /// @brief Move assignment operator.
    ///
-   /// @note Does not modify `count`.
+   /// @note Does not modify `instances`.
    ///
    constexpr LifetimeTracker &
-   operator=([[maybe_unused]] LifetimeTracker &&other) = default;
+   operator=(LifetimeTracker &&) = default;
 
-   /// @brief Destructor.
-   ///
-   /// Decrements `count`.
+   /// @brief Destructor. Decrements `instances`.
    ///
    constexpr ~LifetimeTracker()
    {
-      --count;
+      --instances;
    }
 
    /// @brief Three-way comparison operator.
    ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(LifetimeTracker const &other) const = default;
 
-   /// @brief Returns boolean `true` if `count == zero`, otherwise `false`.
+   /// @brief Returns `true` if `instances == zero`, otherwise `false`.
+   ///
+   /// @return `true` if `instances == zero`, otherwise `false`
    ///
    [[nodiscard]]
    static constexpr bool
    all_instances_destroyed() noexcept
    {
-      return count == 0LL;
+      return instances == 0LL;
    }
 
-   /// @brief Returns the integral count of instances alive, may be negative.
+   /// @brief Returns the number of instances currently alive.
+   ///
+   /// @return Count of living instances.
    ///
    [[nodiscard]]
    static constexpr long long
    instances_alive() noexcept
    {
-      return count;
+      return instances;
    }
 
-   /// @brief Returns the `count` of living objects.
+   /// @brief Resets `instances` to zero.
    ///
    static constexpr void
    reset_lifetime_instance_count() noexcept
    {
-      count = 0LL;
+      instances = 0LL;
    }
 
 private:
-   /// @brief Static `count` incremented when objects are constructed and
+   /// Static counter incremented when objects are constructed and
    /// decremented when they are destroyed.
-   static inline long long count{};
+   static inline long long instances{};
 };
 
 /// @brief CRTP base class for testing exception handling.
 ///
-/// // TODO: WORKING HERE
+/// Increments `instances` each time an object is constructed.
+///
+/// @tparam Derived The inheriting class.
+///
+/// @throws std::runtime_error When `instances` == `limit` in a constructor.
 ///
 template <typename Derived>
 class ThrowingObject
 {
 public:
+   /// @brief Default constructor.  Increments `instances` and throws if
+   /// `instances == limit`.
+   ///
+   /// @throws std::runtime_error When `instances` == `limit`.
+   ///
    constexpr ThrowingObject()
    {
-      count_and_throw_if();
+      increment_and_throw_if_limit_reached();
    }
 
+   /// @brief Copy constructor.  Increments `instances` and throws if `instances
+   /// == limit`.
+   ///
+   /// @throws std::runtime_error When `instances` == `limit`.
+   ///
    constexpr ThrowingObject([[maybe_unused]] ThrowingObject const &other)
    {
-      count_and_throw_if();
+      increment_and_throw_if_limit_reached();
    }
 
+   /// @brief Move constructor.  Increments `instances` and throws if `instances
+   /// == limit`.
+   ///
+   /// @throws std::runtime_error When `instances` == `limit`.
+   ///
    constexpr ThrowingObject([[maybe_unused]] ThrowingObject &&other)
    {
-      count_and_throw_if();
+      increment_and_throw_if_limit_reached();
    }
 
+   /// @brief Copy assignment operator.
+   ///
+   /// @note Does not modify `instances` nor throw.
+   ///
    constexpr ThrowingObject &
    operator=([[maybe_unused]] ThrowingObject const &other) = default;
 
+   /// @brief Move assignment operator.
+   ///
+   /// @note Does not modify `instances` nor throw.
+   ///
    constexpr ThrowingObject &
    operator=([[maybe_unused]] ThrowingObject &&other) = default;
 
+   /// @brief Destructor.
+   ///
+   /// @note Does not modify `instances`.
+   ///
    constexpr ~ThrowingObject() = default;
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(ThrowingObject const &other) const = default;
 
+   /// @brief Resets `instances` to zero.
+   ///
    static constexpr void
    reset_throwing_instance_count() noexcept
    {
       instances = 0;
    }
 
+   /// @brief Set the instance count where constructing that instance should
+   /// throw.
+   ///
+   /// @param count The target value where construcing that instance will throw.
+   ///
    static constexpr void
    throw_when_constructing_instance(std::size_t count) noexcept
    {
@@ -152,8 +195,17 @@ public:
    }
 
 private:
+   /// @brief Increments `instances` and then compares `instances == limit`, if
+   /// they are equal throw a `std::runtime_error`; otherwise the object is
+   /// constructed.
+   ///
+   /// @throws std::runtime_error If `++instances == limit`.
+   ///
+   /// @note Only throws if `instances` == `limit`, which allows test setup to
+   /// happen without fear of triggering an exception in any realistic case.
+   ///
    static void
-   count_and_throw_if()
+   increment_and_throw_if_limit_reached()
    {
       // Use equality so that this doesn't trigger when reference objects are
       // constructed in consecutive test cases.
@@ -163,36 +215,64 @@ private:
       }
    }
 
+   /// Static counter incremented when objects are constructed.
    static inline std::size_t instances{};
-   // Defaulting to zero means that the initial objects can be constructed at
-   // will during test setup, only once the limit is set will it throw.
+
+   /// Static limit that will trigger an exception if reached.
    static inline std::size_t limit{};
 };
 
+/// @brief Base class that enables unique ids for test objects.
+///
 struct UniqueID
 {
+   /// Id number for the instance.
    std::size_t id{};
 
+   /// @brief Default constructor.
+   ///
    constexpr UniqueID() = default;
 
-   constexpr UniqueID(std::size_t identifier)
+   /// @brief Single argument constructor that sets `id`.
+   ///
+   /// @param identifier The number to use for `id`.
+   ///
+   constexpr explicit UniqueID(std::size_t identifier)
        : id{ identifier }
    {}
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(UniqueID const &other) const = default;
 };
 
+/// @brief Basic test object.
+///
 struct TestObject : public LifetimeTracker<TestObject>,
                     public ThrowingObject<TestObject>,
                     public UniqueID
 {
+   /// @brief Default constructor.
+   ///
    constexpr TestObject() = default;
 
+   /// @brief Single argument constructor that sets `id`.
+   ///
+   /// @param identifier The number to use for `id`.
+   ///
    constexpr TestObject(std::size_t identifier)
        : UniqueID{ identifier }
    {}
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(TestObject const &other) const = default;
 };
@@ -200,12 +280,23 @@ struct TestObject : public LifetimeTracker<TestObject>,
 struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>,
                            public UniqueID
 {
+   /// @brief Default constructor.
+   ///
    constexpr NoThrowTestObject() = default;
 
+   /// @brief Single argument constructor that sets `id`.
+   ///
+   /// @param identifier The number to use for `id`.
+   ///
    constexpr NoThrowTestObject(std::size_t identifier)
        : UniqueID{ identifier }
    {}
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(NoThrowTestObject const &other) const = default;
 };
@@ -214,23 +305,46 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
                             public ThrowingObject<MoveOnlyTestObject>,
                             public UniqueID
 {
+   /// @brief Default constructor.
+   ///
    constexpr MoveOnlyTestObject() = default;
 
+   /// @brief Single argument constructor that sets `id`.
+   ///
+   /// @param identifier The number to use for `id`.
+   ///
    constexpr MoveOnlyTestObject(std::size_t identifier)
        : UniqueID{ identifier }
    {}
 
+   /// @brief Copy constructor.
+   ///
    constexpr MoveOnlyTestObject(MoveOnlyTestObject const &other) = default;
+
+   /// @brief Copy assignment operator.
+   ///
    constexpr MoveOnlyTestObject &
    operator=(MoveOnlyTestObject const &other) = default;
 
+   /// @brief Move constructor.
+   ///
    constexpr MoveOnlyTestObject(MoveOnlyTestObject &&other)
        = delete ("Object is move only.");
+
+   /// @brief Move assignment opertator.
+   ///
    constexpr MoveOnlyTestObject &
    operator=(MoveOnlyTestObject &&other) = delete ("Object is move only.");
 
+   /// @brief Destructor.
+   ///
    constexpr ~MoveOnlyTestObject() = default;
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(MoveOnlyTestObject const &other) const = default;
 };
@@ -239,83 +353,57 @@ struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
                             public ThrowingObject<CopyOnlyTestObject>,
                             public UniqueID
 {
+   /// @brief Default constructor.
+   ///
    constexpr CopyOnlyTestObject() = default;
 
+   /// @brief Single argument constructor that sets `id`.
+   ///
+   /// @param identifier The number to use for `id`.
+   ///
    constexpr CopyOnlyTestObject(std::size_t identifier)
        : UniqueID{ identifier }
    {}
 
+   /// @brief Copy constructor.
+   ///
    constexpr CopyOnlyTestObject(CopyOnlyTestObject const &other) = default;
+
+   /// @brief Copy assignment operator.
+   ///
    constexpr CopyOnlyTestObject &
    operator=(CopyOnlyTestObject const &other) = default;
 
+   /// @brief Move constructor.
+   ///
    constexpr CopyOnlyTestObject(CopyOnlyTestObject &&other)
        = delete ("Object is copy only.");
+
+   /// @brief Move assignment operator.
+   ///
    constexpr CopyOnlyTestObject &
    operator=(CopyOnlyTestObject &&other) = delete ("Object is copy only.");
 
+   /// @brief Destructor.
+   ///
    constexpr ~CopyOnlyTestObject() = default;
 
+   /// @brief Three-way comparison operator.
+   ///
+   /// @return The result of the three-way comparison.
+   ///
+   [[nodiscard]]
    constexpr auto
    operator<=>(CopyOnlyTestObject const &other) const = default;
 };
 
-template <typename T>
-class TestInputIterator
-{
-public:
-   // Iterator Traits
-   using iterator_category = std::input_iterator_tag;
-   using value_type = std::remove_cv_t<T>;
-   using difference_type = std::ptrdiff_t;
-   using pointer = T *;
-   using reference = T &;
-
-   constexpr TestInputIterator() = default;
-
-   constexpr explicit TestInputIterator(pointer ptr)
-       : ptr_{ ptr }
-   {}
-
-   [[nodiscard]]
-   constexpr reference
-   operator*() const noexcept
-   {
-      return *ptr_;
-   }
-
-   constexpr TestInputIterator &
-   operator++() noexcept
-   {
-      ++ptr_;
-      return *this;
-   }
-
-   constexpr TestInputIterator
-   operator++(int) noexcept
-   {
-      auto temp{ *this };
-      ++ptr_;
-      return temp;
-   }
-
-   [[nodiscard]]
-   constexpr friend auto
-   operator<=>(
-       TestInputIterator const &lhs, TestInputIterator const &rhs) noexcept
-       = default;
-
-private:
-   pointer ptr_{};
-};
-
-// Ensures that the iterator meets the
-// requirements for the appropriate iterator tag.
-static_assert(std::input_or_output_iterator<TestInputIterator<int>>);
-
+/// @brief Helper which resets the underlying lifetime and/or throwing counts.
+///
+/// @tparam T The class to reset the counts of.
+///
 template <typename T>
 constexpr void
-reset_counts_and_set_nothrow() noexcept
+reset_instances_and_disable_throw() noexcept
 {
    if constexpr (std::derived_from<T, LifetimeTracker<T>>)
    {
