@@ -39,12 +39,16 @@ public:
 
    /// Allocator type.
    using allocator_type = Allocator;
+
    /// Value type.
    using value_type = a_traits::value_type;
+
    /// Unsigned size type.
    using size_type = a_traits::size_type;
+
    /// Signed difference type.
    using difference_type = a_traits::difference_type;
+
    /// Pointer to element.
    using pointer = a_traits::pointer;
 
@@ -88,10 +92,14 @@ public:
       other.m_start = other.m_finish = other.m_end_of_storage = nullptr;
    }
 
+   /// @brief Copy assignment operator.
+   ///
    constexpr VectorBase &
    operator=(VectorBase const &other)
        = delete ("Copy assignment must be handled by the Vector container.");
 
+   /// @brief Move assignment operator.
+   ///
    constexpr VectorBase &
    operator=(VectorBase &&other)
        = delete ("Move assignment must be handled by the Vector container.");
@@ -208,10 +216,13 @@ protected:
    /// Underlying memory allocator instance.
    [[no_unique_address]]
    Allocator m_allocator;
+
    /// Pointer to the beginning of allocated storage.
    pointer m_start{};
+
    /// Pointer to one-past-the-end of constructed elements.
    pointer m_finish{};
+
    /// Pointer to one-past-the-end of allocated storage.
    pointer m_end_of_storage{};
 };
@@ -251,26 +262,37 @@ public:
 
    /// Element value type.
    using value_type = std::remove_cv_t<T>;
+
    /// Allocator type.
    using allocator_type = Base::allocator_type;
+
    /// Unsigned size type.
    using size_type = std::size_t;
+
    /// Signed difference type.
    using difference_type = std::ptrdiff_t;
+
    /// Reference type.
    using reference = value_type &;
+
    /// Const reference type.
    using const_reference = value_type const &;
+
    /// Pointer type.
    using pointer = Base::pointer;
+
    /// Const pointer type.
    using const_pointer = a_traits::const_pointer;
+
    /// Random-access contiguous iterator.
    using iterator = ContiguousIterator<T>;
+
    /// Const contiguous iterator.
    using const_iterator = ContiguousIterator<T const>;
+
    /// Reverse contiguous iterator.
    using reverse_iterator = std::reverse_iterator<iterator>;
+
    /// Const reverse contiguous iterator.
    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -915,6 +937,7 @@ public:
    ///
    /// @return The underlying allocator copy.
    ///
+   [[nodiscard]]
    constexpr allocator_type
    get_allocator() const noexcept
    {
@@ -1506,6 +1529,7 @@ public:
    /// @throws noexcept If `noexcept(noexcept(std::declval<T>() ==
    /// std::declval<T>()))`
    ///
+   [[nodiscard]]
    constexpr friend bool
    operator==(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() == std::declval<T>()))
@@ -1527,6 +1551,7 @@ public:
    ///
    /// @return The result of the three-way comparison.
    ///
+   [[nodiscard]]
    constexpr friend auto
    operator<=>(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() <=> std::declval<T>()))
