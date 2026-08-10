@@ -4,10 +4,12 @@ import std;
 
 import :alloc_aware_destroy;
 
+/// @cond INTERNAL_DOCUMENTATION
+
+/// @brief Namespace for internal helpers.
 namespace swtl::detail
 {
 
-/// @internal
 /// @brief RAII scope guard that deallocates uninitialized memory on destruction
 /// unless dismissed.
 ///
@@ -118,7 +120,6 @@ struct AllocationGuard
    size_type count;  ///< Capacity of the allocated block in number of elements.
 };
 
-/// @internal
 /// @brief RAII scope guard that destroys a range of elements on destruction
 /// unless dismissed.
 ///
@@ -225,3 +226,5 @@ struct ElementGuard
 };
 
 }  // namespace swtl::detail
+
+/// @endcond INTERNAL_DOCUMENTATION

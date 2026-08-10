@@ -5,6 +5,7 @@ import std;
 namespace swtl
 {
 
+/// @brief Concept supporting an allocator.
 export template <typename Allocator>
 concept AllocatorType = requires(
     Allocator allocator, std::allocator_traits<Allocator>::size_type count) {

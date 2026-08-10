@@ -2,43 +2,79 @@ export module swtl.test.helpers:objects;
 
 import std;
 
+/// @cond INTERNAL_DOCUMENTATION
+
 export namespace swtl::test_helpers
 {
 
+/// @brief CRTP base class for tracking lifetimes.
+///
+/// Tracks lifetime via a static `count` variable, incremented in the default
+/// constructor, copy constructor, and move constructor; decremented in the
+/// destructor.  Assignment operators do nothing.
+///
 template <typename Derived>
 class LifetimeTracker
 {
 public:
+   /// @brief Default constructor.
+   ///
+   /// Increments `count`.
+   ///
    constexpr LifetimeTracker() noexcept
    {
       ++count;
    }
 
+   /// @brief Copy constructor.
+   ///
+   /// Increments `count`.
+   ///
    constexpr LifetimeTracker(
        [[maybe_unused]] LifetimeTracker const &other) noexcept
    {
       ++count;
    }
 
+   /// @brief Move constructor.
+   ///
+   /// Increments `count`.
+   ///
    constexpr LifetimeTracker([[maybe_unused]] LifetimeTracker &&other) noexcept
    {
       ++count;
    }
 
+   /// @brief Copy assignment operator.
+   ///
+   /// @note Does not modify `count`.
+   ///
    constexpr LifetimeTracker &
    operator=([[maybe_unused]] LifetimeTracker const &other) = default;
 
+   /// @brief Move assignment operator.
+   ///
+   /// @note Does not modify `count`.
+   ///
    constexpr LifetimeTracker &
    operator=([[maybe_unused]] LifetimeTracker &&other) = default;
 
+   /// @brief Destructor.
+   ///
+   /// Decrements `count`.
+   ///
    constexpr ~LifetimeTracker()
    {
       --count;
    }
 
+   /// @brief Three-way comparison operator.
+   ///
    constexpr auto
    operator<=>(LifetimeTracker const &other) const = default;
 
+   /// @brief Returns boolean `true` if `count == zero`, otherwise `false`.
+   ///
    [[nodiscard]]
    static constexpr bool
    all_instances_destroyed() noexcept
@@ -46,6 +82,8 @@ public:
       return count == 0LL;
    }
 
+   /// @brief Returns the integral count of instances alive, may be negative.
+   ///
    [[nodiscard]]
    static constexpr long long
    instances_alive() noexcept
@@ -53,6 +91,8 @@ public:
       return count;
    }
 
+   /// @brief Returns the `count` of living objects.
+   ///
    static constexpr void
    reset_lifetime_instance_count() noexcept
    {
@@ -60,9 +100,15 @@ public:
    }
 
 private:
+   /// @brief Static `count` incremented when objects are constructed and
+   /// decremented when they are destroyed.
    static inline long long count{};
 };
 
+/// @brief CRTP base class for testing exception handling.
+///
+/// // TODO: WORKING HERE
+///
 template <typename Derived>
 class ThrowingObject
 {
@@ -123,45 +169,41 @@ private:
    static inline std::size_t limit{};
 };
 
-template <typename T>
-constexpr void
-reset_counts_and_set_nothrow() noexcept
-{
-   if constexpr (std::derived_from<T, LifetimeTracker<T>>)
-   {
-      T::reset_lifetime_instance_count();
-   }
-
-   if constexpr (std::derived_from<T, ThrowingObject<T>>)
-   {
-      T::reset_throwing_instance_count();
-      T::throw_when_constructing_instance(0UZ);
-   }
-}
-
-struct TestObject : public LifetimeTracker<TestObject>,
-                    public ThrowingObject<TestObject>
+struct UniqueID
 {
    std::size_t id{};
 
+   constexpr UniqueID() = default;
+
+   constexpr UniqueID(std::size_t identifier)
+       : id{ identifier }
+   {}
+
+   constexpr auto
+   operator<=>(UniqueID const &other) const = default;
+};
+
+struct TestObject : public LifetimeTracker<TestObject>,
+                    public ThrowingObject<TestObject>,
+                    public UniqueID
+{
    constexpr TestObject() = default;
 
    constexpr TestObject(std::size_t identifier)
-       : id{ identifier }
+       : UniqueID{ identifier }
    {}
 
    constexpr auto
    operator<=>(TestObject const &other) const = default;
 };
 
-struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>
+struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>,
+                           public UniqueID
 {
-   std::size_t id{};
-
    constexpr NoThrowTestObject() = default;
 
    constexpr NoThrowTestObject(std::size_t identifier)
-       : id{ identifier }
+       : UniqueID{ identifier }
    {}
 
    constexpr auto
@@ -169,14 +211,13 @@ struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>
 };
 
 struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
-                            public ThrowingObject<MoveOnlyTestObject>
+                            public ThrowingObject<MoveOnlyTestObject>,
+                            public UniqueID
 {
-   std::size_t id{};
-
    constexpr MoveOnlyTestObject() = default;
 
    constexpr MoveOnlyTestObject(std::size_t identifier)
-       : id{ identifier }
+       : UniqueID{ identifier }
    {}
 
    constexpr MoveOnlyTestObject(MoveOnlyTestObject const &other) = default;
@@ -195,14 +236,13 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
 };
 
 struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
-                            public ThrowingObject<CopyOnlyTestObject>
+                            public ThrowingObject<CopyOnlyTestObject>,
+                            public UniqueID
 {
-   std::size_t id{};
-
    constexpr CopyOnlyTestObject() = default;
 
    constexpr CopyOnlyTestObject(std::size_t identifier)
-       : id{ identifier }
+       : UniqueID{ identifier }
    {}
 
    constexpr CopyOnlyTestObject(CopyOnlyTestObject const &other) = default;
@@ -273,4 +313,22 @@ private:
 // requirements for the appropriate iterator tag.
 static_assert(std::input_or_output_iterator<TestInputIterator<int>>);
 
+template <typename T>
+constexpr void
+reset_counts_and_set_nothrow() noexcept
+{
+   if constexpr (std::derived_from<T, LifetimeTracker<T>>)
+   {
+      T::reset_lifetime_instance_count();
+   }
+
+   if constexpr (std::derived_from<T, ThrowingObject<T>>)
+   {
+      T::reset_throwing_instance_count();
+      T::throw_when_constructing_instance(0UZ);
+   }
+}
+
 }  // namespace swtl::test_helpers
+
+/// @endcond INTERNAL_DOCUMENTATION

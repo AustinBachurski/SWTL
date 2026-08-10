@@ -4,17 +4,36 @@ import std;
 
 import swtl.vector;
 
+import :objects;
+
+/// @cond INTERNAL_DOCUMENTATION
+
+/// @brief Namespace for test helpers.
+///
 export namespace swtl::test_helpers
 {
 
+/// @brief Concept supporting construction from a braced initializer list.
+///
 template <typename Container>
-concept VectorLike
-    = std::same_as<Container, std::vector<typename Container::value_type>>
-   || std::same_as<Container, swtl::Vector<typename Container::value_type>>;
+concept BracedListConstructible
+    = requires { Container{ *std::declval<Container>().begin() }; };
 
-template <VectorLike Container>
+/// @brief Returns a `Container` populated with predefined values.
+///
+/// @tparam Container The container and type to populate; i.e.
+/// `std::vector<T>` where `T` is a supported type.
+///
+/// @pre Container must be constructible from a braced initializer list.
+///
+/// @note Supported Types: `unsigned char`, `bool`, `int`, `double`,
+/// `std::string`.
+///
+/// @throws std::invalid_argument If `T` is an unsupported type.
+///
+template <BracedListConstructible Container>
 auto
-generate_populated_container()
+generate_populated()
 {
    using T = typename Container::value_type;
 
@@ -66,19 +85,42 @@ generate_populated_container()
    }();
 }
 
-template <typename T>
-swtl::Vector<T>
-generate_vector_of_count(std::size_t count)
+/// @brief Concept for a container that supports `emplace_back()` with a
+/// `value_type` that is derived from `UniqueID`.
+///
+template <typename Container>
+concept EmplaceableUniqueID = requires(Container c, std::size_t val) {
+   requires std::derived_from<typename Container::value_type, UniqueID>;
+   { c.emplace_back(val) };
+};
+
+/// @brief Returns a `Container` with `count` `value_type`s with incrementing id
+/// values.
+///
+/// @tparam Container The container and to populate; i.e.,
+/// `std::vector<TestObject>`.
+///
+/// @return A `Container` populated with `count` `value_type`s where
+/// `value_type.id` increases per element from zero to `count - 1`.
+///
+/// @note `Container` where `Container` supports `emplace_back()` and
+/// `Container::value_type` is derived from `UniqueID`.
+///
+template <EmplaceableUniqueID Container>
+constexpr Container
+generate_unique(std::size_t count)
 {
-   swtl::Vector<T> vec;
-   vec.reserve(count);
+   Container container;
+   container.reserve(count);
 
    for (auto const value : std::views::iota(0UZ, count))
    {
-      vec.emplace_back(value);
+      container.emplace_back(value);
    }
 
-   return vec;
+   return container;
 }
 
 }  // namespace swtl::test_helpers
+
+/// @endcond INTERNAL_DOCUMENTATION

@@ -13,7 +13,7 @@ import swtl.memory;
 namespace swtl
 {
 
-/// @internal
+/// @cond INTERNAL_DOCUMENTATION
 /// @brief Resource management base class for `Vector`.
 ///
 /// Handles raw memory allocation, deallocation, and allocator propagation
@@ -26,16 +26,27 @@ template <typename T, typename Allocator>
 class VectorBase
 {
 public:
+   /// @name Aliases
+   /// @{
+
+   /// Allocator Traits alias.
+   using a_traits = std::allocator_traits<Allocator>;
+
+   /// @}
+
    /// @name Member Types
    /// @{
 
-   using a_traits = std::allocator_traits<Allocator>;  ///< Allocator traits.
-   using allocator_type = Allocator;                   ///< Allocator type.
-   using value_type = a_traits::value_type;            ///< Value type.
-   using size_type = a_traits::size_type;              ///< Unsigned size type.
-   using difference_type
-       = a_traits::difference_type;    ///< Signed difference type.
-   using pointer = a_traits::pointer;  ///< Pointer to element.
+   /// Allocator type.
+   using allocator_type = Allocator;
+   /// Value type.
+   using value_type = a_traits::value_type;
+   /// Unsigned size type.
+   using size_type = a_traits::size_type;
+   /// Signed difference type.
+   using difference_type = a_traits::difference_type;
+   /// Pointer to element.
+   using pointer = a_traits::pointer;
 
    /// @}
 
@@ -205,6 +216,8 @@ protected:
    pointer m_end_of_storage{};
 };
 
+/// @endcond INTERNAL_DOCUMENTATION
+
 /// @brief A dynamically resizable contiguous array container.
 ///
 /// Satisfies the standard container requirements, contiguous container
@@ -219,12 +232,15 @@ class Vector : protected VectorBase<T, Allocator>
 private:
    /// @publicsection
    ///
-   /// @name Shorthand
+   /// @name Aliases
    /// @{
 
-   /// VectorBase Alias
+   /// @cond INTERNAL_DOCUMENTATION
+   /// VectorBase alias
    using Base = VectorBase<T, Allocator>;
-   /// Allocator Traits Alias
+   /// @endcond INTERNAL_DOCUMENTATION
+
+   /// Allocator Traits alias
    using a_traits = std::allocator_traits<Allocator>;
 
    /// @}
@@ -763,7 +779,7 @@ public:
    ///
    /// @param other The vector to move from.
    ///
-   /// @note Move construction is handled by `VectorBase`.
+   /// @note Move construction is handled by the base class.
    ///
    constexpr Vector(Vector &&other) noexcept
        : Base(std::move(other))
@@ -882,12 +898,12 @@ public:
    }
 
    /// @brief Destructor. Destroys all elements; storage deallocation is handled
-   /// by `VectorBase`.
+   /// by the base class.
    ///
    constexpr ~Vector()
    {
       clear();
-      // Deallocation is handled by VectorBase.
+      // Deallocation is handled by the base class.
    }
 
    /// @}
@@ -1529,7 +1545,7 @@ public:
    /// @}
 
 private:
-   /// @internal
+   /// @cond INTERNAL_DOCUMENTATION
    /// @brief Replaces the vector's contents with the elements from the range
    /// `[first, last)`.
    ///
@@ -1636,7 +1652,6 @@ private:
       }
    }
 
-   /// @internal
    /// @brief Calculates the new capacity required for reallocation during
    /// growth.
    ///
@@ -1670,7 +1685,6 @@ private:
       return current_size + target_growth;
    }
 
-   /// @internal
    /// @brief Reallocates storage and constructs a new element at the end.
    ///
    /// The new element is constructed prior to moving or copying the old
@@ -1730,6 +1744,8 @@ private:
          }
       }
    }
+
+   /// @endcond INTERNAL_DOCUMENTATION
 };
 
 /// @name Explicit Deduction Guides

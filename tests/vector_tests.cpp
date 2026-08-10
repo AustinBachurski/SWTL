@@ -105,7 +105,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    auto const source_data{
-      helpers::generate_populated_container<std::vector<TestType>>()
+      helpers::generate_populated<std::vector<TestType>>()
    };
    swtl::Vector const vec(source_data.begin(), source_data.end());
 
@@ -127,7 +127,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    auto const range_of_data{
-      helpers::generate_populated_container<std::vector<TestType>>()
+      helpers::generate_populated<std::vector<TestType>>()
    };
    swtl::Vector const vec(std::from_range, range_of_data);
 
@@ -171,7 +171,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE(
     "Iterator calls return a const correct iterators.", "[vector][iterator]")
 {
-   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+   auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
    auto const const_vec{ vec };
 
    // Forward iterators.
@@ -296,7 +296,7 @@ TEST_CASE(
     "elements.",
     "[vector][iterator]")
 {
-   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+   auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
 
    // References are used in these sections so that the actual return value of
    // the iterator can be tested, as opposed to the result of a copy.
@@ -362,7 +362,7 @@ TEST_CASE(
 
 TEST_CASE("Non-const iterator mutability.", "[vector][iterator]")
 {
-   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+   auto const vec{ helpers::generate_populated<swtl::Vector<int>>() };
 
    SECTION("Non-const forward iterator is mutable.")
    {
@@ -398,9 +398,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto source{
-      helpers::generate_populated_container<swtl::Vector<TestType>>()
-   };
+   auto source{ helpers::generate_populated<swtl::Vector<TestType>>() };
 
    SECTION("Copy constructor from non-const source copies correctly.")
    {
@@ -441,9 +439,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto source{
-      helpers::generate_populated_container<swtl::Vector<TestType>>()
-   };
+   auto source{ helpers::generate_populated<swtl::Vector<TestType>>() };
 
    SECTION(
        "Move constructor from non-const source moves data without allocating.")
@@ -543,7 +539,7 @@ TEST_CASE(
     "[vector][special member functions][default_allocator]")
 {
    auto const element_count{ 10UZ };
-   auto source{ helpers::generate_vector_of_count<helpers::TestObject>(
+   auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
        element_count) };
    auto const expected{ source };
    helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
@@ -797,8 +793,9 @@ TEMPLATE_TEST_CASE(
    auto const source_size{ 10UZ };
    auto const initial_size{ 20UZ };
 
-   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
-       source_size) };
+   auto const source{
+      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
+   };
 
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
@@ -823,8 +820,9 @@ TEMPLATE_TEST_CASE(
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
 
-   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
-       source_size) };
+   auto const source{
+      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
+   };
 
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
@@ -849,8 +847,9 @@ TEMPLATE_TEST_CASE(
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
 
-   auto const source{ helpers::generate_vector_of_count<helpers::TestObject>(
-       source_size) };
+   auto const source{
+      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
+   };
 
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
@@ -870,9 +869,7 @@ TEST_CASE(
     "operator-.",
     "[vector][contracts][assign]")
 {
-   auto const source{
-      helpers::generate_populated_container<std::vector<int>>()
-   };
+   auto const source{ helpers::generate_populated<std::vector<int>>() };
    swtl::Vector<int> vec;
 
    REQUIRE_NOTHROW(vec.assign(source.begin(), source.end()));
@@ -900,9 +897,7 @@ TEST_CASE(
     "Vector::assign_range(Range &&range) updates vector with new data.",
     "[vector][assign]")
 {
-   auto const range{
-      helpers::generate_populated_container<std::vector<int>>()
-   };
+   auto const range{ helpers::generate_populated<std::vector<int>>() };
    swtl::Vector<int> vec(10UZ);
 
    vec.assign_range(range);
@@ -947,9 +942,7 @@ TEMPLATE_TEST_CASE(
    using ExpectedQualifiedRef
        = std::conditional_t<std::is_const_v<TestType>, T const &, T &>;
 
-   auto const expected{
-      helpers::generate_populated_container<std::vector<T>>()
-   };
+   auto const expected{ helpers::generate_populated<std::vector<T>>() };
 
    ConstCorrectVector vec(expected.begin(), expected.end());
 
@@ -1037,7 +1030,7 @@ TEST_CASE(
     "[vector][contract]")
 {
    auto const out_of_bounds_index{ 100UZ };
-   auto const vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+   auto const vec{ helpers::generate_populated<swtl::Vector<int>>() };
 
    INFO(
        "INFO: If `out_of_bounds_index` (which was "
@@ -1150,7 +1143,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
+   auto vec{ helpers::generate_populated<swtl::Vector<TestType>>() };
    auto const initial_capacity{ vec.capacity() };
    swtl::Vector const expected{ vec };
 
@@ -1196,9 +1189,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{
-      helpers::generate_populated_container<std::vector<TestType>>()
-   };
+   auto const data{ helpers::generate_populated<std::vector<TestType>>() };
 
    SECTION("Inserting lvalue references works as expected.")
    {
@@ -1233,9 +1224,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const data{
-      helpers::generate_populated_container<std::vector<TestType>>()
-   };
+   auto const data{ helpers::generate_populated<std::vector<TestType>>() };
 
    SECTION("Inserting lvalue references succeeds.")
    {
@@ -1309,9 +1298,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    swtl::Vector<TestType> vec;
-   auto const expected{
-      helpers::generate_populated_container<std::vector<TestType>>()
-   };
+   auto const expected{ helpers::generate_populated<std::vector<TestType>>() };
 
    for (auto const &element : expected)
    {
@@ -1382,7 +1369,7 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
-   auto vec{ helpers::generate_populated_container<swtl::Vector<TestType>>() };
+   auto vec{ helpers::generate_populated<swtl::Vector<TestType>>() };
    auto const before_growth{ vec };
 
    while (vec.size() < vec.capacity())
@@ -1399,7 +1386,8 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 {
-   auto source{ helpers::generate_vector_of_count<helpers::TestObject>(10UZ) };
+   auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
+       10UZ) };
 
    for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
    {
@@ -1420,14 +1408,12 @@ TEST_CASE(
     "Reallocation copies if move is not noexcept.",
     "[vector][growth][exception]")
 {
-   struct MoveThrows
+   struct MoveThrows : public helpers::UniqueID
    {
-      std::size_t id{};
-
       constexpr MoveThrows() = default;
 
       constexpr MoveThrows(std::size_t identifier)
-          : id{ identifier }
+          : UniqueID{ identifier }
       {}
 
       constexpr MoveThrows([[maybe_unused]] MoveThrows const &other) = default;
@@ -1449,7 +1435,7 @@ TEST_CASE(
       operator<=>(MoveThrows const &other) const = default;
    };
 
-   auto source{ helpers::generate_vector_of_count<MoveThrows>(10UZ) };
+   auto source{ helpers::generate_unique<swtl::Vector<MoveThrows>>(10UZ) };
 
    for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
    {
@@ -1466,8 +1452,9 @@ TEST_CASE(
     "Reallocation copies if object is not movable.",
     "[vector][growth][exception]")
 {
-   auto source{ helpers::generate_vector_of_count<helpers::CopyOnlyTestObject>(
-       10UZ) };
+   auto source{
+      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTestObject>>(10UZ)
+   };
 
    for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
    {
@@ -1485,8 +1472,10 @@ TEST_CASE(
     "[vector][growth][exception]")
 {
    auto const element_count{ 10UZ };
-   auto source{ helpers::generate_vector_of_count<helpers::MoveOnlyTestObject>(
-       element_count) };
+   auto source{
+      helpers::generate_unique<swtl::Vector<helpers::MoveOnlyTestObject>>(
+          element_count)
+   };
 
    for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
    {
@@ -1593,9 +1582,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE("is_empty() returns the correct boolean value.", "[vector][capacity]")
 {
    swtl::Vector<int> empty_vec;
-   auto const non_empty_vec{
-      helpers::generate_populated_container<swtl::Vector<int>>()
-   };
+   auto const non_empty_vec{ helpers::generate_populated<swtl::Vector<int>>() };
 
    REQUIRE(empty_vec.is_empty());
    REQUIRE(!non_empty_vec.is_empty());
@@ -1646,7 +1633,7 @@ TEST_CASE(
     "clear() removes all elements of the vector without affecting capacity.",
     "[vector][modifiers]")
 {
-   auto vec{ helpers::generate_populated_container<swtl::Vector<int>>() };
+   auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
    auto const populated_capacity{ vec.capacity() };
    vec.clear();
 
