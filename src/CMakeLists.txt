@@ -9,13 +9,16 @@ target_sources(swtl PUBLIC
    # ** PRIMARY MODULE INTERFACE **
    "${PROJECT_SOURCE_DIR}/src/swtl.cppm"
 
+
    # ** CONFIGURATION **
    "${PROJECT_SOURCE_DIR}/src/config/swtl_config.cppm"
+
 
    # ** ALGORITHM **
    "${PROJECT_SOURCE_DIR}/src/algorithm/algorithm.cppm"
 
    "${PROJECT_SOURCE_DIR}/src/algorithm/zip_copy.cppm"
+
 
    # ** CONTAINERS **
    "${PROJECT_SOURCE_DIR}/src/containers/containers.cppm"
@@ -24,13 +27,16 @@ target_sources(swtl PUBLIC
    "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
 
+
    # ** FORMAT **
    "${PROJECT_SOURCE_DIR}/src/format/format.cppm"
+
 
    # ** ITERATORS **
    "${PROJECT_SOURCE_DIR}/src/iterators/iterators.cppm"
 
    "${PROJECT_SOURCE_DIR}/src/iterators/contiguous_iterator.cppm"
+
 
    # ** MEMORY **
    "${PROJECT_SOURCE_DIR}/src/memory/memory.cppm"
