@@ -10,9 +10,7 @@ namespace helpers = swtl::test_helpers;
 
 TEST_CASE("zip_copy copys even ranges correctly.", "[algorithm][zip_copy]")
 {
-   auto const source{
-      helpers::generate_populated_container<std::vector<int>>()
-   };
+   auto const source{ helpers::generate_populated<std::vector<int>>() };
    auto destination{ source };
 
    for (
@@ -47,9 +45,7 @@ TEST_CASE("zip_copy copys even ranges correctly.", "[algorithm][zip_copy]")
 
 TEST_CASE("zip_copy copys uneven ranges correctly.", "[algorithm][zip_copy]")
 {
-   auto destination{
-      helpers::generate_populated_container<std::vector<int>>()
-   };
+   auto destination{ helpers::generate_populated<std::vector<int>>() };
    auto source{ destination };
 
    for (
@@ -101,7 +97,7 @@ TEST_CASE(
     "reversed.",
     "[algorithm][zip_copy]")
 {
-   auto src{ helpers::generate_populated_container<std::vector<int>>() };
+   auto src{ helpers::generate_populated<std::vector<int>>() };
    auto dest{ src };
 
    SECTION("Source iterator pair swapped.")

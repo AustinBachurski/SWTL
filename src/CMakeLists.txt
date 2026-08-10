@@ -15,9 +15,11 @@ target_sources(swtl PUBLIC
    # ** ALGORITHM **
    "${PROJECT_SOURCE_DIR}/src/algorithm/algorithm.cppm"
 
+   "${PROJECT_SOURCE_DIR}/src/algorithm/zip_copy.cppm"
 
    # ** CONTAINERS **
    "${PROJECT_SOURCE_DIR}/src/containers/containers.cppm"
+
    "${PROJECT_SOURCE_DIR}/src/containers/concepts.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/vector.cppm"
    "${PROJECT_SOURCE_DIR}/src/containers/forward_list.cppm"
@@ -27,10 +29,12 @@ target_sources(swtl PUBLIC
 
    # ** ITERATORS **
    "${PROJECT_SOURCE_DIR}/src/iterators/iterators.cppm"
+
    "${PROJECT_SOURCE_DIR}/src/iterators/contiguous_iterator.cppm"
 
    # ** MEMORY **
    "${PROJECT_SOURCE_DIR}/src/memory/memory.cppm"
+
    "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_destroy.cppm"
    "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_guards.cppm"
    "${PROJECT_SOURCE_DIR}/src/memory/alloc_aware_uninitialized.cppm"
