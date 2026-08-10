@@ -7,7 +7,8 @@
 import std;
 
 import swtl.vector;
-import swtl.contiguous_iterator;
+import swtl.iterators;
+
 import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
@@ -542,7 +543,7 @@ TEST_CASE(
    auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
        element_count) };
    auto const expected{ source };
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
    helpers::TestObject::throw_when_constructing_instance(element_count);
 
    SECTION(
@@ -571,7 +572,7 @@ TEST_CASE(
     "Vector(size_type count) exception safety.",
     "[vector][constructor][exception safety]")
 {
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
@@ -602,7 +603,7 @@ TEST_CASE(
     "[vector][constructor][exception safety]")
 {
    helpers::TestObject reference_object;
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
@@ -636,7 +637,7 @@ TEST_CASE(
 {
    auto const source_count{ 5UZ };
    std::vector<helpers::TestObject> const source(source_count);
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
@@ -672,7 +673,7 @@ TEST_CASE(
 {
    auto const source_count{ 5UZ };
    std::vector<helpers::TestObject> const source(source_count);
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    SECTION(
        "Memory owned by the vector does not leak if an exception is thrown "
@@ -730,7 +731,7 @@ TEMPLATE_TEST_CASE(
    auto const new_count{ 128UZ };
    swtl::Vector<TestType> const expected(new_count, TestType{});
 
-   helpers::reset_counts_and_set_nothrow<TestType>();
+   helpers::reset_instances_and_disable_throw<TestType>();
    swtl::Vector<TestType> vec(base_count);
 
    INFO(
@@ -754,7 +755,7 @@ TEST_CASE(
    auto const expected_count{ 5UZ };
    swtl::Vector<helpers::TestObject> const expected(expected_count);
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    swtl::Vector<helpers::TestObject> vec(base_count);
    vec.assign(expected_count, helpers::TestObject{});
@@ -774,7 +775,7 @@ TEST_CASE(
    swtl::Vector<helpers::TestObject> vec(base_count);
    auto const expected{ vec };
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
    helpers::TestObject::throw_when_constructing_instance(new_count);
 
    REQUIRE_THROWS_AS(
@@ -787,7 +788,7 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and doesn't leak elements.",
     "[vector][assign]",
-    helpers::TestInputIterator<helpers::TestObject const>,
+    helpers::InputIterator<helpers::TestObject const>,
     swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 10UZ };
@@ -800,7 +801,7 @@ TEMPLATE_TEST_CASE(
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    swtl::Vector<helpers::TestObject> vec(initial_size);
 
@@ -814,7 +815,7 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and grows when needed.",
     "[vector][assign]",
-    helpers::TestInputIterator<helpers::TestObject const>,
+    helpers::InputIterator<helpers::TestObject const>,
     swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
@@ -827,7 +828,7 @@ TEMPLATE_TEST_CASE(
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
    swtl::Vector<helpers::TestObject> vec(initial_size);
 
@@ -841,7 +842,7 @@ TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) does not "
     "leak if an exception is thrown.",
     "[vector][assign]",
-    helpers::TestInputIterator<helpers::TestObject const>,
+    helpers::InputIterator<helpers::TestObject const>,
     swtl::ContiguousIterator<helpers::TestObject const>)
 {
    auto const source_size{ 20UZ };
@@ -854,7 +855,7 @@ TEMPLATE_TEST_CASE(
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
    helpers::TestObject::throw_when_constructing_instance(initial_size + 1);
 
    swtl::Vector<helpers::TestObject> vec(initial_size);
@@ -1396,7 +1397,7 @@ TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 
    auto const expected{ source };
 
-   helpers::reset_counts_and_set_nothrow<helpers::TestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
    helpers::TestObject::throw_when_constructing_instance(source.size());
 
    REQUIRE_THROWS_AS(source.emplace_back(), std::runtime_error);
@@ -1484,7 +1485,7 @@ TEST_CASE(
 
    auto const expected{ source.size() };
 
-   helpers::reset_counts_and_set_nothrow<helpers::MoveOnlyTestObject>();
+   helpers::reset_instances_and_disable_throw<helpers::MoveOnlyTestObject>();
    helpers::MoveOnlyTestObject::throw_when_constructing_instance(element_count);
 
    // Reallocation fails, but no memory should be leaked and invariants should
