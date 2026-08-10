@@ -7,19 +7,16 @@ import swtl.contiguous_iterator;
 TEST_CASE(
     "ContiguousIterator initialization.", "[iterator][contiguous_iterator]")
 {
-   SECTION("Valid initalization.")
-   {
-      std::vector<int> empty_vec;
-      std::vector<int> non_empty_vec{ 1, 2, 3 };
-      swtl::ContiguousIterator empty_iter{ empty_vec.data() };
-      swtl::ContiguousIterator populated_iter{ non_empty_vec.data() };
+   std::vector<int> empty_vec;
+   std::vector<int> non_empty_vec{ 1, 2, 3 };
 
-      REQUIRE(empty_vec.data() == std::to_address(empty_iter));
-      REQUIRE(non_empty_vec.data() == std::to_address(populated_iter));
-      REQUIRE(
-          std::addressof(non_empty_vec.front())
-          == std::to_address(populated_iter));
-   }
+   swtl::ContiguousIterator<int> null_iter;
+   swtl::ContiguousIterator empty_iter{ empty_vec.data() };
+   swtl::ContiguousIterator populated_iter{ non_empty_vec.data() };
+
+   REQUIRE(std::to_address(null_iter) == nullptr);
+   REQUIRE(std::to_address(empty_iter) == nullptr);
+   REQUIRE(std::to_address(populated_iter) == non_empty_vec.data());
 }
 
 TEST_CASE(
@@ -28,8 +25,8 @@ TEST_CASE(
    SECTION("Non-const to const.")
    {
       std::vector<int> vec{ 1, 2, 3 };
-      auto iter{ vec.begin() };
-      auto const_iter{ vec.cbegin() };
+      swtl::ContiguousIterator iter{ vec.data() };
+      swtl::ContiguousIterator const const_iter{ vec.data() };
 
       STATIC_REQUIRE(
           std::is_convertible_v<decltype(iter), decltype(const_iter)>);
@@ -59,8 +56,8 @@ TEST_CASE(
       { 6, "licked it" }
    };
 
-   auto iter{ vec.begin() };
-   auto const_iter{ const_vec.begin() };
+   swtl::ContiguousIterator iter{ vec.data() };
+   swtl::ContiguousIterator const const_iter{ const_vec.data() };
 
    SECTION("operator* returns a reference to the underlying element.")
    {
@@ -154,8 +151,8 @@ TEST_CASE(
    std::array const values{ 1, 2, 3, 4, 5 };
    std::vector const vec(values.begin(), values.end());
 
-   auto begin_iter{ vec.begin() };
-   auto end_iter{ vec.end() };
+   swtl::ContiguousIterator begin_iter{ vec.data() };
+   swtl::ContiguousIterator end_iter{ vec.data() + vec.size() };
 
    SECTION("operator++ increments the iterator.")
    {
@@ -206,7 +203,6 @@ TEST_CASE(
        "decremented by n.")
    {
       REQUIRE(*(end_iter - 2) == values[3]);
-      REQUIRE(end_iter == vec.end());
       REQUIRE(*(end_iter - values.size()) == values.front());
    }
 
@@ -216,8 +212,7 @@ TEST_CASE(
    {
       REQUIRE(begin_iter - end_iter == -5);
       REQUIRE(end_iter - (begin_iter + 2) == 3);
-      REQUIRE(begin_iter + 2 - vec.begin() == 2);
-      REQUIRE(std::cmp_equal(vec.end() - vec.begin(), vec.size()));
+      REQUIRE(std::cmp_equal(end_iter - begin_iter, vec.size()));
    }
 }
 
@@ -227,9 +222,9 @@ TEST_CASE(
 {
    std::vector const vec{ 0, 1 };
 
-   auto first{ vec.begin() };
-   auto middle{ vec.begin() + 1 };
-   auto last{ vec.end() };
+   swtl::ContiguousIterator first{ vec.data() };
+   swtl::ContiguousIterator middle{ vec.data() + 1 };
+   swtl::ContiguousIterator last{ vec.data() + vec.size() };
 
    SECTION("operator==")
    {
