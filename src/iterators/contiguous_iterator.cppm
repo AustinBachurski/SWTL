@@ -5,8 +5,7 @@ import std;
 namespace swtl
 {
 
-/// @brief A lightweight contiguous and random-access iterator wrapping a raw
-/// pointer.
+/// @brief A contiguous and random-access iterator wrapping a raw pointer.
 ///
 /// Satisfies the `std::contiguous_iterator` iterator concept and the
 /// `std::random_access_iterator` iterator category. Suitable for use with
@@ -23,12 +22,21 @@ public:
 
    /// Iterator concept.
    using iterator_concept = std::contiguous_iterator_tag;
+
    /// Legacy iterator category.
    using iterator_category = std::random_access_iterator_tag;
-   using value_type = std::remove_cv_t<T>;  ///< Value type.
-   using difference_type = std::ptrdiff_t;  ///< Signed difference type.
-   using pointer = T *;                     ///< Pointer type.
-   using reference = T &;                   ///< Reference type.
+
+   /// Value type.
+   using value_type = std::remove_cv_t<T>;
+
+   /// Signed difference type.
+   using difference_type = std::ptrdiff_t;
+
+   /// Pointer type.
+   using pointer = T *;
+
+   /// Reference type.
+   using reference = T &;
 
    /// @}
 
@@ -48,7 +56,7 @@ public:
    template <typename U>
       requires std::is_const_v<T> && std::same_as<U, std::remove_const_t<T>>
    constexpr ContiguousIterator(ContiguousIterator<U> const &other)
-       : ptr_{ other.ptr_ }
+       : m_ptr{ other.m_ptr }
    {}
 
    /// @brief Default constructor. Initializes with a null pointer.
@@ -59,8 +67,8 @@ public:
    ///
    /// @param ptr The raw pointer to wrap.
    ///
-   constexpr explicit ContiguousIterator(pointer ptr)
-       : ptr_{ ptr }
+   constexpr ContiguousIterator(pointer ptr)
+       : m_ptr{ ptr }
    {}
 
    /// @brief Dereferences the iterator.
@@ -73,7 +81,7 @@ public:
    constexpr reference
    operator*() const noexcept
    {
-      return *ptr_;
+      return *m_ptr;
    }
 
    /// @brief Accesses a member of the underlying element.
@@ -86,7 +94,7 @@ public:
    constexpr pointer
    operator->() const noexcept
    {
-      return ptr_;
+      return m_ptr;
    }
 
    /// @brief Accesses the element at the specified relative index.
@@ -101,7 +109,7 @@ public:
    constexpr reference
    operator[](difference_type idx) const noexcept
    {
-      return ptr_[idx];
+      return m_ptr[idx];
    }
 
    /// @brief Pre-increment operator. Advances the iterator by one element.
@@ -113,7 +121,7 @@ public:
    constexpr ContiguousIterator &
    operator++() noexcept
    {
-      ++ptr_;
+      ++m_ptr;
       return *this;
    }
 
@@ -127,7 +135,7 @@ public:
    operator++(int) noexcept
    {
       auto temp{ *this };
-      ++ptr_;
+      ++m_ptr;
       return temp;
    }
 
@@ -141,7 +149,7 @@ public:
    constexpr ContiguousIterator &
    operator--() noexcept
    {
-      --ptr_;
+      --m_ptr;
       return *this;
    }
 
@@ -156,7 +164,7 @@ public:
    operator--(int) noexcept
    {
       auto temp{ *this };
-      --ptr_;
+      --m_ptr;
       return temp;
    }
 
@@ -172,7 +180,7 @@ public:
    constexpr ContiguousIterator &
    operator+=(difference_type distance) noexcept
    {
-      ptr_ += distance;
+      m_ptr += distance;
       return *this;
    }
 
@@ -188,7 +196,7 @@ public:
    constexpr ContiguousIterator &
    operator-=(difference_type distance) noexcept
    {
-      ptr_ -= distance;
+      m_ptr -= distance;
       return *this;
    }
 
@@ -206,7 +214,7 @@ public:
    constexpr friend ContiguousIterator
    operator+(ContiguousIterator const &lhs, difference_type distance) noexcept
    {
-      return lhs.ptr_ + distance;
+      return lhs.m_ptr + distance;
    }
 
    /// @brief Returns a new iterator advanced by `distance` elements.
@@ -240,7 +248,7 @@ public:
    constexpr friend ContiguousIterator
    operator-(ContiguousIterator const &lhs, difference_type distance) noexcept
    {
-      return lhs.ptr_ - distance;
+      return lhs.m_ptr - distance;
    }
 
    /// @brief Computes the distance (number of elements) between two iterators.
@@ -258,7 +266,7 @@ public:
    operator-(
        ContiguousIterator const &lhs, ContiguousIterator const &rhs) noexcept
    {
-      return lhs.ptr_ - rhs.ptr_;
+      return lhs.m_ptr - rhs.m_ptr;
    }
 
    /// @brief Three-way comparison operator.
@@ -275,7 +283,7 @@ public:
        = default;
 
 private:
-   pointer ptr_{};  ///< @brief Underlying raw pointer to the element.
+   pointer m_ptr{};  ///< @brief Underlying raw pointer to the element.
 };
 
 // Ensures that the iterator meets the
