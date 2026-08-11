@@ -66,9 +66,4 @@ printAll(swtl::Vector<T> const &vec)
 
 int
 main()
-{
-   swtl::Vector vec{ 1, 2, 3 };
-
-   [[maybe_unused]]
-   auto x = vec[100];
-}
+{}

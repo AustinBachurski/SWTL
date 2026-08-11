@@ -13,7 +13,7 @@ import swtl.memory;
 namespace swtl
 {
 
-/// @internal
+/// @cond INTERNAL_DOCUMENTATION
 /// @brief Resource management base class for `Vector`.
 ///
 /// Handles raw memory allocation, deallocation, and allocator propagation
@@ -26,16 +26,31 @@ template <typename T, typename Allocator>
 class VectorBase
 {
 public:
+   /// @name Aliases
+   /// @{
+
+   /// Allocator Traits alias.
+   using a_traits = std::allocator_traits<Allocator>;
+
+   /// @}
+
    /// @name Member Types
    /// @{
 
-   using a_traits = std::allocator_traits<Allocator>;  ///< Allocator traits.
-   using allocator_type = Allocator;                   ///< Allocator type.
-   using value_type = a_traits::value_type;            ///< Value type.
-   using size_type = a_traits::size_type;              ///< Unsigned size type.
-   using difference_type
-       = a_traits::difference_type;    ///< Signed difference type.
-   using pointer = a_traits::pointer;  ///< Pointer to element.
+   /// Allocator type.
+   using allocator_type = Allocator;
+
+   /// Value type.
+   using value_type = a_traits::value_type;
+
+   /// Unsigned size type.
+   using size_type = a_traits::size_type;
+
+   /// Signed difference type.
+   using difference_type = a_traits::difference_type;
+
+   /// Pointer to element.
+   using pointer = a_traits::pointer;
 
    /// @}
 
@@ -77,10 +92,14 @@ public:
       other.m_start = other.m_finish = other.m_end_of_storage = nullptr;
    }
 
+   /// @brief Copy assignment operator.
+   ///
    constexpr VectorBase &
    operator=(VectorBase const &other)
        = delete ("Copy assignment must be handled by the Vector container.");
 
+   /// @brief Move assignment operator.
+   ///
    constexpr VectorBase &
    operator=(VectorBase &&other)
        = delete ("Move assignment must be handled by the Vector container.");
@@ -197,13 +216,18 @@ protected:
    /// Underlying memory allocator instance.
    [[no_unique_address]]
    Allocator m_allocator;
+
    /// Pointer to the beginning of allocated storage.
    pointer m_start{};
+
    /// Pointer to one-past-the-end of constructed elements.
    pointer m_finish{};
+
    /// Pointer to one-past-the-end of allocated storage.
    pointer m_end_of_storage{};
 };
+
+/// @endcond INTERNAL_DOCUMENTATION
 
 /// @brief A dynamically resizable contiguous array container.
 ///
@@ -219,12 +243,15 @@ class Vector : protected VectorBase<T, Allocator>
 private:
    /// @publicsection
    ///
-   /// @name Shorthand
+   /// @name Aliases
    /// @{
 
-   /// VectorBase Alias
+   /// @cond INTERNAL_DOCUMENTATION
+   /// VectorBase alias
    using Base = VectorBase<T, Allocator>;
-   /// Allocator Traits Alias
+   /// @endcond INTERNAL_DOCUMENTATION
+
+   /// Allocator Traits alias
    using a_traits = std::allocator_traits<Allocator>;
 
    /// @}
@@ -235,26 +262,37 @@ public:
 
    /// Element value type.
    using value_type = std::remove_cv_t<T>;
+
    /// Allocator type.
    using allocator_type = Base::allocator_type;
+
    /// Unsigned size type.
    using size_type = std::size_t;
+
    /// Signed difference type.
    using difference_type = std::ptrdiff_t;
+
    /// Reference type.
    using reference = value_type &;
+
    /// Const reference type.
    using const_reference = value_type const &;
+
    /// Pointer type.
    using pointer = Base::pointer;
+
    /// Const pointer type.
    using const_pointer = a_traits::const_pointer;
+
    /// Random-access contiguous iterator.
    using iterator = ContiguousIterator<T>;
+
    /// Const contiguous iterator.
    using const_iterator = ContiguousIterator<T const>;
+
    /// Reverse contiguous iterator.
    using reverse_iterator = std::reverse_iterator<iterator>;
+
    /// Const reverse contiguous iterator.
    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
@@ -763,7 +801,7 @@ public:
    ///
    /// @param other The vector to move from.
    ///
-   /// @note Move construction is handled by `VectorBase`.
+   /// @note Move construction is handled by the base class.
    ///
    constexpr Vector(Vector &&other) noexcept
        : Base(std::move(other))
@@ -882,12 +920,12 @@ public:
    }
 
    /// @brief Destructor. Destroys all elements; storage deallocation is handled
-   /// by `VectorBase`.
+   /// by the base class.
    ///
    constexpr ~Vector()
    {
       clear();
-      // Deallocation is handled by VectorBase.
+      // Deallocation is handled by the base class.
    }
 
    /// @}
@@ -899,6 +937,7 @@ public:
    ///
    /// @return The underlying allocator copy.
    ///
+   [[nodiscard]]
    constexpr allocator_type
    get_allocator() const noexcept
    {
@@ -1490,6 +1529,7 @@ public:
    /// @throws noexcept If `noexcept(noexcept(std::declval<T>() ==
    /// std::declval<T>()))`
    ///
+   [[nodiscard]]
    constexpr friend bool
    operator==(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() == std::declval<T>()))
@@ -1511,6 +1551,7 @@ public:
    ///
    /// @return The result of the three-way comparison.
    ///
+   [[nodiscard]]
    constexpr friend auto
    operator<=>(Vector const &lhs, Vector const &rhs)
        noexcept(noexcept(std::declval<T>() <=> std::declval<T>()))
@@ -1529,7 +1570,7 @@ public:
    /// @}
 
 private:
-   /// @internal
+   /// @cond INTERNAL_DOCUMENTATION
    /// @brief Replaces the vector's contents with the elements from the range
    /// `[first, last)`.
    ///
@@ -1636,7 +1677,6 @@ private:
       }
    }
 
-   /// @internal
    /// @brief Calculates the new capacity required for reallocation during
    /// growth.
    ///
@@ -1670,7 +1710,6 @@ private:
       return current_size + target_growth;
    }
 
-   /// @internal
    /// @brief Reallocates storage and constructs a new element at the end.
    ///
    /// The new element is constructed prior to moving or copying the old
@@ -1730,6 +1769,8 @@ private:
          }
       }
    }
+
+   /// @endcond INTERNAL_DOCUMENTATION
 };
 
 /// @name Explicit Deduction Guides

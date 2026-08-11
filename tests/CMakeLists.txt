@@ -10,6 +10,7 @@ target_sources(swtl_test_helpers PUBLIC
 
    "${PROJECT_SOURCE_DIR}/tests/helpers/global_contracts.cppm"
    "${PROJECT_SOURCE_DIR}/tests/helpers/functions.cppm"
+   "${PROJECT_SOURCE_DIR}/tests/helpers/iterators.cppm"
    "${PROJECT_SOURCE_DIR}/tests/helpers/objects.cppm"
 )
 
@@ -22,9 +23,9 @@ enable_undefined_behavior_sanitizer_for_target(swtl_test_helpers)
 add_executable(tests)
 
 target_sources(tests PRIVATE
-   vector_tests.cpp
-   contiguous_iterator_tests.cpp
    algorithm_tests.cpp
+   contiguous_iterator_tests.cpp
+   vector_tests.cpp
 )
 
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain
