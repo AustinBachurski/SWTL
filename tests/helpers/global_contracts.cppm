@@ -53,4 +53,4 @@ handle_contract_violation(std::contracts::contract_violation const &violation)
            violation.location().line()));
 }
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond

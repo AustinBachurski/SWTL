@@ -227,4 +227,4 @@ struct ElementGuard
 
 }  // namespace swtl::detail
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond

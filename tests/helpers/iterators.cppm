@@ -139,4 +139,4 @@ static_assert(std::input_iterator<InputIterator<int const>>);
 
 }  // namespace swtl::test_helpers
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond

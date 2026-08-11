@@ -12,4 +12,4 @@ export import :objects;
 namespace swtl::test_helpers
 {}
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond

@@ -227,7 +227,7 @@ protected:
    pointer m_end_of_storage{};
 };
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond
 
 /// @brief A dynamically resizable contiguous array container.
 ///
@@ -247,9 +247,11 @@ private:
    /// @{
 
    /// @cond INTERNAL_DOCUMENTATION
+
    /// VectorBase alias
    using Base = VectorBase<T, Allocator>;
-   /// @endcond INTERNAL_DOCUMENTATION
+
+   /// @endcond
 
    /// Allocator Traits alias
    using a_traits = std::allocator_traits<Allocator>;
@@ -1770,7 +1772,7 @@ private:
       }
    }
 
-   /// @endcond INTERNAL_DOCUMENTATION
+   /// @endcond
 };
 
 /// @name Explicit Deduction Guides

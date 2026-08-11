@@ -123,4 +123,4 @@ generate_unique(std::size_t count)
 
 }  // namespace swtl::test_helpers
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond

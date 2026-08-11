@@ -426,4 +426,4 @@ reset_instances_and_disable_throw() noexcept
 
 }  // namespace swtl::test_helpers
 
-/// @endcond INTERNAL_DOCUMENTATION
+/// @endcond
