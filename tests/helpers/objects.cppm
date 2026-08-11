@@ -277,6 +277,8 @@ struct TestObject : public LifetimeTracker<TestObject>,
    operator<=>(TestObject const &other) const = default;
 };
 
+/// @brief A test object that does not throw.
+///
 struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>,
                            public UniqueID
 {
@@ -301,6 +303,8 @@ struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>,
    operator<=>(NoThrowTestObject const &other) const = default;
 };
 
+/// @brief A test object that is move-only.
+///
 struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
                             public ThrowingObject<MoveOnlyTestObject>,
                             public UniqueID
@@ -349,6 +353,8 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
    operator<=>(MoveOnlyTestObject const &other) const = default;
 };
 
+/// @brie A test object that is copy-only.
+///
 struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
                             public ThrowingObject<CopyOnlyTestObject>,
                             public UniqueID

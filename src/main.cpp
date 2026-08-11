@@ -66,11 +66,4 @@ printAll(swtl::Vector<T> const &vec)
 
 int
 main()
-{
-   swtl::Vector vec{ 1, 2, 3 };
-   std::vector src{ 1, 2, 3, 4, 5, 6 };
-
-   vec.assign(
-       swtl::InputIterator(src.data()),
-       swtl::InputIterator(src.data() + src.size()));
-}
+{}

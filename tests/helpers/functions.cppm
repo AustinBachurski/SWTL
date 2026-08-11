@@ -8,8 +8,6 @@ import :objects;
 
 /// @cond INTERNAL_DOCUMENTATION
 
-/// @brief Namespace for test helpers.
-///
 export namespace swtl::test_helpers
 {
 
@@ -100,10 +98,12 @@ concept EmplaceableUniqueID = requires(Container c, std::size_t val) {
 /// @tparam Container The container and to populate; i.e.,
 /// `std::vector<TestObject>`.
 ///
+/// @param count The number of elements to be placed in the container.
+///
 /// @return A `Container` populated with `count` `value_type`s where
 /// `value_type.id` increases per element from zero to `count - 1`.
 ///
-/// @note `Container` where `Container` supports `emplace_back()` and
+/// @pre `Container` where `Container` supports `emplace_back()` and
 /// `Container::value_type` is derived from `UniqueID`.
 ///
 template <EmplaceableUniqueID Container>

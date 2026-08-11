@@ -119,7 +119,7 @@ public:
    /// @param lhs The left-hand iterator.
    /// @param rhs The right-hand iterator.
    ///
-   /// @return `lhs == rhs`.
+   /// @return Whether or not the underlying pointers compare equal.
    ///
    [[nodiscard]]
    constexpr friend bool
