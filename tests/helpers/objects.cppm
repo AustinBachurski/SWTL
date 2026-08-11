@@ -186,7 +186,8 @@ public:
    /// @brief Set the instance count where constructing that instance should
    /// throw.
    ///
-   /// @param count The target value where construcing that instance will throw.
+   /// @param count The target value where constructing that instance will
+   /// throw.
    ///
    static constexpr void
    throw_when_constructing_instance(std::size_t count) noexcept
@@ -335,7 +336,7 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
    constexpr MoveOnlyTestObject(MoveOnlyTestObject &&other)
        = delete ("Object is move only.");
 
-   /// @brief Move assignment opertator.
+   /// @brief Move assignment operator.
    ///
    constexpr MoveOnlyTestObject &
    operator=(MoveOnlyTestObject &&other) = delete ("Object is move only.");
@@ -353,7 +354,7 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
    operator<=>(MoveOnlyTestObject const &other) const = default;
 };
 
-/// @brie A test object that is copy-only.
+/// @brief A test object that is copy-only.
 ///
 struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
                             public ThrowingObject<CopyOnlyTestObject>,
