@@ -1170,7 +1170,7 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
-      for (auto &&element : expiring)
+      for (auto &element : expiring)
       {
          vec.push_back(std::move(element));
       }
@@ -1205,7 +1205,7 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
-      for (auto &&element : expiring)
+      for (auto &element : expiring)
       {
          vec.emplace_back(std::move(element));
       }
@@ -1343,9 +1343,11 @@ TEMPLATE_TEST_CASE(
    }
    vec.emplace_back();
 
-   for (auto const &pair : std::views::zip(vec, before_growth))
+   std::views::repeat(0, 12);
+
+   for (auto const &[value, expected] : std::views::zip(vec, before_growth))
    {
-      REQUIRE(std::get<0>(pair) == std::get<1>(pair));
+      REQUIRE(value == expected);
    }
 }
 

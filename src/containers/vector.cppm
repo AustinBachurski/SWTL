@@ -1559,7 +1559,7 @@ public:
        noexcept(noexcept(std::declval<T>() <=> std::declval<T>()))
       requires std::three_way_comparable<T>
    {
-      for (auto [left, right] : std::views::zip(lhs, rhs))
+      for (auto const &[left, right] : std::views::zip(lhs, rhs))
       {
          if (auto const comparison{ left <=> right }; comparison != 0)
          {
