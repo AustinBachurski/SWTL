@@ -58,7 +58,7 @@ generate_populated()
    {
       /*
       Currently a bug that prevents this from linking with libstdc++,
-      in gcc 16.1, appears to be fixed in gcc(trunk).
+      in gcc 16.1, still broken in 16.2, appears to be fixed in gcc(trunk).
 
       if constexpr (std::same_as<T, char>) {
         return {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
