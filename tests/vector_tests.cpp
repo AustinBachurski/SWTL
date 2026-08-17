@@ -13,6 +13,21 @@ import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
 
+namespace
+{
+
+template <typename T>
+constexpr void
+fill_to_capacity(T &container)
+{
+   for (auto i{ container.size() }; i < container.capacity(); ++i)
+   {
+      container.emplace_back();
+   }
+}
+
+}  // namespace
+
 TEST_CASE(
     "Default construction creates an empty Vector.", "[vector][constructor]")
 {
@@ -1170,7 +1185,8 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
-      for (auto &element : expiring)
+      // Using rvalue reference to support std::vector<bool> specialization.
+      for (auto &&element : expiring)
       {
          vec.push_back(std::move(element));
       }
@@ -1205,7 +1221,8 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
-      for (auto &element : expiring)
+      // Using rvalue reference to support std::vector<bool> specialization.
+      for (auto &&element : expiring)
       {
          vec.emplace_back(std::move(element));
       }
@@ -1335,15 +1352,10 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    auto vec{ helpers::generate_populated<swtl::Vector<TestType>>() };
+   fill_to_capacity(vec);
    auto const before_growth{ vec };
 
-   while (vec.size() < vec.capacity())
-   {
-      vec.emplace_back();
-   }
    vec.emplace_back();
-
-   std::views::repeat(0, 12);
 
    for (auto const &[value, expected] : std::views::zip(vec, before_growth))
    {
