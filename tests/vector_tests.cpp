@@ -13,21 +13,6 @@ import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
 
-namespace
-{
-
-template <typename T>
-constexpr void
-fill_to_capacity(T &container)
-{
-   for (auto i{ container.size() }; i < container.capacity(); ++i)
-   {
-      container.emplace_back();
-   }
-}
-
-}  // namespace
-
 TEST_CASE(
     "Default construction creates an empty Vector.", "[vector][constructor]")
 {
@@ -1352,7 +1337,7 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    auto vec{ helpers::generate_populated<swtl::Vector<TestType>>() };
-   fill_to_capacity(vec);
+   helpers::fill_to_capacity(vec);
    auto const before_growth{ vec };
 
    vec.emplace_back();
@@ -1590,4 +1575,91 @@ TEST_CASE(
    REQUIRE(vec.size() == 0UZ);
    REQUIRE(vec.capacity() == populated_capacity);
    REQUIRE(vec.data() != nullptr);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, T const &value) inserts a value at the desired "
+    "location of a vector with sufficient storage.",
+    "[vector][modifiers]")
+{
+   swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+   vec.reserve(10);
+
+   SECTION("Calling insert with `begin()` inserts at the beginning.")
+   {
+      swtl::Vector const expected{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+      auto const value_to_insert{ 0 };
+
+      vec.insert(vec.begin(), value_to_insert);
+
+      REQUIRE(vec == expected);
+   }
+
+   SECTION("Calling insert with `end()` inserts at the end.")
+   {
+      swtl::Vector const expected{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
+      auto const value_to_insert{ 0 };
+
+      vec.insert(vec.end(), value_to_insert);
+
+      REQUIRE(vec == expected);
+   }
+
+   SECTION(
+       "Calling insert with an iterator to the middle inserts in the correct "
+       "position.")
+   {
+      swtl::Vector const expected{ 1, 2, 3, 4, 0, 5, 6, 7, 8, 9 };
+      auto const index{ 4 };
+      auto const iter_pos{ vec.begin() + index };
+      auto const value_to_insert{ 0 };
+
+      vec.insert(iter_pos, value_to_insert);
+
+      REQUIRE(vec == expected);
+   }
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, T const &value) returns an iterator to the "
+    "inserted element.",
+    "[vector][modifiers]")
+{
+   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(10) };
+   helpers::TestObject const value_to_insert(10);
+
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+
+   auto inserted_iter{ vec.insert(vec.begin(), value_to_insert) };
+
+   REQUIRE(inserted_iter == vec.begin());
+   REQUIRE(*inserted_iter == value_to_insert);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, T const &value) growth.", "[vector][modifiers]")
+{
+   swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+   SECTION("Vector does not grow when there is sufficient capacity.")
+   {
+      vec.reserve(10);
+      auto const old_capacity{ vec.capacity() };
+      auto const value_to_insert{ 42 };
+
+      vec.insert(vec.begin(), value_to_insert);
+
+      REQUIRE(vec.capacity() == old_capacity);
+   }
+
+   SECTION("Vector does grow when additional capacity is required.")
+   {
+      helpers::fill_to_capacity(vec);
+      auto const old_capacity{ vec.capacity() };
+      auto const value_to_insert{ 42 };
+
+      vec.insert(vec.begin(), value_to_insert);
+
+      REQUIRE(vec.capacity() > old_capacity);
+   }
 }
