@@ -1578,50 +1578,51 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "insert(const_iterator pos, T const &value) inserts a value at the desired "
+    "emplace(const_iterator pos, Args &&...args) constructs a value at the "
+    "desired "
     "location of a vector with sufficient storage.",
     "[vector][modifiers]")
 {
    swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
    vec.reserve(10);
 
-   SECTION("Calling insert with `begin()` inserts at the beginning.")
+   SECTION("Calling emplace with `begin()` inserts at the beginning.")
    {
       swtl::Vector const expected{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
       auto const value_to_insert{ 0 };
 
-      vec.insert(vec.begin(), value_to_insert);
+      vec.emplace(vec.cbegin(), value_to_insert);
 
       REQUIRE(vec == expected);
    }
 
-   SECTION("Calling insert with `end()` inserts at the end.")
+   SECTION("Calling emplace with `end()` inserts at the end.")
    {
       swtl::Vector const expected{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 0 };
       auto const value_to_insert{ 0 };
 
-      vec.insert(vec.end(), value_to_insert);
+      vec.emplace(vec.cend(), value_to_insert);
 
       REQUIRE(vec == expected);
    }
 
    SECTION(
-       "Calling insert with an iterator to the middle inserts in the correct "
+       "Calling emplace with an iterator to the middle inserts in the correct "
        "position.")
    {
       swtl::Vector const expected{ 1, 2, 3, 4, 0, 5, 6, 7, 8, 9 };
       auto const index{ 4 };
-      auto const iter_pos{ vec.begin() + index };
+      auto const iter_pos{ vec.cbegin() + index };
       auto const value_to_insert{ 0 };
 
-      vec.insert(iter_pos, value_to_insert);
+      vec.emplace(iter_pos, value_to_insert);
 
       REQUIRE(vec == expected);
    }
 }
 
 TEST_CASE(
-    "insert(const_iterator pos, T const &value) returns an iterator to the "
+    "emplace(const_iterator pos, Args &&...args) returns an iterator to the "
     "inserted element.",
     "[vector][modifiers]")
 {
@@ -1630,14 +1631,15 @@ TEST_CASE(
 
    helpers::reset_instances_and_disable_throw<helpers::TestObject>();
 
-   auto inserted_iter{ vec.insert(vec.begin(), value_to_insert) };
+   auto inserted_iter{ vec.emplace(vec.cbegin(), value_to_insert) };
 
    REQUIRE(inserted_iter == vec.begin());
    REQUIRE(*inserted_iter == value_to_insert);
 }
 
 TEST_CASE(
-    "insert(const_iterator pos, T const &value) growth.", "[vector][modifiers]")
+    "emplace(const_iterator pos, Args &&...args) growth.",
+    "[vector][modifiers]")
 {
    swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
@@ -1647,7 +1649,7 @@ TEST_CASE(
       auto const old_capacity{ vec.capacity() };
       auto const value_to_insert{ 42 };
 
-      vec.insert(vec.begin(), value_to_insert);
+      vec.emplace(vec.cbegin(), value_to_insert);
 
       REQUIRE(vec.capacity() == old_capacity);
    }
@@ -1658,8 +1660,42 @@ TEST_CASE(
       auto const old_capacity{ vec.capacity() };
       auto const value_to_insert{ 42 };
 
-      vec.insert(vec.begin(), value_to_insert);
+      vec.emplace(vec.cbegin(), value_to_insert);
 
       REQUIRE(vec.capacity() > old_capacity);
    }
+}
+
+// Vector::insert(const_iterator pos, T const &value) uses emplace() internally.
+TEST_CASE(
+    "insert(const_iterator pos, T const &value) inserts an lvalue",
+    "[vector][modifiers]")
+{
+   auto vec{
+      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTestObject>>(10UZ)
+   };
+   helpers::reset_instances_and_disable_throw<helpers::CopyOnlyTestObject>();
+   auto const expected{ 2LL };
+
+   helpers::CopyOnlyTestObject element;
+   vec.insert(vec.cbegin(), element);
+
+   REQUIRE(helpers::CopyOnlyTestObject::instances_alive() == expected);
+}
+
+// Vector::insert(const_iterator pos, Args &&...args) uses emplace() internally.
+TEST_CASE(
+    "insert(const_iterator pos, Args &&...args) inserts an rvalue",
+    "[vector][modifiers]")
+{
+   auto vec{
+      helpers::generate_unique<swtl::Vector<helpers::MoveOnlyTestObject>>(10UZ)
+   };
+   helpers::reset_instances_and_disable_throw<helpers::MoveOnlyTestObject>();
+   auto const expected{ 2LL };
+
+   helpers::MoveOnlyTestObject element;
+   vec.insert(vec.cbegin(), std::move(element));
+
+   REQUIRE(helpers::MoveOnlyTestObject::instances_alive() == expected);
 }

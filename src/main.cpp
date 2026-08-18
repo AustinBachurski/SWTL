@@ -20,7 +20,7 @@ struct S
       std::puts("S(S const &)");
    }
 
-   S(S &&)
+   S(S &&) noexcept
    {
       std::puts("S(S &&)");
    }
@@ -33,7 +33,7 @@ struct S
    }
 
    S &
-   operator=(S &&)
+   operator=(S &&) noexcept
    {
       std::puts("operator=(S &&)");
       return *this;
@@ -66,4 +66,17 @@ printAll(swtl::Vector<T> const &vec)
 
 int
 main()
-{}
+{
+   S s;
+
+   swtl::Vector<S> vec(10);
+   vec.reserve(20);
+
+   std::puts("\n\n\nbegin test");
+
+   auto const iter{ vec.begin() + 4 };
+
+   vec.emplace(iter, std::move(s));
+
+   std::puts("\nend\n");
+}

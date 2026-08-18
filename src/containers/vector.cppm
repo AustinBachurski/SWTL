@@ -1394,68 +1394,15 @@ public:
    iterator
    insert(const_iterator pos, T const &value)
    {
-      if (this->m_finish == this->m_end_of_storage)
-      {
-         return realloc_insert(pos, value);
-      }
-      else
-      {
-         auto current_pos{ end() };
-
-         if (pos == current_pos)
-         {
-            a_traits::construct(this->m_allocator, this->m_finish, value);
-            ++this->m_finish;  // Increment after successful construction.
-            return current_pos;
-         }
-
-         // Make a local copy because `value` may be a reference to an existing
-         // element in the vector - so it must be copied before we shuffle the
-         // data around.
-         auto local_value{ value };
-
-         a_traits::construct(
-             this->m_allocator, this->m_finish, std::move_if_noexcept(back()));
-         ++this->m_finish;  // Increment/decrement after successful
-         --current_pos;     // construction.
-
-         // Shuffle the existing data to the right.
-         while (current_pos != pos)
-         {
-            if constexpr (
-                std::is_nothrow_move_assignable_v<T>
-                || !std::is_copy_assignable_v<T>)
-            {
-               *current_pos = std::move(*(current_pos - 1));
-               --current_pos;
-            }
-            else
-            {
-               *current_pos = *(current_pos - 1);
-               --current_pos;
-            }
-         }
-
-         // Insert the new data.
-         if constexpr (
-             std::is_nothrow_move_assignable_v<T>
-             || !std::is_copy_assignable_v<T>)
-         {
-            *current_pos = std::move(local_value);
-         }
-         else
-         {
-            *current_pos = local_value;
-         }
-
-         return current_pos;
-      }
+      return emplace(pos, value);
    }
 
    // TODO: Implement
    iterator
    insert(const_iterator pos, T &&value)
-   {}
+   {
+      return emplace(pos, std::move(value));
+   }
 
    // TODO: Implement
    iterator
@@ -1474,7 +1421,84 @@ public:
    {}
 
    // TODO: insert_range()
-   // TODO: emplace()
+
+   /// @brief Inserts a new element directly before `pos`.
+   ///
+   /// Constructs a new element in the vector at iterator `pos`; the existing
+   /// value(s), if any, at and after `pos` are shifted one position to the
+   /// right in the vector.
+   ///
+   /// @param pos Iterator to the position in the vector to insert `value`.
+   /// @param args The arguments to forward to `T`'s constructor.
+   ///
+   /// @return An iterator to the inserted value.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown by
+   /// construction at the end, the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment or construction, the vector is left in a valid
+   /// but unspecified state and no resources are leaked.
+   ///
+   template <typename... Args>
+   iterator
+   emplace(const_iterator pos, Args &&...args)
+   {
+      if (this->m_finish == this->m_end_of_storage)
+      {
+         return realloc_emplace(pos, std::forward<Args>(args)...);
+      }
+
+      auto old_end{ end() };
+
+      if (pos == old_end)
+      {
+         a_traits::construct(
+             this->m_allocator, this->m_finish, std::forward<Args>(args)...);
+         ++this->m_finish;  // Increment after successful construction.
+         return old_end;
+      }
+
+      // Make a local copy because `value` may be a reference to an existing
+      // element in the vector - so the new value must be constructed before
+      // we shuffle the data around.
+      T local_value{ std::forward<Args>(args)... };
+
+      a_traits::construct(
+          this->m_allocator, this->m_finish, std::move_if_noexcept(back()));
+      ++this->m_finish;  // Increment after successful construction.
+
+      // `pos` is a const_iterator, so it can't be used for insertion; have to
+      // make a mutable iterator first and use it for the _backward algorithms
+      // data shuffle, new element construction, and the return value.
+      auto mut_pos{ begin() + std::ranges::distance(cbegin(), pos) };
+
+      // Even though the cppreference example shows `last` being dereferenced,
+      // being a sentinel value it can't.  So if `first` is const then it breaks
+      // move semantics, use only a mutable iterator for the first argument to
+      // the _backwards algorithms.
+      if constexpr (
+          std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
+      {
+         std::ranges::move_backward(mut_pos, old_end - 1, old_end);
+         *mut_pos = std::move(local_value);
+      }
+      else
+      {
+         std::ranges::copy_backward(mut_pos, old_end - 1, old_end);
+         *mut_pos = local_value;
+      }
+
+      return mut_pos;
+   }
+
    // TODO: erase()
 
    /// @brief Appends a copy of `value` to the end of the container.
@@ -1568,7 +1592,7 @@ public:
          }
          else
          {
-            return realloc_emplace(std::forward<Args>(args)...);
+            return realloc_emplace_back(std::forward<Args>(args)...);
          }
       }
 
@@ -1858,7 +1882,7 @@ private:
    ///
    template <typename... Args>
    constexpr reference
-   realloc_emplace(Args &&...args)
+   realloc_emplace_back(Args &&...args)
    {
       auto [ptr, count]{ this->allocate_memory_for_at_least(
           calculate_growth_size()) };
@@ -1899,7 +1923,7 @@ private:
    /// elements to new storage.
    ///
    /// @param pos Iterator to the position in the vector to insert `value`.
-   /// @param value The value to be copy-inserted into the vector.
+   /// @param args The arguments to forward to `T`'s constructor.
    ///
    /// @return An iterator to the inserted value.
    ///
@@ -1917,18 +1941,21 @@ private:
    /// during element assignment or construction during reallocation, the vector
    /// is left in a valid but unspecified state and no resources are leaked.
    ///
+   template <typename... Args>
    constexpr iterator
-   realloc_insert(const_iterator pos, T const &value)
+   realloc_emplace(const_iterator pos, Args &&...args)
    {
       auto [ptr, count]{ this->allocate_memory_for_at_least(
           calculate_growth_size()) };
 
-      auto const new_element_ptr{ ptr + std::ranges::distance(begin(), pos) };
+      auto const distance{ std::ranges::distance(cbegin(), pos) };
+      auto const new_element_ptr{ ptr + distance };
 
       {
          detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
 
-         a_traits::construct(this->m_allocator, new_element_ptr, value);
+         a_traits::construct(
+             this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
 
          {
             // The newly inserted element exists and must be destroyed if an
@@ -1950,8 +1977,13 @@ private:
             // the final data shuffle.
             elem_guard.first = ptr;
 
+            // `pos` is a const_iterator, so it's elements can't be moved from;
+            // have to make a mutable iterator first and use it for the `first`
+            // arguments of uninitialized_move.
+            auto mut_pos{ begin() + distance };
+
             auto const new_finish{ uninitialized_move_if_noexcept(
-                this->m_allocator, pos, end(), new_element_ptr + 1) };
+                this->m_allocator, mut_pos, end(), new_element_ptr + 1) };
 
             // Scary part's over, reassign the guards to the old elements and
             // memory.
