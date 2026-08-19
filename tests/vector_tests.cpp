@@ -1638,6 +1638,21 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "Passing arguments to emplace(const_iterator pos, Args &&...args) "
+    "constructs an object in place.",
+    "[vector][modifiers")
+{
+   swtl::Vector<helpers::TestObject> vec(10);
+   vec.reserve(12);
+
+   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+
+   vec.emplace(vec.cend(), 42);
+
+   REQUIRE(helpers::TestObject::instances_alive() == 1);
+}
+
+TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) growth.",
     "[vector][modifiers]")
 {
