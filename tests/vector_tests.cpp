@@ -1348,7 +1348,6 @@ TEMPLATE_TEST_CASE(
    }
 }
 
-// TODO: WORKING HERE
 TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 {
    auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
@@ -1368,39 +1367,52 @@ TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 }
 
 TEST_CASE(
-    "Reallocation copies if move is not noexcept.",
+    "Reallocation copies elements if `T`'s move constructor is not noexcept.",
     "[vector][growth][exception]")
 {
-   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
-       10UZ) };
-
+   swtl::Vector<helpers::TrackedObject> vec(10UZ);
    helpers::fill_to_capacity(vec);
 
    auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
 
    REQUIRE_NOTHROW(vec.emplace_back());
-
-   // TODO: This should fail, but does it?
    REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
 }
 
 TEST_CASE(
-    "Reallocation copies if object is not movable.",
+    "Reallocation copies elements if `T` is not movable.",
     "[vector][growth][exception]")
 {
-   auto vec{
-      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTrackedObject>>(
-          10UZ)
-   };
-
+   swtl::Vector<helpers::CopyOnlyTrackedObject> vec(10UZ);
    helpers::fill_to_capacity(vec);
 
    auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
 
    REQUIRE_NOTHROW(vec.emplace_back());
-
-   // TODO: This should fail, but does it?
    REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
+}
+
+TEST_CASE(
+    "Reallocation moves elements even with a throwing move constructor if `T` "
+    "is not copyable.",
+    "[vector][growth][exception]")
+{
+   swtl::Vector<helpers::MoveOnlyTrackedObject> vec(10UZ);
+   helpers::fill_to_capacity(vec);
+
+   auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
+
+   REQUIRE_NOTHROW(vec.emplace_back());
+   REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
 }
 
 TEST_CASE(
@@ -1579,8 +1591,7 @@ TEST_CASE(
 
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) constructs a value at the "
-    "desired "
-    "location of a vector with sufficient storage.",
+    "desired location of a vector with sufficient storage.",
     "[vector][modifiers]")
 {
    swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -1626,10 +1637,9 @@ TEST_CASE(
     "inserted element.",
     "[vector][modifiers]")
 {
-   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(10) };
-   helpers::TestObject const value_to_insert(10);
-
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
+       10) };
+   helpers::TrackedObject const value_to_insert(10);
 
    auto inserted_iter{ vec.emplace(vec.cbegin(), value_to_insert) };
 
@@ -1640,16 +1650,19 @@ TEST_CASE(
 TEST_CASE(
     "Passing arguments to emplace(const_iterator pos, Args &&...args) "
     "constructs an object in place.",
-    "[vector][modifiers")
+    "[vector][modifiers]")
 {
-   swtl::Vector<helpers::TestObject> vec(10);
+   swtl::Vector<helpers::TrackedObject> vec(10);
    vec.reserve(12);
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   helpers::g_test_controller.reset();
 
-   vec.emplace(vec.cend(), 42);
+   vec.emplace(vec.cend(), 42UZ);
 
-   REQUIRE(helpers::TestObject::instances_alive() == 1);
+   REQUIRE(helpers::g_test_controller.count_of.arg_construction == 1UZ);
+   REQUIRE(helpers::g_test_controller.count_of.default_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
 }
 
 TEST_CASE(
@@ -1683,34 +1696,36 @@ TEST_CASE(
 
 // Vector::insert(const_iterator pos, T const &value) uses emplace() internally.
 TEST_CASE(
-    "insert(const_iterator pos, T const &value) inserts an lvalue",
+    "insert(const_iterator pos, T const &value) copy-inserts an lvalue",
     "[vector][modifiers]")
 {
-   auto vec{
-      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTestObject>>(10UZ)
-   };
-   helpers::reset_instances_and_disable_throw<helpers::CopyOnlyTestObject>();
-   auto const expected{ 2LL };
+   auto const initial_size{ 10UZ };
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+   vec.reserve(initial_size + 1);
+   helpers::TrackedObject const element;
 
-   helpers::CopyOnlyTestObject element;
-   vec.insert(vec.cbegin(), element);
+   helpers::g_test_controller.reset();
 
-   REQUIRE(helpers::CopyOnlyTestObject::instances_alive() == expected);
+   vec.insert(vec.cend(), element);
+
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
 }
 
-// Vector::insert(const_iterator pos, Args &&...args) uses emplace() internally.
+// Vector::insert(const_iterator pos, T &&value) uses emplace() internally.
 TEST_CASE(
-    "insert(const_iterator pos, Args &&...args) inserts an rvalue",
+    "insert(const_iterator pos, T &&value) inserts an rvalue",
     "[vector][modifiers]")
 {
-   auto vec{
-      helpers::generate_unique<swtl::Vector<helpers::MoveOnlyTestObject>>(10UZ)
-   };
-   helpers::reset_instances_and_disable_throw<helpers::MoveOnlyTestObject>();
-   auto const expected{ 2LL };
+   auto const initial_size{ 10UZ };
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+   vec.reserve(initial_size + 1);
+   helpers::TrackedObject element;
 
-   helpers::MoveOnlyTestObject element;
-   vec.insert(vec.cbegin(), std::move(element));
+   helpers::g_test_controller.reset();
 
-   REQUIRE(helpers::MoveOnlyTestObject::instances_alive() == expected);
+   vec.insert(vec.cend(), std::move(element));
+
+   REQUIRE(helpers::g_test_controller.count_of.move_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
 }
