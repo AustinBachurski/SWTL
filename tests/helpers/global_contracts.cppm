@@ -8,7 +8,7 @@ import std;
 
 /// @brief Exception class used for testing contract assertions.
 ///
-export class ContractException : std::exception
+export class ContractException : std::runtime_error
 {
 public:
    /// @brief Constructor taking a string with details about the contract
@@ -17,21 +17,8 @@ public:
    /// @param message The message to include in the exception.
    ///
    constexpr ContractException(std::string_view message)
-       : msg{ message }
+       : std::runtime_error{ std::string{ message } }
    {}
-
-   /// @brief Extract the message in the exception.
-   ///
-   constexpr char const *
-   what() const noexcept
-   {
-      return msg.c_str();
-   }
-
-private:
-   /// @brief The message in the exception.
-   ///
-   std::string msg;
 };
 
 /// @brief Throwing contract violation handler used for testing contract
