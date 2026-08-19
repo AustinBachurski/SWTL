@@ -47,19 +47,14 @@ struct TestController
    /// @brief Returns true if the sum of construction counts equal destruction
    /// count.
    ///
-   /// Sums the `count_of` `default_construction`, `arg_construction`,
-   /// `copy_construction`, and `move_construction`, then compares that sum to
-   /// `count_of.destruction`; assignment and throw counts are ignored.
+   /// @return The sum of `count_of` `default_construction`, `arg_construction`,
+   /// `copy_construction`, and `move_construction`, compared with
+   /// `count_of.destruction`.
    ///
    constexpr bool
    all_new_instances_destroyed() const noexcept
    {
-      auto const constructions{ count_of.default_construction
-                                + count_of.arg_construction
-                                + count_of.copy_construction
-                                + count_of.move_construction };
-
-      return constructions == count_of.destruction;
+      return sum_of_constructions() == count_of.destruction;
    }
 
    /// @brief Prevents the TestController from triggering throws.
@@ -80,6 +75,16 @@ struct TestController
    enable_throwing() noexcept
    {
       should_throw = true;
+   }
+
+   /// @brief Returns the count of instances that are alive.
+   ///
+   /// @return Sum of constructions - destructions.
+   ///
+   constexpr std::size_t
+   instances_alive() const noexcept
+   {
+      return sum_of_constructions() - count_of.destruction;
    }
 
    /// @brief Prints the state of the controller to stdout.
@@ -123,6 +128,18 @@ struct TestController
    {
       *this = TestController{};
    }
+
+   /// @brief Returns the sum of all constructions.
+   ///
+   /// @return The sum of `count_of` `default_construction`, `arg_construction`,
+   /// `copy_construction`, and `move_construction`.
+   ///
+   constexpr std::size_t
+   sum_of_constructions() const noexcept
+   {
+      return count_of.default_construction + count_of.arg_construction
+           + count_of.copy_construction + count_of.move_construction;
+   }
 };
 
 /// Global controller for tracking counts and triggering throws.
@@ -159,6 +176,8 @@ struct NoThrowTrackedObject
 
    /// @brief Copy assignment operator.
    ///
+   /// @return A reference to `*this`.
+   ///
    constexpr NoThrowTrackedObject &
    operator=(NoThrowTrackedObject const &other) noexcept
    {
@@ -176,6 +195,8 @@ struct NoThrowTrackedObject
    }
 
    /// @brief Move assignment operator.
+   ///
+   /// @return A reference to `*this`.
    ///
    constexpr NoThrowTrackedObject &
    operator=(NoThrowTrackedObject &&other) noexcept
@@ -225,7 +246,7 @@ struct TrackedObject
    {
       if (g_test_controller.should_throw
           && g_test_controller.count_of.default_construction + 1
-                 >= g_test_controller.throw_when.default_construction)
+                 == g_test_controller.throw_when.default_construction)
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from default constructor.");
@@ -245,7 +266,7 @@ struct TrackedObject
    {
       if (g_test_controller.should_throw
           && g_test_controller.count_of.arg_construction + 1
-                 >= g_test_controller.throw_when.arg_construction)
+                 == g_test_controller.throw_when.arg_construction)
       {
          g_test_controller.disable_throwing();
          auto const id_value{ swtl::integral_to_string(identifier) };
@@ -266,7 +287,7 @@ struct TrackedObject
    {
       if (g_test_controller.should_throw
           && g_test_controller.count_of.copy_construction + 1
-                 >= g_test_controller.throw_when.copy_construction)
+                 == g_test_controller.throw_when.copy_construction)
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from copy constructor.");
@@ -279,6 +300,8 @@ struct TrackedObject
    ///
    /// @throws TextException If dictated by the test controller.
    ///
+   /// @return A reference to `*this`.
+   ///
    constexpr TrackedObject &
    operator=(TrackedObject const &other)
    {
@@ -286,7 +309,7 @@ struct TrackedObject
 
       if (g_test_controller.should_throw
           && g_test_controller.count_of.copy_assignment + 1
-                 >= g_test_controller.throw_when.copy_assignment)
+                 == g_test_controller.throw_when.copy_assignment)
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from copy assignment.");
@@ -305,7 +328,7 @@ struct TrackedObject
    {
       if (g_test_controller.should_throw
           && g_test_controller.count_of.move_construction + 1
-                 >= g_test_controller.throw_when.move_construction)
+                 == g_test_controller.throw_when.move_construction)
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from move constructor.");
@@ -318,6 +341,8 @@ struct TrackedObject
    ///
    /// @throws TextException If dictated by the test controller.
    ///
+   /// @return A reference to `*this`.
+   ///
    constexpr TrackedObject &
    operator=(TrackedObject &&other)
    {
@@ -325,7 +350,7 @@ struct TrackedObject
 
       if (g_test_controller.should_throw
           && g_test_controller.count_of.move_assignment + 1
-                 >= g_test_controller.throw_when.move_assignment)
+                 == g_test_controller.throw_when.move_assignment)
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from move assignment.");
@@ -351,6 +376,116 @@ struct TrackedObject
    operator<=>(TrackedObject const &other) const = default;
 
    std::size_t id{};  ///< Uniquely identifies the object instance.
+};
+
+/// @brief Copy-only test type.
+///
+/// @throws TextException If dictated by the test controller.
+///
+struct CopyOnlyTrackedObject : public TrackedObject
+{
+   /// @brief Default constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   CopyOnlyTrackedObject() = default;
+
+   /// @brief Argument constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   CopyOnlyTrackedObject(std::size_t identifier)
+       : TrackedObject(identifier)
+   {}
+
+   /// @brief Copy constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   CopyOnlyTrackedObject(CopyOnlyTrackedObject const &) = default;
+
+   /// @brief Copy assignment operator.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   CopyOnlyTrackedObject &
+   operator=(CopyOnlyTrackedObject const &) = default;
+
+   /// @brief Move constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   CopyOnlyTrackedObject(CopyOnlyTrackedObject &&) = delete;
+
+   /// @brief Move assignment operator.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   CopyOnlyTrackedObject &
+   operator=(CopyOnlyTrackedObject &&) = delete;
+
+   /// @brief Destructor.
+   ///
+   ~CopyOnlyTrackedObject() = default;
+};
+
+/// @brief Copy-only test type.
+///
+/// @throws TextException If dictated by the test controller.
+///
+struct MoveOnlyTrackedObject : public TrackedObject
+{
+   /// @brief Default constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   MoveOnlyTrackedObject() = default;
+
+   /// @brief Argument constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   MoveOnlyTrackedObject(std::size_t identifier)
+       : TrackedObject(identifier)
+   {}
+
+   /// @brief Copy constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   MoveOnlyTrackedObject(MoveOnlyTrackedObject const &) = delete;
+
+   /// @brief Copy assignment operator.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   MoveOnlyTrackedObject &
+   operator=(MoveOnlyTrackedObject const &) = delete;
+
+   /// @brief Move constructor.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   MoveOnlyTrackedObject(MoveOnlyTrackedObject &&) = default;
+
+   /// @brief Move assignment operator.
+   ///
+   /// @throws TextException If dictated by the test controller.
+   ///
+   /// @return A reference to `*this`.
+   ///
+   MoveOnlyTrackedObject &
+   operator=(MoveOnlyTrackedObject &&) = default;
+
+   /// @brief Destructor.
+   ///
+   ~MoveOnlyTrackedObject() = default;
 };
 
 }  // namespace swtl::test_helpers

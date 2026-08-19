@@ -11,6 +11,25 @@ import :objects;
 export namespace swtl::test_helpers
 {
 
+/// @brief Fills a container to capacity via `emplace_back()`.
+///
+/// Populates all available memory in a container by repeatedly calling
+/// `container.emplace_back()` until `container.size() == container.capacity()`.
+///
+/// @param container Reference to the container to fill.
+///
+/// @pre `container` must support `emplace_back()`, `size()`, and `capacity()`.
+///
+template <typename T>
+constexpr void
+fill_to_capacity(T &container)
+{
+   for (auto size{ container.size() }; size < container.capacity(); ++size)
+   {
+      container.emplace_back();
+   }
+}
+
 /// @brief Concept supporting construction from a braced initializer list.
 ///
 template <typename Container>
