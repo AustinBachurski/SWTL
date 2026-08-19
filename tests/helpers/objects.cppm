@@ -2,348 +2,195 @@ export module swtl.test.helpers:objects;
 
 import std;
 
+import swtl.format;
+
 /// @cond INTERNAL_DOCUMENTATION
 
 export namespace swtl::test_helpers
 {
 
-/// @brief CRTP base class for tracking lifetimes.
+/// @brief Exception class used during testing.
 ///
-/// Tracks lifetime via a static `instances` variable, incremented in the
-/// default constructor, copy constructor, and move constructor; decremented in
-/// the destructor.  Assignment operators do nothing.
-///
-/// @tparam Derived The inheriting class.
-///
-template <typename Derived>
-class LifetimeTracker
+class TestException : std::runtime_error
 {
 public:
-   /// @brief Default constructor.  Increments `instances`.
+   /// @brief Constructor taking a string with details about the exception.
    ///
-   constexpr LifetimeTracker() noexcept
-   {
-      ++instances;
-   }
-
-   /// @brief Copy constructor.  Increments `instances`.
+   /// @param message The message to include in the exception.
    ///
-   constexpr LifetimeTracker(LifetimeTracker const &) noexcept
-   {
-      ++instances;
-   }
-
-   /// @brief Move constructor.  Increments `instances`.
-   ///
-   constexpr LifetimeTracker(LifetimeTracker &&) noexcept
-   {
-      ++instances;
-   }
-
-   /// @brief Copy assignment operator.
-   ///
-   /// @note Does not modify `instances`.
-   ///
-   constexpr LifetimeTracker &
-   operator=(LifetimeTracker const &) = default;
-
-   /// @brief Move assignment operator.
-   ///
-   /// @note Does not modify `instances`.
-   ///
-   constexpr LifetimeTracker &
-   operator=(LifetimeTracker &&) = default;
-
-   /// @brief Destructor. Decrements `instances`.
-   ///
-   constexpr ~LifetimeTracker()
-   {
-      --instances;
-   }
-
-   /// @brief Three-way comparison operator.
-   ///
-   /// @return The result of the three-way comparison.
-   ///
-   [[nodiscard]]
-   constexpr auto
-   operator<=>(LifetimeTracker const &other) const = default;
-
-   /// @brief Returns `true` if `instances == zero`, otherwise `false`.
-   ///
-   /// @return `true` if `instances == zero`, otherwise `false`
-   ///
-   [[nodiscard]]
-   static constexpr bool
-   all_instances_destroyed() noexcept
-   {
-      return instances == 0LL;
-   }
-
-   /// @brief Returns the number of instances currently alive.
-   ///
-   /// @return Count of living instances.
-   ///
-   [[nodiscard]]
-   static constexpr long long
-   instances_alive() noexcept
-   {
-      return instances;
-   }
-
-   /// @brief Resets `instances` to zero.
-   ///
-   static constexpr void
-   reset_lifetime_instance_count() noexcept
-   {
-      instances = 0LL;
-   }
-
-private:
-   /// Static counter incremented when objects are constructed and
-   /// decremented when they are destroyed.
-   static inline long long instances{};
+   constexpr TestException(std::string_view message)
+       : std::runtime_error{ std::string{ message } }
+   {}
 };
 
-/// @brief CRTP base class for testing exception handling.
+/// @brief Struct containing special member function counters.
 ///
-/// Increments `instances` each time an object is constructed.
-///
-/// @tparam Derived The inheriting class.
-///
-/// @throws std::runtime_error When `instances` == `limit` in a constructor.
-///
-template <typename Derived>
-class ThrowingObject
+struct OpCounters
 {
-public:
-   /// @brief Default constructor.  Increments `instances` and throws if
-   /// `instances == limit`.
-   ///
-   /// @throws std::runtime_error When `instances` == `limit`.
-   ///
-   constexpr ThrowingObject()
-   {
-      increment_and_throw_if_limit_reached();
-   }
-
-   /// @brief Copy constructor.  Increments `instances` and throws if `instances
-   /// == limit`.
-   ///
-   /// @throws std::runtime_error When `instances` == `limit`.
-   ///
-   constexpr ThrowingObject([[maybe_unused]] ThrowingObject const &other)
-   {
-      increment_and_throw_if_limit_reached();
-   }
-
-   /// @brief Move constructor.  Increments `instances` and throws if `instances
-   /// == limit`.
-   ///
-   /// @throws std::runtime_error When `instances` == `limit`.
-   ///
-   constexpr ThrowingObject([[maybe_unused]] ThrowingObject &&other)
-   {
-      increment_and_throw_if_limit_reached();
-   }
-
-   /// @brief Copy assignment operator.
-   ///
-   /// @note Does not modify `instances` nor throw.
-   ///
-   constexpr ThrowingObject &
-   operator=([[maybe_unused]] ThrowingObject const &other) = default;
-
-   /// @brief Move assignment operator.
-   ///
-   /// @note Does not modify `instances` nor throw.
-   ///
-   constexpr ThrowingObject &
-   operator=([[maybe_unused]] ThrowingObject &&other) = default;
-
-   /// @brief Destructor.
-   ///
-   /// @note Does not modify `instances`.
-   ///
-   constexpr ~ThrowingObject() = default;
-
-   /// @brief Three-way comparison operator.
-   ///
-   /// @return The result of the three-way comparison.
-   ///
-   [[nodiscard]]
-   constexpr auto
-   operator<=>(ThrowingObject const &other) const = default;
-
-   /// @brief Resets `instances` to zero.
-   ///
-   static constexpr void
-   reset_throwing_instance_count() noexcept
-   {
-      instances = 0;
-   }
-
-   /// @brief Set the instance count where constructing that instance should
-   /// throw.
-   ///
-   /// @param count The target value where constructing that instance will
-   /// throw.
-   ///
-   static constexpr void
-   throw_when_constructing_instance(std::size_t count) noexcept
-   {
-      limit = count;
-   }
-
-private:
-   /// @brief Increments `instances` and then compares `instances == limit`, if
-   /// they are equal throw a `std::runtime_error`; otherwise the object is
-   /// constructed.
-   ///
-   /// @throws std::runtime_error If `++instances == limit`.
-   ///
-   /// @note Only throws if `instances` == `limit`, which allows test setup to
-   /// happen without fear of triggering an exception in any realistic case.
-   ///
-   static void
-   increment_and_throw_if_limit_reached()
-   {
-      // Use equality so that this doesn't trigger when reference objects are
-      // constructed in consecutive test cases.
-      if (++instances == limit)
-      {
-         throw std::runtime_error("Oh noes, I throws!");
-      }
-   }
-
-   /// Static counter incremented when objects are constructed.
-   static inline std::size_t instances{};
-
-   /// Static limit that will trigger an exception if reached.
-   static inline std::size_t limit{};
+   std::size_t default_construction{};  ///< Count of default constructions.
+   std::size_t arg_construction{};      ///< Count of argument constructions.
+   std::size_t copy_construction{};     ///< Count of copy constructions.
+   std::size_t copy_assignment{};       ///< Count of copy assignment calls.
+   std::size_t move_construction{};     ///< Count of move constructions.
+   std::size_t move_assignment{};       ///< Count of move assigment calls.
+   std::size_t destruction{};           ///< Count of destructor calls.
 };
 
-/// @brief Base class that enables unique ids for test objects.
+/// @brief Struct for tracking counts and triggering throws.
 ///
-struct UniqueID
+struct TestController
 {
-   /// Id number for the instance.
-   std::size_t id{};
+   OpCounters count_of;    ///< The count for each operation.
+   OpCounters throw_when;  ///< The count at which an operation should throw.
+   bool should_throw{};    ///< Whether operations should throw or not.
 
+   /// @brief Returns true if the sum of construction counts equal destruction
+   /// count.
+   ///
+   /// Sums the `count_of` `default_construction`, `arg_construction`,
+   /// `copy_construction`, and `move_construction`, then compares that sum to
+   /// `count_of.destruction`; assignment and throw counts are ignored.
+   ///
+   constexpr bool
+   all_new_instances_destroyed() const noexcept
+   {
+      auto const constructions{ count_of.default_construction
+                                + count_of.arg_construction
+                                + count_of.copy_construction
+                                + count_of.move_construction };
+
+      return constructions == count_of.destruction;
+   }
+
+   /// @brief Prevents the TestController from triggering throws.
+   ///
+   /// @post `should_throw` == false
+   ///
+   constexpr void
+   disable_throwing() noexcept
+   {
+      should_throw = false;
+   }
+
+   /// @brief Allows the TestController to trigger throws.
+   ///
+   /// @post `should_throw` == true
+   ///
+   constexpr void
+   enable_throwing() noexcept
+   {
+      should_throw = true;
+   }
+
+   /// @brief Prints the state of the controller to stdout.
+   ///
+   constexpr void
+   report_state() const
+   {
+      // TODO: Use reflection here when supported?
+      std::println();
+      std::println("TestController State");
+      std::println("--------------------");
+      std::println("should_throw = {}", should_throw);
+      std::println("Counts:");
+      std::println(
+          "- default_construction = {}", count_of.default_construction);
+      std::println("- arg_construction = {}", count_of.arg_construction);
+      std::println("- copy_construction = {}", count_of.copy_construction);
+      std::println("- copy_assignment = {}", count_of.copy_assignment);
+      std::println("- move_construction = {}", count_of.move_construction);
+      std::println("- move_assignment = {}", count_of.move_assignment);
+      std::println("- destruction = {}", count_of.destruction);
+      std::println();
+      std::println("Throws When:");
+      std::println(
+          "- default_construction == {}", throw_when.default_construction);
+      std::println("- arg_construction == {}", throw_when.arg_construction);
+      std::println("- copy_construction == {}", throw_when.copy_construction);
+      std::println("- copy_assignment == {}", throw_when.copy_assignment);
+      std::println("- move_construction == {}", throw_when.move_construction);
+      std::println("- move_assignment == {}", throw_when.move_assignment);
+      std::println("- destruction == {}", throw_when.destruction);
+      std::println();
+   }
+
+   /// @brief Resets all counts to zero and the `should_throw` boolean to false.
+   ///
+   /// @note Run this to start tracking from zero once test setup is complete.
+   ///
+   constexpr void
+   reset() noexcept
+   {
+      *this = TestController{};
+   }
+};
+
+/// Global controller for tracking counts and triggering throws.
+inline thread_local TestController g_test_controller;
+
+/// @brief Basic tracked object without throw capability.
+///
+struct NoThrowTrackedObject
+{
    /// @brief Default constructor.
    ///
-   constexpr UniqueID() = default;
+   constexpr NoThrowTrackedObject() noexcept
+   {
+      ++g_test_controller.count_of.default_construction;
+   }
 
    /// @brief Single argument constructor that sets `id`.
    ///
    /// @param identifier The number to use for `id`.
    ///
-   constexpr explicit UniqueID(std::size_t identifier)
+   constexpr NoThrowTrackedObject(std::size_t identifier) noexcept
        : id{ identifier }
-   {}
-
-   /// @brief Three-way comparison operator.
-   ///
-   /// @return The result of the three-way comparison.
-   ///
-   [[nodiscard]]
-   constexpr auto
-   operator<=>(UniqueID const &other) const = default;
-};
-
-/// @brief Basic test object.
-///
-struct TestObject : public LifetimeTracker<TestObject>,
-                    public ThrowingObject<TestObject>,
-                    public UniqueID
-{
-   /// @brief Default constructor.
-   ///
-   constexpr TestObject() = default;
-
-   /// @brief Single argument constructor that sets `id`.
-   ///
-   /// @param identifier The number to use for `id`.
-   ///
-   constexpr TestObject(std::size_t identifier)
-       : UniqueID{ identifier }
-   {}
-
-   /// @brief Three-way comparison operator.
-   ///
-   /// @return The result of the three-way comparison.
-   ///
-   [[nodiscard]]
-   constexpr auto
-   operator<=>(TestObject const &other) const = default;
-};
-
-/// @brief A test object that does not throw.
-///
-struct NoThrowTestObject : public LifetimeTracker<NoThrowTestObject>,
-                           public UniqueID
-{
-   /// @brief Default constructor.
-   ///
-   constexpr NoThrowTestObject() = default;
-
-   /// @brief Single argument constructor that sets `id`.
-   ///
-   /// @param identifier The number to use for `id`.
-   ///
-   constexpr NoThrowTestObject(std::size_t identifier)
-       : UniqueID{ identifier }
-   {}
-
-   /// @brief Three-way comparison operator.
-   ///
-   /// @return The result of the three-way comparison.
-   ///
-   [[nodiscard]]
-   constexpr auto
-   operator<=>(NoThrowTestObject const &other) const = default;
-};
-
-/// @brief A test object that is move-only.
-///
-struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
-                            public ThrowingObject<MoveOnlyTestObject>,
-                            public UniqueID
-{
-   /// @brief Default constructor.
-   ///
-   constexpr MoveOnlyTestObject() = default;
-
-   /// @brief Single argument constructor that sets `id`.
-   ///
-   /// @param identifier The number to use for `id`.
-   ///
-   constexpr MoveOnlyTestObject(std::size_t identifier)
-       : UniqueID{ identifier }
-   {}
+   {
+      ++g_test_controller.count_of.arg_construction;
+   }
 
    /// @brief Copy constructor.
    ///
-   constexpr MoveOnlyTestObject(MoveOnlyTestObject const &other) = default;
+   constexpr NoThrowTrackedObject(NoThrowTrackedObject const &other) noexcept
+       : id{ other.id }
+   {
+      ++g_test_controller.count_of.copy_construction;
+   }
 
    /// @brief Copy assignment operator.
    ///
-   constexpr MoveOnlyTestObject &
-   operator=(MoveOnlyTestObject const &other) = default;
+   constexpr NoThrowTrackedObject &
+   operator=(NoThrowTrackedObject const &other) noexcept
+   {
+      id = other.id;
+      ++g_test_controller.count_of.copy_assignment;
+      return *this;
+   }
 
    /// @brief Move constructor.
    ///
-   constexpr MoveOnlyTestObject(MoveOnlyTestObject &&other)
-       = delete ("Object is move only.");
+   constexpr NoThrowTrackedObject(NoThrowTrackedObject &&other) noexcept
+       : id{ other.id }
+   {
+      ++g_test_controller.count_of.move_construction;
+   }
 
    /// @brief Move assignment operator.
    ///
-   constexpr MoveOnlyTestObject &
-   operator=(MoveOnlyTestObject &&other) = delete ("Object is move only.");
+   constexpr NoThrowTrackedObject &
+   operator=(NoThrowTrackedObject &&other) noexcept
+   {
+      id = other.id;
+      ++g_test_controller.count_of.move_assignment;
+      return *this;
+   }
 
    /// @brief Destructor.
    ///
-   constexpr ~MoveOnlyTestObject() = default;
+   constexpr ~NoThrowTrackedObject()
+   {
+      ++g_test_controller.count_of.destruction;
+   }
 
    /// @brief Three-way comparison operator.
    ///
@@ -351,49 +198,149 @@ struct MoveOnlyTestObject : public LifetimeTracker<MoveOnlyTestObject>,
    ///
    [[nodiscard]]
    constexpr auto
-   operator<=>(MoveOnlyTestObject const &other) const = default;
+   operator<=>(NoThrowTrackedObject const &other) const = default;
+
+   std::size_t id{};  ///< Uniquely identifies the object instance.
 };
 
-/// @brief A test object that is copy-only.
+/// @brief Basic tracked object, may throw.
 ///
-struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
-                            public ThrowingObject<CopyOnlyTestObject>,
-                            public UniqueID
+/// @throws TestException During the execution of the operation for the Nth
+/// object where N is equal to the value set for the operation via `throw_when`.
+/// i.e. - If `throw_when.default_construction == 10` then after 9 objects have
+/// been default constructed attempting to default-construct another instance of
+/// this object will trigger an exception.
+///
+/// @note Sets the global test controller's `should_throw` member to `false` if
+/// an exception is thrown, this prevents erroneous throws during the setup of
+/// another test.
+///
+struct TrackedObject
 {
    /// @brief Default constructor.
    ///
-   constexpr CopyOnlyTestObject() = default;
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject()
+   {
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.default_construction + 1
+                 >= g_test_controller.throw_when.default_construction)
+      {
+         g_test_controller.disable_throwing();
+         throw TestException("Throw from default constructor.");
+      }
+
+      ++g_test_controller.count_of.default_construction;
+   }
 
    /// @brief Single argument constructor that sets `id`.
    ///
    /// @param identifier The number to use for `id`.
    ///
-   constexpr CopyOnlyTestObject(std::size_t identifier)
-       : UniqueID{ identifier }
-   {}
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject(std::size_t identifier)
+       : id{ identifier }
+   {
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.arg_construction + 1
+                 >= g_test_controller.throw_when.arg_construction)
+      {
+         g_test_controller.disable_throwing();
+         auto const id_value{ swtl::integral_to_string(identifier) };
+         throw TestException(
+             "Throw from argument constructor with identifier (" + id_value
+             + ").");
+      }
+
+      ++g_test_controller.count_of.arg_construction;
+   }
 
    /// @brief Copy constructor.
    ///
-   constexpr CopyOnlyTestObject(CopyOnlyTestObject const &other) = default;
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject(TrackedObject const &other)
+       : id{ other.id }
+   {
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.copy_construction + 1
+                 >= g_test_controller.throw_when.copy_construction)
+      {
+         g_test_controller.disable_throwing();
+         throw TestException("Throw from copy constructor.");
+      }
+
+      ++g_test_controller.count_of.copy_construction;
+   }
 
    /// @brief Copy assignment operator.
    ///
-   constexpr CopyOnlyTestObject &
-   operator=(CopyOnlyTestObject const &other) = default;
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject &
+   operator=(TrackedObject const &other)
+   {
+      id = other.id;
+
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.copy_assignment + 1
+                 >= g_test_controller.throw_when.copy_assignment)
+      {
+         g_test_controller.disable_throwing();
+         throw TestException("Throw from copy assignment.");
+      }
+
+      ++g_test_controller.count_of.copy_assignment;
+      return *this;
+   }
 
    /// @brief Move constructor.
    ///
-   constexpr CopyOnlyTestObject(CopyOnlyTestObject &&other)
-       = delete ("Object is copy only.");
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject(TrackedObject &&other)
+       : id{ other.id }
+   {
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.move_construction + 1
+                 >= g_test_controller.throw_when.move_construction)
+      {
+         g_test_controller.disable_throwing();
+         throw TestException("Throw from move constructor.");
+      }
+
+      ++g_test_controller.count_of.move_construction;
+   }
 
    /// @brief Move assignment operator.
    ///
-   constexpr CopyOnlyTestObject &
-   operator=(CopyOnlyTestObject &&other) = delete ("Object is copy only.");
+   /// @throws TextException If dictated by the test controller.
+   ///
+   constexpr TrackedObject &
+   operator=(TrackedObject &&other)
+   {
+      id = other.id;
+
+      if (g_test_controller.should_throw
+          && g_test_controller.count_of.move_assignment + 1
+                 >= g_test_controller.throw_when.move_assignment)
+      {
+         g_test_controller.disable_throwing();
+         throw TestException("Throw from move assignment.");
+      }
+
+      ++g_test_controller.count_of.move_assignment;
+      return *this;
+   }
 
    /// @brief Destructor.
    ///
-   constexpr ~CopyOnlyTestObject() = default;
+   constexpr ~TrackedObject()
+   {
+      ++g_test_controller.count_of.destruction;
+   }
 
    /// @brief Three-way comparison operator.
    ///
@@ -401,28 +348,10 @@ struct CopyOnlyTestObject : public LifetimeTracker<CopyOnlyTestObject>,
    ///
    [[nodiscard]]
    constexpr auto
-   operator<=>(CopyOnlyTestObject const &other) const = default;
+   operator<=>(TrackedObject const &other) const = default;
+
+   std::size_t id{};  ///< Uniquely identifies the object instance.
 };
-
-/// @brief Helper which resets the underlying lifetime and/or throwing counts.
-///
-/// @tparam T The class to reset the counts of.
-///
-template <typename T>
-constexpr void
-reset_instances_and_disable_throw() noexcept
-{
-   if constexpr (std::derived_from<T, LifetimeTracker<T>>)
-   {
-      T::reset_lifetime_instance_count();
-   }
-
-   if constexpr (std::derived_from<T, ThrowingObject<T>>)
-   {
-      T::reset_throwing_instance_count();
-      T::throw_when_constructing_instance(0UZ);
-   }
-}
 
 }  // namespace swtl::test_helpers
 

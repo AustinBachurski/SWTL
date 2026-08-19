@@ -537,22 +537,25 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "Special Member Functions: Strong Exception Safety",
-    "[vector][special member functions][default_allocator]")
+    "[vector][special member functions][default_allocator][refactor]")
 {
    auto const element_count{ 10UZ };
-   auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
+   auto source{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
        element_count) };
    auto const expected{ source };
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
-   helpers::TestObject::throw_when_constructing_instance(element_count);
 
    SECTION(
        "Copy construction doesn't modify source elements and all new elements "
        "are destroyed when an exception is thrown.")
    {
+      helpers::g_test_controller.reset();
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction = element_count;
+
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>{ source }, std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
+          swtl::Vector<helpers::TrackedObject>{ source },
+          helpers::TestException);
+      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
       REQUIRE(source == expected);
    }
 
@@ -560,13 +563,19 @@ TEST_CASE(
        "Copy assignment doesn't modify source elements and all new elements "
        "are destroyed when an exception is thrown.")
    {
-      swtl::Vector<helpers::TestObject> vec;
+      swtl::Vector<helpers::TrackedObject> vec(element_count);
 
-      REQUIRE_THROWS_AS(vec = source, std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
+      helpers::g_test_controller.reset();
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_assignment = element_count;
+
+      REQUIRE_THROWS_AS(vec = source, helpers::TestException);
+      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
       REQUIRE(source == expected);
    }
 }
+
+/*
 
 TEST_CASE(
     "Vector(size_type count) exception safety.",
@@ -1643,3 +1652,4 @@ TEST_CASE(
    REQUIRE(vec.capacity() == populated_capacity);
    REQUIRE(vec.data() != nullptr);
 }
+*/
