@@ -11,6 +11,25 @@ import :objects;
 export namespace swtl::test_helpers
 {
 
+/// @brief Fills a container to capacity via `emplace_back()`.
+///
+/// Populates all available memory in a container by repeatedly calling
+/// `container.emplace_back()` until `container.size() == container.capacity()`.
+///
+/// @param container Reference to the container to fill.
+///
+/// @pre `container` must support `emplace_back()`, `size()`, and `capacity()`.
+///
+template <typename T>
+constexpr void
+fill_to_capacity(T &container)
+{
+   for (auto size{ container.size() }; size < container.capacity(); ++size)
+   {
+      container.emplace_back();
+   }
+}
+
 /// @brief Concept supporting construction from a braced initializer list.
 ///
 template <typename Container>
@@ -84,19 +103,17 @@ generate_populated()
 }
 
 /// @brief Concept for a container that supports `emplace_back()` with a
-/// `value_type` that is derived from `UniqueID`.
+/// std::size_t value.
 ///
 template <typename Container>
-concept EmplaceableUniqueID = requires(Container c, std::size_t val) {
-   requires std::derived_from<typename Container::value_type, UniqueID>;
-   { c.emplace_back(val) };
-};
+concept EmplaceableWithUniqueID
+    = requires(Container c, std::size_t val) { c.emplace_back(val); };
 
 /// @brief Returns a `Container` with `count` `value_type`s with incrementing id
 /// values.
 ///
 /// @tparam Container The container and to populate; i.e.,
-/// `std::vector<TestObject>`.
+/// `std::vector<TrackedObject>`.
 ///
 /// @param count The number of elements to be placed in the container.
 ///
@@ -104,9 +121,9 @@ concept EmplaceableUniqueID = requires(Container c, std::size_t val) {
 /// `value_type.id` increases per element from zero to `count - 1`.
 ///
 /// @pre `Container` where `Container` supports `emplace_back()` and
-/// `Container::value_type` is derived from `UniqueID`.
+/// `Container::value_type` supports argument construction with a std::size_t.
 ///
-template <EmplaceableUniqueID Container>
+template <EmplaceableWithUniqueID Container>
 constexpr Container
 generate_unique(std::size_t count)
 {

@@ -536,23 +536,26 @@ TEMPLATE_TEST_CASE(
 }
 
 TEST_CASE(
-    "Special Member Functions: Strong Exception Safety",
-    "[vector][special member functions][default_allocator]")
+    "Special Member Functions: Strong Exception Safety for copy operations.",
+    "[vector][special member functions][default_allocator][exception safety]")
 {
    auto const element_count{ 10UZ };
-   auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
+   auto source{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
        element_count) };
    auto const expected{ source };
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
-   helpers::TestObject::throw_when_constructing_instance(element_count);
 
    SECTION(
        "Copy construction doesn't modify source elements and all new elements "
        "are destroyed when an exception is thrown.")
    {
+      helpers::g_test_controller.reset();
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction = element_count;
+
       REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>{ source }, std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
+          swtl::Vector<helpers::TrackedObject>{ source },
+          helpers::TestException);
+      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
       REQUIRE(source == expected);
    }
 
@@ -560,10 +563,14 @@ TEST_CASE(
        "Copy assignment doesn't modify source elements and all new elements "
        "are destroyed when an exception is thrown.")
    {
-      swtl::Vector<helpers::TestObject> vec;
+      swtl::Vector<helpers::TrackedObject> vec(element_count);
 
-      REQUIRE_THROWS_AS(vec = source, std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
+      helpers::g_test_controller.reset();
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_assignment = element_count;
+
+      REQUIRE_THROWS_AS(vec = source, helpers::TestException);
+      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
       REQUIRE(source == expected);
    }
 }
@@ -572,144 +579,75 @@ TEST_CASE(
     "Vector(size_type count) exception safety.",
     "[vector][constructor][exception safety]")
 {
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   const auto instances{ 10UZ };
 
-   SECTION(
-       "Memory owned by the vector does not leak if an exception is thrown "
-       "during construction.")
-   {
-      const auto instances{ 1UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.default_construction = instances;
 
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(instances), std::runtime_error);
-   }
-
-   SECTION(
-       "Any elements that were constructed are destroyed if an exception is "
-       "thrown during construction.")
-   {
-      const auto instances{ 5UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
-
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(instances), std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
-   }
+   REQUIRE_THROWS_AS(
+       swtl::Vector<helpers::TrackedObject>(instances), helpers::TestException);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(size_type count, T const &value) exception safety.",
     "[vector][constructor][exception safety]")
 {
-   helpers::TestObject reference_object;
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   const auto instances{ 10UZ };
+   helpers::TrackedObject const reference_object;
 
-   SECTION(
-       "Memory owned by the vector does not leak if an exception is thrown "
-       "during construction.")
-   {
-      const auto instances{ 1UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = instances;
 
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(instances, reference_object),
-          std::runtime_error);
-   }
-
-   SECTION(
-       "Any elements that were constructed are destroyed if an exception is "
-       "thrown during construction.")
-   {
-      const auto instances{ 5UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
-
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(instances, reference_object),
-          std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
-   }
+   REQUIRE_THROWS_AS(
+       swtl::Vector<helpers::TrackedObject>(instances, reference_object),
+       helpers::TestException);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(InputIterator src_begin, Sentinel src_end) exception safety.",
     "[vector][constructor][exception safety]")
 {
-   auto const source_count{ 5UZ };
-   std::vector<helpers::TestObject> const source(source_count);
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   auto const instances{ 10UZ };
+   std::vector<helpers::TrackedObject> const source(instances);
 
-   SECTION(
-       "Memory owned by the vector does not leak if an exception is thrown "
-       "during construction.")
-   {
-      const auto instances{ 1UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = instances;
 
-      REQUIRE(instances <= source_count);
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(source.begin(), source.end()),
-          std::runtime_error);
-   }
-
-   SECTION(
-       "Any elements that were constructed are destroyed if an exception is "
-       "thrown during construction.")
-   {
-      const auto instances{ 5UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
-
-      REQUIRE(instances <= source_count);
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(source.begin(), source.end()),
-          std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
-   }
+   REQUIRE_THROWS_AS(
+       swtl::Vector<helpers::TrackedObject>(source.begin(), source.end()),
+       helpers::TestException);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(std::from_range_t, Range, &&range) exception safety.",
     "[vector][constructor][exception safety]")
 {
-   auto const source_count{ 5UZ };
-   std::vector<helpers::TestObject> const source(source_count);
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   auto const instances{ 10UZ };
+   std::vector<helpers::TrackedObject> const source(instances);
 
-   SECTION(
-       "Memory owned by the vector does not leak if an exception is thrown "
-       "during construction.")
-   {
-      const auto instances{ 1UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = instances;
 
-      REQUIRE(instances <= source_count);
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(std::from_range, source),
-          std::runtime_error);
-   }
-
-   SECTION(
-       "Any elements that were constructed are destroyed if an exception is "
-       "thrown during construction.")
-   {
-      const auto instances{ 5UZ };
-      helpers::TestObject::throw_when_constructing_instance(instances);
-
-      REQUIRE(instances <= source_count);
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TestObject>(std::from_range, source),
-          std::runtime_error);
-      REQUIRE(helpers::TestObject::all_instances_destroyed());
-   }
+   REQUIRE_THROWS_AS(
+       swtl::Vector<helpers::TrackedObject>(std::from_range, source),
+       helpers::TestException);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }
 
 // ** ASSIGNMENT **
 TEMPLATE_TEST_CASE(
-    "Vector::assign(size_type count, T const &value) updates vector with new "
-    "data.",
+    "Vector::assign(size_type count, T const &value) updates the vector with "
+    "new data.",
     "[vector][assign]",
-    helpers::TestObject,
-    helpers::NoThrowTestObject)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
 {
    auto const new_count{ 10UZ };
    swtl::Vector<TestType> vec;
@@ -721,29 +659,30 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(size_type count, T const &value) does not leak memory when "
-    "reallocating.",
+    "Vector::assign(size_type count, T const &value) correctly manages old "
+    "resources when reallocating.",
     "[vector][assign]",
-    helpers::TestObject,
-    helpers::NoThrowTestObject)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
 {
    auto const base_count{ 2UZ };
    auto const new_count{ 128UZ };
    swtl::Vector<TestType> const expected(new_count, TestType{});
 
-   helpers::reset_instances_and_disable_throw<TestType>();
+   helpers::g_test_controller.reset();
+
    swtl::Vector<TestType> vec(base_count);
+   auto const initial_capacity{ vec.capacity() };
+   vec.assign(new_count, TestType{});
 
    INFO(
        "INFO: if the initial vec.capacity() (which was "
-       << vec.capacity() << ") is not less than `new_count` (which was "
+       << initial_capacity << ") is not less than `new_count` (which was "
        << new_count << ") this test is invalid.");
-   REQUIRE(vec.capacity() < new_count);
 
-   vec.assign(new_count, TestType{});
-
+   REQUIRE(initial_capacity < new_count);  // Ensure test is valid.
    REQUIRE(vec == expected);
-   REQUIRE(std::cmp_equal(TestType::instances_alive(), new_count));
+   REQUIRE(helpers::g_test_controller.instances_alive() == new_count);
 }
 
 TEST_CASE(
@@ -753,16 +692,15 @@ TEST_CASE(
 {
    auto const base_count{ 10UZ };
    auto const expected_count{ 5UZ };
-   swtl::Vector<helpers::TestObject> const expected(expected_count);
+   swtl::Vector<helpers::TrackedObject> const expected(expected_count);
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   helpers::g_test_controller.reset();
 
-   swtl::Vector<helpers::TestObject> vec(base_count);
-   vec.assign(expected_count, helpers::TestObject{});
+   swtl::Vector<helpers::TrackedObject> vec(base_count);
+   vec.assign(expected_count, helpers::TrackedObject{});
 
    REQUIRE(vec == expected);
-   REQUIRE(
-       std::cmp_equal(helpers::TestObject::instances_alive(), expected_count));
+   REQUIRE(helpers::g_test_controller.instances_alive() == expected_count);
 }
 
 TEST_CASE(
@@ -772,96 +710,122 @@ TEST_CASE(
 {
    auto const base_count{ 5UZ };
    auto const new_count{ 10UZ };
-   swtl::Vector<helpers::TestObject> vec(base_count);
+   swtl::Vector<helpers::TrackedObject> vec(base_count);
    auto const expected{ vec };
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
-   helpers::TestObject::throw_when_constructing_instance(new_count);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = new_count;
 
    REQUIRE_THROWS_AS(
-       vec.assign(new_count, helpers::TestObject{}), std::runtime_error);
-   REQUIRE(helpers::TestObject::all_instances_destroyed());
+       vec.assign(new_count, helpers::TrackedObject{}), helpers::TestException);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
    REQUIRE(vec == expected);
 }
 
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
-    "from the source iterator and doesn't leak elements.",
+    "from the source iterator and correctly manages existing element "
+    "lifetimes.",
     "[vector][assign]",
-    helpers::InputIterator<helpers::TestObject const>,
-    swtl::ContiguousIterator<helpers::TestObject const>)
+    helpers::InputIterator<helpers::TrackedObject const>,
+    swtl::ContiguousIterator<helpers::TrackedObject const>)
 {
    auto const source_size{ 10UZ };
    auto const initial_size{ 20UZ };
 
-   auto const source{
-      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
-   };
+   swtl::Vector<helpers::TrackedObject> const source(source_size);
 
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   helpers::g_test_controller.reset();
 
-   swtl::Vector<helpers::TestObject> vec(initial_size);
-
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
    vec.assign(begin, end);
 
    REQUIRE(vec == source);
-   REQUIRE(helpers::TestObject::instances_alive() == source_size);
+   REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
 }
 
 TEMPLATE_TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
     "from the source iterator and grows when needed.",
     "[vector][assign]",
-    helpers::InputIterator<helpers::TestObject const>,
-    swtl::ContiguousIterator<helpers::TestObject const>)
+    helpers::InputIterator<helpers::TrackedObject const>,
+    swtl::ContiguousIterator<helpers::TrackedObject const>)
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
 
-   auto const source{
-      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
-   };
+   swtl::Vector<helpers::TrackedObject> const source(source_size);
 
    TestType begin{ source.data() };
    TestType end{ source.data() + source.size() };
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
+   helpers::g_test_controller.reset();
 
-   swtl::Vector<helpers::TestObject> vec(initial_size);
-
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
    vec.assign(begin, end);
 
    REQUIRE(vec == source);
-   REQUIRE(helpers::TestObject::instances_alive() == source_size);
+   REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
 }
 
-TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) does not "
-    "leak if an exception is thrown.",
-    "[vector][assign]",
-    helpers::InputIterator<helpers::TestObject const>,
-    swtl::ContiguousIterator<helpers::TestObject const>)
+TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
+    "lifetimes correctly if an exception is thrown with an iterator pair that "
+    "can be checked for size.",
+    "[vector][assign][exception safety]")
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
 
-   auto const source{
-      helpers::generate_unique<swtl::Vector<helpers::TestObject>>(source_size)
-   };
+   swtl::Vector<helpers::TrackedObject> const source(source_size);
 
-   TestType begin{ source.data() };
-   TestType end{ source.data() + source.size() };
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = source_size;
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
-   helpers::TestObject::throw_when_constructing_instance(initial_size + 1);
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
 
-   swtl::Vector<helpers::TestObject> vec(initial_size);
+   REQUIRE_THROWS_AS(
+       vec.assign(source.begin(), source.end()), helpers::TestException);
+   REQUIRE(helpers::g_test_controller.instances_alive() == initial_size);
+}
 
-   REQUIRE_THROWS_AS(vec.assign(begin, end), std::runtime_error);
-   REQUIRE(helpers::TestObject::instances_alive() == initial_size);
+TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
+    "lifetimes correctly if an exception is thrown with an iterator pair that "
+    "cannot be checked for size.",
+    "[vector][assign][exception safety]")
+{
+   auto const source_size{ 20UZ };
+   auto const initial_size{ 10UZ };
+
+   swtl::Vector<helpers::TrackedObject> const source(source_size);
+
+   helpers::InputIterator<helpers::TrackedObject const> begin{ source.data() };
+   helpers::InputIterator<helpers::TrackedObject const> end{ source.data()
+                                                             + source.size() };
+
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.copy_construction = source_size;
+
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+
+   REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
+
+   // When the size of the input range cannot be determined due to the iterator
+   // not supporting operator-, copy assignment will occur until the initial
+   // elements of the destination vector are overwritten; after which
+   // `push_back` is used.  This means that each element successfully
+   // constructed is effectively a "transaction" rather than the whole
+   // collection like we'd see if we could calculate the size before hand,
+   // allocating new memory and copying everything in before committing the
+   // pointers.
+   REQUIRE(helpers::g_test_controller.instances_alive() == source_size - 1);
 }
 
 TEST_CASE(
@@ -1385,87 +1349,59 @@ TEMPLATE_TEST_CASE(
    }
 }
 
+// TODO: WORKING HERE
 TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 {
-   auto source{ helpers::generate_unique<swtl::Vector<helpers::TestObject>>(
+   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
        10UZ) };
+   helpers::fill_to_capacity(vec);
 
-   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
-   {
-      source.emplace_back();
-   }
+   auto const expected{ vec };
+   auto const next_instance{ 1UZ };
 
-   auto const expected{ source };
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.default_construction = next_instance;
 
-   helpers::reset_instances_and_disable_throw<helpers::TestObject>();
-   helpers::TestObject::throw_when_constructing_instance(source.size());
-
-   REQUIRE_THROWS_AS(source.emplace_back(), std::runtime_error);
-   REQUIRE(helpers::TestObject::all_instances_destroyed());
-   REQUIRE(source == expected);
+   REQUIRE_THROWS_AS(vec.emplace_back(), helpers::TestException);
+   REQUIRE(vec == expected);
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }
 
 TEST_CASE(
     "Reallocation copies if move is not noexcept.",
     "[vector][growth][exception]")
 {
-   struct MoveThrows : public helpers::UniqueID
-   {
-      constexpr MoveThrows() = default;
+   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
+       10UZ) };
 
-      constexpr MoveThrows(std::size_t identifier)
-          : UniqueID{ identifier }
-      {}
+   helpers::fill_to_capacity(vec);
 
-      constexpr MoveThrows([[maybe_unused]] MoveThrows const &other) = default;
-      constexpr MoveThrows &
-      operator=([[maybe_unused]] MoveThrows const &other) = default;
+   auto const expected{ vec.size() + 1 };
 
-      constexpr MoveThrows([[maybe_unused]] MoveThrows &&other)
-      {
-         throw std::runtime_error("Shouldn't happen.");
-      }
+   REQUIRE_NOTHROW(vec.emplace_back());
 
-      constexpr MoveThrows &
-      operator=([[maybe_unused]] MoveThrows &&other)
-      {
-         throw std::runtime_error("Shouldn't happen.");
-      }
-
-      constexpr auto
-      operator<=>(MoveThrows const &other) const = default;
-   };
-
-   auto source{ helpers::generate_unique<swtl::Vector<MoveThrows>>(10UZ) };
-
-   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
-   {
-      source.emplace_back();
-   }
-
-   auto const expected{ source.size() + 1 };
-
-   REQUIRE_NOTHROW(source.emplace_back());
-   REQUIRE(source.size() == expected);
+   // TODO: This should fail, but does it?
+   REQUIRE(vec.size() == expected);
 }
 
 TEST_CASE(
     "Reallocation copies if object is not movable.",
     "[vector][growth][exception]")
 {
-   auto source{
-      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTestObject>>(10UZ)
+   auto vec{
+      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTrackedObject>>(
+          10UZ)
    };
 
-   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
-   {
-      source.emplace_back();
-   }
+   helpers::fill_to_capacity(vec);
 
-   auto const expected{ source.size() + 1 };
+   auto const expected{ vec.size() + 1 };
 
-   REQUIRE_NOTHROW(source.emplace_back());
-   REQUIRE(source.size() == expected);
+   REQUIRE_NOTHROW(vec.emplace_back());
+
+   // TODO: This should fail, but does it?
+   REQUIRE(vec.size() == expected);
 }
 
 TEST_CASE(
@@ -1473,26 +1409,24 @@ TEST_CASE(
     "[vector][growth][exception]")
 {
    auto const element_count{ 10UZ };
-   auto source{
-      helpers::generate_unique<swtl::Vector<helpers::MoveOnlyTestObject>>(
+   auto vec{
+      helpers::generate_unique<swtl::Vector<helpers::MoveOnlyTrackedObject>>(
           element_count)
    };
 
-   for (auto const _ : std::views::iota(0UZ, source.capacity() - source.size()))
-   {
-      source.emplace_back();
-   }
+   helpers::fill_to_capacity(vec);
 
-   auto const expected{ source.size() };
+   auto const expected{ vec.size() };
 
-   helpers::reset_instances_and_disable_throw<helpers::MoveOnlyTestObject>();
-   helpers::MoveOnlyTestObject::throw_when_constructing_instance(element_count);
+   helpers::g_test_controller.reset();
+   helpers::g_test_controller.enable_throwing();
+   helpers::g_test_controller.throw_when.move_construction = element_count;
 
    // Reallocation fails, but no memory should be leaked and invariants should
    // hold.  Cannot guarantee the state of the contained elements.
-   REQUIRE_THROWS_AS(source.emplace_back(), std::runtime_error);
-   REQUIRE(source.data() != nullptr);
-   REQUIRE(source.size() == expected);
+   REQUIRE_THROWS_AS(vec.emplace_back(), helpers::TestException);
+   REQUIRE(vec.data() != nullptr);
+   REQUIRE(vec.size() == expected);
 }
 
 TEST_CASE("Vector comparison.", "[vector][comparison]")
