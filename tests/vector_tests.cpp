@@ -13,6 +13,23 @@ import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
 
+namespace Catch
+{
+
+// Pretty printers for test objects.
+
+template <>
+struct StringMaker<helpers::NoThrowTrackedObject>
+{
+   static std::string
+   convert(helpers::NoThrowTrackedObject const &type)
+   {
+      return std::to_string(type.id);
+   }
+};
+
+}  // namespace Catch
+
 TEST_CASE(
     "Default construction creates an empty Vector.", "[vector][constructor]")
 {
@@ -1728,4 +1745,28 @@ TEST_CASE(
 
    REQUIRE(helpers::g_test_controller.count_of.move_construction > 0UZ);
    REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) inserts "
+    "`count` elements at `pos`.",
+    "[vector][modifiers][x]")
+{
+   using T = helpers::NoThrowTrackedObject;
+
+   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+   vec.reserve(20UZ);
+   swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 }, T{ 42 }, T{ 42 },
+                                T{ 42 }, T{ 42 }, T{ 3 }, T{ 4 },  T{ 5 },
+                                T{ 6 },  T{ 7 },  T{ 8 }, T{ 9 } };
+
+   auto const pos{ vec.cbegin() + 3 };
+   auto const element{ T{ 42 } };
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(pos, 4, element);
+
+   REQUIRE(vec == expected);
 }
