@@ -90,7 +90,7 @@ struct TestController
    /// @brief Prints the state of the controller to stdout.
    ///
    constexpr void
-   report_state() const
+   report() const
    {
       // TODO: Use reflection here when supported?
       std::println();

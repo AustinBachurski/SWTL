@@ -66,17 +66,4 @@ printAll(swtl::Vector<T> const &vec)
 
 int
 main()
-{
-   S s;
-
-   swtl::Vector<S> vec(10);
-   vec.reserve(20);
-
-   std::puts("\n\n\nbegin test");
-
-   auto const iter{ vec.begin() + 4 };
-
-   vec.emplace(iter, std::move(s));
-
-   std::puts("\nend\n");
-}
+{}
