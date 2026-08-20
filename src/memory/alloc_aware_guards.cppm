@@ -57,6 +57,14 @@ struct AllocationGuard
        , count{ element_count }
    {}
 
+   AllocationGuard() = delete ("Must provide a reference to an allocator.");
+   AllocationGuard(AllocationGuard const &other) = delete;
+   AllocationGuard(AllocationGuard &&other) = delete;
+   AllocationGuard
+   operator=(AllocationGuard const &other) = delete;
+   AllocationGuard
+   operator=(AllocationGuard &&other) = delete;
+
    /// @brief Deallocates the guarded memory block if `dismiss()` was not called
    /// prior to destruction.
    ///
@@ -67,14 +75,6 @@ struct AllocationGuard
          std::allocator_traits<Allocator>::deallocate(alloc, ptr, count);
       }
    }
-
-   AllocationGuard() = delete ("Must provide a reference to an allocator.");
-   AllocationGuard(AllocationGuard const &other) = delete;
-   AllocationGuard(AllocationGuard &&other) = delete;
-   AllocationGuard
-   operator=(AllocationGuard const &other) = delete;
-   AllocationGuard
-   operator=(AllocationGuard &&other) = delete;
 
    /// @brief Prevents the guard from deallocating memory when it is destroyed.
    ///
@@ -115,6 +115,7 @@ struct AllocationGuard
       count = element_count;
    }
 
+   [[no_unique_address]]
    Allocator &alloc;  ///< Reference to the allocator that allocated the memory.
    pointer ptr;       ///< Pointer to the start of the memory block.
    size_type count;  ///< Capacity of the allocated block in number of elements.
@@ -166,14 +167,6 @@ struct ElementGuard
        , last{ last_ptr }
    {}
 
-   /// @brief Destroys the elements in the range `[first, last)` if `dismiss()`
-   /// was not called prior to destruction.
-   ///
-   constexpr ~ElementGuard()
-   {
-      destroy(alloc, first, last);
-   }
-
    ElementGuard() = delete ("Must provide a reference to an allocator.");
    ElementGuard(ElementGuard const &other) = delete;
    ElementGuard(ElementGuard &&other) = delete;
@@ -181,6 +174,14 @@ struct ElementGuard
    operator=(ElementGuard const &other) = delete;
    auto
    operator=(ElementGuard &&other) = delete;
+
+   /// @brief Destroys the elements in the range `[first, last)` if `dismiss()`
+   /// was not called prior to destruction.
+   ///
+   constexpr ~ElementGuard()
+   {
+      destroy(alloc, first, last);
+   }
 
    /// @brief Prevents the guard from destroying any elements when it is
    /// destroyed.
@@ -219,6 +220,7 @@ struct ElementGuard
       last = last_ptr;
    }
 
+   [[no_unique_address]]
    Allocator
        &alloc;  ///< Reference to the allocator that constructed the elements.
    pointer first;  ///< Pointer to the first element in the range.
