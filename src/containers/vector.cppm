@@ -1491,6 +1491,8 @@ public:
       // Continue shuffling inside the initialized region until done.
       while (last_iter != pos)
       {
+         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
+         // for the assignment operator!
          *--dest_iter = std::move_if_noexcept(*--last_iter);
       }
 
@@ -1503,6 +1505,8 @@ public:
       auto counter{ 1UZ };
       while (counter < count && mut_pos != end())
       {
+         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
+         // for the assignment operator!
          *mut_pos++ = std::move_if_noexcept(local_value);
          ++counter;
       }
@@ -1511,6 +1515,8 @@ public:
       // into the last position to save a copy if possible.
       if (mut_pos != end())
       {
+         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
+         // for the assignment operator!
          *mut_pos = std::move_if_noexcept(local_value);
          this->m_finish = new_finish_ptr;
          return begin() + distance_to_pos;
