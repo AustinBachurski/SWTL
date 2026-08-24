@@ -1428,118 +1428,104 @@ public:
       return emplace(pos, std::move(value));
    }
 
-   // TODO: Test, refactor, and document.
+   // TODO: Implement realloc_insert(pos, count, value), add tests, and
+   // document.
    iterator
    insert(const_iterator pos, size_type count, T const &value)
    {
-      auto const distance_to_pos{ std::ranges::distance(cbegin(), pos) };
+      auto mut_pos{ begin() + std::ranges::distance(cbegin(), pos) };
 
       if (count == 0UZ)
       {
-         return begin() + distance_to_pos;
+         return mut_pos;
       }
 
-      if (auto const available_storage{ capacity() - size() };
-          std::cmp_less(available_storage, count))
+      if (capacity() - size() < count)
       {
-         // return realloc_insert_count(pos, count, value)?
+         // return realloc_insert(pos, count, value)?
       }
 
       if (pos == cend())
       {
-         for (auto counter{ 0UZ }; counter < count; ++counter)
+         // Strong exception guarantee if pos == end().
+         if constexpr (std::is_nothrow_copy_constructible_v<T>)
          {
-            a_traits::construct(this->m_allocator, this->m_finish, value);
-            ++this->m_finish;
+            for (
+                auto stop{ this->m_finish + count }; this->m_finish != stop;
+                ++this->m_finish)
+            {
+               a_traits::construct(this->m_allocator, this->m_finish, value);
+            }
+         }
+         else
+         {
+            detail::ElementGuard elem_guard(
+                this->m_allocator, this->m_finish, this->m_finish);
+
+            for (
+                auto stop{ this->m_finish + count }; elem_guard.last != stop;
+                ++elem_guard.last)
+            {
+               a_traits::construct(this->m_allocator, elem_guard.last, value);
+            }
+
+            this->m_finish = elem_guard.last;
+            elem_guard.dismiss();
          }
 
-         return begin() + distance_to_pos;
+         return mut_pos;
       }
 
       // Make a local copy because `value` may be a reference to an existing
       // element in the vector - so the new value must be constructed before
       // we shuffle the data around.
       auto local_value{ value };
+      auto old_end{ end() };
+      auto const elems_after_pos{ std::ranges::distance(pos, end()) };
 
-      // One past the end of the elements after the shuffle.
-      auto new_finish_ptr{ this->m_finish + count };
-
-      auto last_iter{ end() };
-
-      // Guard elements shuffled outside of initialized memory.  Since we're
-      // shuffling backwards, we can't count on begin and end of the vector
-      // cleaning up.
-      detail::ElementGuard elem_guard(
-          this->m_allocator, new_finish_ptr, new_finish_ptr);
-
-      // Shuffle until the range has moved or we run into initialized memory.
-      while (last_iter != pos && elem_guard.first != this->m_finish)
+      // If the inserted elements will only be copy-assigned, shuffle the
+      // existing elements into new memory and update finish. This keeps
+      // exception cleanup automatic.
+      if (std::cmp_less_equal(count, elems_after_pos))
       {
-         // Moving backwards, so we have to synthesize "fend" with the - 1.
-         a_traits::construct(
-             this->m_allocator, elem_guard.first - 1, *--last_iter);
+         auto mid{ end() - count };
 
-         // Decrement only after successful construction.
-         --elem_guard.first;
+         this->m_finish = uninitialized_move_if_noexcept(
+             this->m_allocator, mid, end(), this->m_finish);
+
+         if constexpr (
+             std::is_nothrow_move_assignable_v<T>
+             || !std::is_copy_assignable_v<T>)
+         {
+            std::move_backward(mut_pos, mid, old_end);
+         }
+         else
+         {
+            std::copy_backward(mut_pos, mid, old_end);
+         }
+
+         std::ranges::fill(mut_pos, mid + 1, local_value);
+      }
+      // If some inserted elements need to be constructed in uninitialized
+      // memory, do that first and update finish along the way.  Then shuffle
+      // elements over and update finish again.  This keeps exception cleanup
+      // automatic.
+      else
+      {
+         auto mid{ this->m_finish + (count - elems_after_pos) };
+
+         for (; this->m_finish != mid; ++this->m_finish)
+         {
+            a_traits::construct(this->m_allocator, this->m_finish, local_value);
+         }
+
+         this->m_finish = uninitialized_move_if_noexcept(
+             this->m_allocator, mut_pos, old_end, this->m_finish);
+
+         std::ranges::fill(mut_pos, old_end, local_value);
       }
 
-      // Leave the guard alone!  It is guarding the previously uninitialized
-      // region, moving the guard inside the initialized region would result
-      // in a double destroy.
-      auto dest_iter{ end() };
-
-      // Continue shuffling inside the initialized region until done.
-      while (last_iter != pos)
-      {
-         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
-         // for the assignment operator!
-         *--dest_iter = std::move_if_noexcept(*--last_iter);
-      }
-
-      // Existing data has been shuffled out of the way, create a mutable
-      // iterator at `pos` and insert the elements.
-      auto mut_pos{ begin() + distance_to_pos };
-
-      // Copy-insert into all but the last position, copy/move assigning while
-      // in initialized memory.
-      auto counter{ 1UZ };
-      while (counter < count && mut_pos != end())
-      {
-         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
-         // for the assignment operator!
-         *mut_pos++ = std::move_if_noexcept(local_value);
-         ++counter;
-      }
-
-      // If the last element to be inserted has been reached, move `local_value`
-      // into the last position to save a copy if possible.
-      if (mut_pos != end())
-      {
-         // TODO: FIX - Wrong, move_if_noexcept is for the move CONSTRUCTOR, not
-         // for the assignment operator!
-         *mut_pos = std::move_if_noexcept(local_value);
-         this->m_finish = new_finish_ptr;
-         return begin() + distance_to_pos;
-      }
-
-      // Otherwise begin constructing via the allocator since we're outside of
-      // initialized memory.
-      while (counter < count)
-      {
-         a_traits::construct(this->m_allocator, this->m_finish, local_value);
-         ++this->m_finish;  // Increment after successful construction.
-         ++counter;
-      }
-
-      // Finally at the last insertion, move the local into the vector if we
-      // can.
-      a_traits::construct(
-          this->m_allocator,
-          this->m_finish,
-          std::move_if_noexcept(local_value));
-
-      this->m_finish = new_finish_ptr;
-      return begin() + distance_to_pos;
+      return mut_pos;
    }
 
    // TODO: Implement
