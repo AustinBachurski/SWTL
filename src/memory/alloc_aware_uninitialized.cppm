@@ -8,8 +8,8 @@ import :alloc_aware_guards;
 namespace swtl
 {
 
-/// @brief Copy-constructs `val` into the uninitialized range `[first, last)`
-/// via`std::allocator_traits<Allocator>::construct`.
+/// @brief Copy-constructs `count` instances of `val` into the uninitialized
+/// range beginning at `first` via`std::allocator_traits<Allocator>::construct`.
 ///
 /// @note This function initializes object lifetimes but does not allocate
 /// storage.
@@ -17,27 +17,28 @@ namespace swtl
 /// @param allocator Reference to the allocator that allocated the memory
 /// pointed to by `first`.
 /// @param first Pointer to the first element in the source range.
-/// @param last Pointer marking the end of the source range.
+/// @param count The number of elements to construct.
 /// @param val Const reference to the value to be copied.
 ///
-/// @pre `[first, last)` must denote a valid range.
-/// @pre The destination range must contain sufficient uninitialized storage.
+/// @return Pointer to one past the last element constructed.
+///
+/// @pre `[first, first + count)` must contain sufficient uninitialized storage.
 ///
 /// @note Exception Safety: Strong guarantee.  If an exception is thrown during
 /// construction, any elements already constructed in the destination range are
 /// destroyed.
 ///
 export template <AllocatorType Allocator, typename T>
-constexpr void
-uninitialized_fill(
+constexpr std::allocator_traits<Allocator>::pointer
+uninitialized_fill_n(
     Allocator allocator,
     typename std::allocator_traits<Allocator>::pointer first,
-    typename std::allocator_traits<Allocator>::pointer last,
+    std::size_t count,
     T const &val)
 {
    if constexpr (std::is_nothrow_copy_constructible_v<T>)
    {
-      for (; first != last; ++first)
+      for (; count != 0UZ; --count, ++first)
       {
          std::allocator_traits<Allocator>::construct(allocator, first, val);
       }
@@ -46,7 +47,7 @@ uninitialized_fill(
    {
       detail::ElementGuard elem_guard(allocator, first, first);
 
-      for (; elem_guard.last != last; ++elem_guard.last)
+      for (; count != 0UZ; --count, ++elem_guard.last)
       {
          std::allocator_traits<Allocator>::construct(
              allocator, elem_guard.last, val);
@@ -54,6 +55,8 @@ uninitialized_fill(
 
       elem_guard.dismiss();
    }
+
+   return first + count;
 }
 
 /// @brief Copies elements in the range `[first, last)` to uninitialized memory
