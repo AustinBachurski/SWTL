@@ -1685,7 +1685,7 @@ public:
    constexpr iterator
    insert_range(const_iterator pos, Range &&range)
    {
-      return insert(std::ranges::begin(range), std::ranges::end(range));
+      return insert(pos, std::ranges::begin(range), std::ranges::end(range));
    }
 
    /// @brief Inserts a new element directly before `pos`.
