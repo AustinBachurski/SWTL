@@ -1428,8 +1428,33 @@ public:
       return emplace(pos, std::move(value));
    }
 
-   // TODO: Implement realloc_insert(pos, count, value), add tests, and
-   // document.
+   /// @brief Copy-inserts `count` copies of `value` into the vector before
+   /// `pos`.
+   ///
+   /// Copy-inserts `count` copies of `value` into the vector at iterator `pos`;
+   /// the existing element(s), if any, at and after `pos` are shifted one
+   /// position to the right in the vector.
+   ///
+   /// @param pos Iterator to the position in the vector to insert `value`.
+   /// @param count The number of elements to construct.
+   /// @param value The value to be copy-inserted into the vector.
+   ///
+   /// @return An iterator to the first inserted value.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown by
+   /// `value` construction at the end, the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment or construction, the vector is left in a valid
+   /// but unspecified state and no resources are leaked.
+   ///
    iterator
    insert(const_iterator pos, size_type count, T const &value)
    {
@@ -1442,7 +1467,7 @@ public:
 
       if (capacity() - size() < count)
       {
-         // return realloc_insert(pos, count, value)?
+         return realloc_insert_n(mut_pos, count, value);
       }
 
       if (pos == cend())
@@ -2126,6 +2151,95 @@ private:
             return new_element_ptr;
          }
       }
+   }
+
+   /// @brief Copy-inserts `count` copies of `value` into new memory, then moves
+   /// elements from old memory before and/or after the new elements based on
+   /// `pos`.
+   ///
+   /// @param pos Mutable iterator to the position in the vector to insert
+   /// `value`.
+   /// @param count The number of elements to construct.
+   /// @param value The value to be copy-inserted into the vector.
+   ///
+   /// @return An iterator to the first inserted value.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown as
+   /// a result of allocation, or `T`'s copy constructor the vector is
+   /// unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element move assignment or construction, the vector is left in a
+   /// valid but unspecified state and no resources are leaked.
+   ///
+   constexpr iterator
+   realloc_insert_n(iterator pos, size_type count, T const &value)
+   {
+      auto [ptr, mem_count]{ this->allocate_memory_for_at_least(
+          calculate_growth_size()) };
+      auto pos_ptr{ ptr + std::ranges::distance(begin(), pos) };
+
+      if constexpr (
+          std::is_nothrow_move_constructible_v<T>
+          && std::is_nothrow_copy_constructible_v<T>)
+      {
+         auto tail_ptr{ uninitialized_fill_n(
+             this->m_allocator, pos_ptr, count, value) };
+
+         uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
+
+         auto new_finish{ uninitialized_move_if_noexcept(
+             this->m_allocator, pos, end(), tail_ptr) };
+
+         clear();
+         this->deallocate_memory();
+
+         this->m_start = ptr;
+         this->m_finish = new_finish;
+         this->m_end_of_storage = ptr + mem_count;
+      }
+      else
+      {
+         detail::AllocationGuard mem_guard(this->m_allocator, ptr, mem_count);
+         {
+            auto tail_ptr{ uninitialized_fill_n(
+                this->m_allocator, pos_ptr, count, value) };
+
+            // Guard elements that were previously constructed incase an
+            // exception is thrown while migrating data from the first half of
+            // the old memory.
+            detail::ElementGuard elem_guard(
+                this->m_allocator, pos_ptr, tail_ptr);
+
+            uninitialized_move_if_noexcept(
+                this->m_allocator, begin(), pos, ptr);
+
+            // Expand the guard to include the first half of migrated data
+            // incase an exception is thrown while migrating the last half of
+            // data from the old memory.
+            elem_guard.first = ptr;
+
+            auto new_finish{ uninitialized_move_if_noexcept(
+                this->m_allocator, pos, end(), tail_ptr) };
+
+            // Migration complete, use the guards to destroy and deallocate the
+            // old memory.
+            elem_guard.reassign(this->m_start, this->m_finish);
+            mem_guard.reassign(this->m_start, capacity());
+
+            this->m_start = ptr;
+            this->m_finish = new_finish;
+            this->m_end_of_storage = ptr + mem_count;
+         }
+      }
+
+      return pos_ptr;
    }
 
    /// @endcond

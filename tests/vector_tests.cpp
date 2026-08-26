@@ -1609,7 +1609,7 @@ TEST_CASE(
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) constructs a value at the "
     "desired location of a vector with sufficient storage.",
-    "[vector][modifiers]")
+    "[vector][modifiers][emplace]")
 {
    swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
    vec.reserve(10);
@@ -1652,7 +1652,7 @@ TEST_CASE(
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) returns an iterator to the "
     "inserted element.",
-    "[vector][modifiers]")
+    "[vector][modifiers][emplace]")
 {
    auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
        10) };
@@ -1667,7 +1667,7 @@ TEST_CASE(
 TEST_CASE(
     "Passing arguments to emplace(const_iterator pos, Args &&...args) "
     "constructs an object in place.",
-    "[vector][modifiers]")
+    "[vector][modifiers][emplace]")
 {
    swtl::Vector<helpers::TrackedObject> vec(10);
    vec.reserve(12);
@@ -1684,7 +1684,7 @@ TEST_CASE(
 
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) growth.",
-    "[vector][modifiers]")
+    "[vector][modifiers][emplace]")
 {
    swtl::Vector vec{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
@@ -1714,7 +1714,7 @@ TEST_CASE(
 // Vector::insert(const_iterator pos, T const &value) uses emplace() internally.
 TEST_CASE(
     "insert(const_iterator pos, T const &value) copy-inserts an lvalue",
-    "[vector][modifiers]")
+    "[vector][modifiers][insert]")
 {
    auto const initial_size{ 10UZ };
    swtl::Vector<helpers::TrackedObject> vec(initial_size);
@@ -1732,7 +1732,7 @@ TEST_CASE(
 // Vector::insert(const_iterator pos, T &&value) uses emplace() internally.
 TEST_CASE(
     "insert(const_iterator pos, T &&value) inserts an rvalue",
-    "[vector][modifiers]")
+    "[vector][modifiers][insert]")
 {
    auto const initial_size{ 10UZ };
    swtl::Vector<helpers::TrackedObject> vec(initial_size);
@@ -1749,8 +1749,8 @@ TEST_CASE(
 
 TEST_CASE(
     "insert(const_iterator pos, size_type count, T const &value) inserts "
-    "`count` elements at `pos`.",
-    "[vector][modifiers][x]")
+    "`count` elements at `pos` when new elements fit in the existing range.",
+    "[vector][modifiers][insert]")
 {
    using T = helpers::NoThrowTrackedObject;
 
@@ -1769,4 +1769,83 @@ TEST_CASE(
    vec.insert(pos, 4, element);
 
    REQUIRE(vec == expected);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) inserts "
+    "`count` elements at `pos` when new elements are outside the existing "
+    "range.",
+    "[vector][modifiers][insert]")
+{
+   using T = helpers::NoThrowTrackedObject;
+
+   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+   vec.reserve(20UZ);
+   swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 }, T{ 3 },  T{ 4 },
+                                T{ 5 },  T{ 6 },  T{ 7 }, T{ 42 }, T{ 42 },
+                                T{ 42 }, T{ 42 }, T{ 8 }, T{ 9 } };
+
+   auto const pos{ vec.cend() - 2 };
+   auto const element{ T{ 42 } };
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(pos, 4, element);
+
+   REQUIRE(vec == expected);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) inserts "
+    "`count` elements at `pos` when `pos` is at the end.",
+    "[vector][modifiers][insert]")
+{
+   using T = helpers::NoThrowTrackedObject;
+
+   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+   vec.reserve(20UZ);
+   swtl::Vector const expected{
+      T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },  T{ 4 },  T{ 5 },  T{ 6 },
+      T{ 7 }, T{ 8 }, T{ 9 }, T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 },
+   };
+
+   auto const pos{ vec.cend() };
+   auto const element{ T{ 42 } };
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(pos, 4, element);
+
+   REQUIRE(vec == expected);
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) inserts "
+    "`count` elements at `pos` and resizes when needed.",
+    "[vector][modifiers][insert]")
+{
+   using T = helpers::NoThrowTrackedObject;
+
+   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+
+   helpers::fill_to_capacity(vec);
+
+   swtl::Vector const expected{ T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 }, T{ 0 },
+                                T{ 1 },  T{ 2 },  T{ 3 },  T{ 4 },  T{ 5 },
+                                T{ 6 },  T{ 7 },  T{ 8 },  T{ 9 } };
+
+   auto const pos{ vec.cbegin() };
+   auto const element{ T{ 42 } };
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(pos, 4, element);
+
+   for (auto const &[left, right] : std::views::zip(vec, expected))
+   {
+      REQUIRE(left == right);
+   }
 }
