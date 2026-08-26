@@ -9,6 +9,12 @@ import swtl.format;
 export namespace swtl::test_helpers
 {
 
+/// Allows Catch2 to print the id of any test object.
+template <typename T>
+concept PrintableTestType = requires(T const &t) {
+   { std::to_string(t.id) } -> std::same_as<std::string>;
+};
+
 /// @brief Exception class used during testing.
 ///
 class TestException : std::runtime_error

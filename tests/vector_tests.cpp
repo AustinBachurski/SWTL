@@ -16,15 +16,14 @@ namespace helpers = swtl::test_helpers;
 namespace Catch
 {
 
-// Pretty printers for test objects.
-
-template <>
-struct StringMaker<helpers::NoThrowTrackedObject>
+// Allows Catch2 to print the id of any test object.
+template <helpers::PrintableTestType T>
+struct StringMaker<T>
 {
    static std::string
-   convert(helpers::NoThrowTrackedObject const &type)
+   convert(T const &type)
    {
-      return std::to_string(type.id);
+      return "{" + std::to_string(type.id) + "}";
    }
 };
 
@@ -1747,105 +1746,205 @@ TEST_CASE(
    REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
 }
 
-TEST_CASE(
+TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, size_type count, T const &value) inserts "
-    "`count` elements at `pos` when new elements fit in the existing range.",
-    "[vector][modifiers][insert]")
+    "`count` instances of `value` before `pos`.",
+    "[vector][modifiers][insert][x]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
 {
-   using T = helpers::NoThrowTrackedObject;
-
-   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
-                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
-   vec.reserve(20UZ);
-   swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 }, T{ 42 }, T{ 42 },
-                                T{ 42 }, T{ 42 }, T{ 3 }, T{ 4 },  T{ 5 },
-                                T{ 6 },  T{ 7 },  T{ 8 }, T{ 9 } };
-
-   auto const pos{ vec.cbegin() + 3 };
-   auto const element{ T{ 42 } };
+   using T = TestType;
 
    helpers::g_test_controller.reset();
-
-   vec.insert(pos, 4, element);
-
-   REQUIRE(vec == expected);
-}
-
-TEST_CASE(
-    "insert(const_iterator pos, size_type count, T const &value) inserts "
-    "`count` elements at `pos` when new elements are outside the existing "
-    "range.",
-    "[vector][modifiers][insert]")
-{
-   using T = helpers::NoThrowTrackedObject;
-
-   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
-                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
-   vec.reserve(20UZ);
-   swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 }, T{ 3 },  T{ 4 },
-                                T{ 5 },  T{ 6 },  T{ 7 }, T{ 42 }, T{ 42 },
-                                T{ 42 }, T{ 42 }, T{ 8 }, T{ 9 } };
-
-   auto const pos{ vec.cend() - 2 };
-   auto const element{ T{ 42 } };
-
-   helpers::g_test_controller.reset();
-
-   vec.insert(pos, 4, element);
-
-   REQUIRE(vec == expected);
-}
-
-TEST_CASE(
-    "insert(const_iterator pos, size_type count, T const &value) inserts "
-    "`count` elements at `pos` when `pos` is at the end.",
-    "[vector][modifiers][insert]")
-{
-   using T = helpers::NoThrowTrackedObject;
-
-   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
-                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
-   vec.reserve(20UZ);
-   swtl::Vector const expected{
-      T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },  T{ 4 },  T{ 5 },  T{ 6 },
-      T{ 7 }, T{ 8 }, T{ 9 }, T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 },
-   };
-
-   auto const pos{ vec.cend() };
-   auto const element{ T{ 42 } };
-
-   helpers::g_test_controller.reset();
-
-   vec.insert(pos, 4, element);
-
-   REQUIRE(vec == expected);
-}
-
-TEST_CASE(
-    "insert(const_iterator pos, size_type count, T const &value) inserts "
-    "`count` elements at `pos` and resizes when needed.",
-    "[vector][modifiers][insert]")
-{
-   using T = helpers::NoThrowTrackedObject;
-
-   swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
-                     T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
-
-   helpers::fill_to_capacity(vec);
-
-   swtl::Vector const expected{ T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 }, T{ 0 },
-                                T{ 1 },  T{ 2 },  T{ 3 },  T{ 4 },  T{ 5 },
-                                T{ 6 },  T{ 7 },  T{ 8 },  T{ 9 } };
-
-   auto const pos{ vec.cbegin() };
-   auto const element{ T{ 42 } };
-
-   helpers::g_test_controller.reset();
-
-   vec.insert(pos, 4, element);
-
-   for (auto const &[left, right] : std::views::zip(vec, expected))
    {
-      REQUIRE(left == right);
+      swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                        T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+
+      auto const reference_element{ T{ 42 } };
+      auto const count{ 4UZ };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cbegin() + 3 };
+
+         swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 },  T{ 42 },
+                                      T{ 42 }, T{ 42 }, T{ 42 }, T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 8 },  T{ 9 } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + count);
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cend() - 2 };
+
+         swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 },  T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 },
+                                      T{ 8 },  T{ 9 } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + count);
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cend() };
+
+         swtl::Vector const expected{
+            T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },  T{ 4 },  T{ 5 },  T{ 6 },
+            T{ 7 }, T{ 8 }, T{ 9 }, T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 },
+         };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + count);
+      }
+
+      SECTION("Resizes as needed.")
+      {
+         helpers::fill_to_capacity(vec);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cbegin() };
+
+         swtl::Vector const expected{ T{ 42 }, T{ 42 }, T{ 42 }, T{ 42 },
+                                      T{ 0 },  T{ 1 },  T{ 2 },  T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 8 },  T{ 9 } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + count);
+      }
    }
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, InputIterator first, Sentinel last) inserts "
+    "elements from the source range into the vector before `pos`.",
+    "[vector][modifiers][insert][x]",
+    helpers::InputIterator<helpers::NoThrowTrackedObject const>,
+    swtl::ContiguousIterator<helpers::NoThrowTrackedObject const>,
+    helpers::InputIterator<helpers::TrackedObject const>,
+    swtl::ContiguousIterator<helpers::TrackedObject const>)
+{
+   using T = std::iter_value_t<TestType>;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                        T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+
+      swtl::Vector const source{ T{ 42 }, T{ 43 }, T{ 44 }, T{ 45 } };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cbegin() + 3 };
+
+         swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 },  T{ 42 },
+                                      T{ 43 }, T{ 44 }, T{ 45 }, T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 8 },  T{ 9 } };
+
+         TestType begin{ source.data() };
+         TestType end{ source.data() + source.size() };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + source.size());
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cend() - 2 };
+
+         swtl::Vector const expected{ T{ 0 },  T{ 1 },  T{ 2 },  T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 42 }, T{ 43 }, T{ 44 }, T{ 45 },
+                                      T{ 8 },  T{ 9 } };
+
+         TestType begin{ source.data() };
+         TestType end{ source.data() + source.size() };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + source.size());
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const initial_size{ vec.size() };
+         auto const pos{ vec.cend() };
+
+         swtl::Vector const expected{
+            T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },  T{ 4 },  T{ 5 },  T{ 6 },
+            T{ 7 }, T{ 8 }, T{ 9 }, T{ 42 }, T{ 43 }, T{ 44 }, T{ 45 },
+         };
+
+         TestType begin{ source.data() };
+         TestType end{ source.data() + source.size() };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.size() == initial_size + source.size());
+      }
+
+      SECTION("Resizes as needed.")
+      {
+         helpers::fill_to_capacity(vec);
+
+         auto const initial_size{ vec.size() };
+         auto const count{ 4UZ };
+         auto const pos{ vec.cbegin() };
+
+         swtl::Vector const expected{ T{ 42 }, T{ 43 }, T{ 44 }, T{ 45 },
+                                      T{ 0 },  T{ 1 },  T{ 2 },  T{ 3 },
+                                      T{ 4 },  T{ 5 },  T{ 6 },  T{ 7 },
+                                      T{ 8 },  T{ 9 } };
+
+         TestType begin{ source.data() };
+         TestType end{ source.data() + source.size() };
+
+         vec.insert(pos, begin, end);
+
+         for (auto const &[left, right] : std::views::zip(vec, expected))
+         {
+            REQUIRE(left == right);
+         }
+
+         REQUIRE(vec.size() == initial_size + count);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
 }

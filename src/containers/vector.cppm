@@ -1467,7 +1467,7 @@ public:
 
       if (capacity() - size() < count)
       {
-         return realloc_insert_n(mut_pos, count, value);
+         return realloc_insert(mut_pos, count, value);
       }
 
       if (pos == cend())
@@ -1553,18 +1553,140 @@ public:
       return mut_pos;
    }
 
-   // TODO: Implement
+   /// @brief Copy-inserts elements in the range `[first, last)` into the vector
+   /// at `pos`.
+   ///
+   /// @param pos Iterator to the position in the vector to insert `value`.
+   /// @param first Input iterator to the start of the data.
+   /// @param last Sentinel for first.
+   ///
+   /// @return An iterator to the first inserted value.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   /// @pre `first` and `last` are not iterators into *this.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment or construction, the vector is left in a valid
+   /// but unspecified state and no resources are leaked.
+   ///
    template <typename InputIterator, std::sentinel_for<InputIterator> Sentinel>
    iterator
    insert(const_iterator pos, InputIterator first, Sentinel last)
-   {}
+   {
+      // If distance can be checked then do so and reallocate or overwrite
+      // elements as necessary.
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
+      {
+         auto const count{ std::ranges::distance(first, last) };
+         auto mut_pos{ begin() + std::ranges::distance(cbegin(), pos) };
+
+         if (this->m_end_of_storage - this->m_finish < count)
+         {
+            return realloc_insert(mut_pos, first, last);
+         }
+
+         if (pos == cend())
+         {
+            this->m_finish = uninitialized_move_if_noexcept(
+                this->m_allocator, first, last, this->m_finish);
+
+            return mut_pos;
+         }
+
+         auto old_end{ end() };
+         auto const elems_after_pos{ std::ranges::distance(pos, end()) };
+
+         if (std::cmp_less_equal(count, elems_after_pos))
+         {
+            auto mid{ end() - count };
+
+            this->m_finish = uninitialized_move_if_noexcept(
+                this->m_allocator, mid, end(), this->m_finish);
+
+            if constexpr (
+                std::is_nothrow_move_assignable_v<T>
+                || !std::is_copy_assignable_v<T>)
+            {
+               std::move_backward(mut_pos, mid, old_end);
+            }
+            else
+            {
+               std::copy_backward(mut_pos, mid, old_end);
+            }
+
+            zip_copy(first, last, mut_pos, mid + 1);
+         }
+         else
+         {
+            auto mid{ this->m_finish + (count - elems_after_pos) };
+
+            // In moving existing elements out of the way of the new ones we're
+            // leaving a gap of uninitialized memory between the existing
+            // elements.  Guard this region in case of exception.
+            detail::ElementGuard elem_guard(
+                this->m_allocator,
+                mid,
+                uninitialized_move_if_noexcept(
+                    this->m_allocator, mut_pos, old_end, mid));
+
+            // Copy the first half into initialized memory.
+            auto [next, _]{ zip_copy(first, last, mut_pos, old_end) };
+
+            // Pick up where we left off and construct the rest in uninitialized
+            // memory.
+            uninitialized_copy(this->m_allocator, next, last, old_end);
+
+            this->m_finish = elem_guard.last;
+            elem_guard.dismiss();
+         }
+
+         return mut_pos;
+      }
+      // If we have no way to check the size of the input range, either create a
+      // temporary vector with the data from the single pass iterator and call
+      // insert again with that temporary range, or if `pos` is `end()` let
+      // `push_back` handle it.
+      else
+      {
+         if (pos == cend())
+         {
+            while (first != last)
+            {
+               push_back(*first++);
+            }
+
+            return begin() + std::ranges::distance(cbegin(), pos);
+         }
+
+         Vector temp(first, last, this->m_allocator);
+         return insert(
+             pos,
+             std::make_move_iterator(temp.begin()),
+             std::make_move_iterator(temp.end()));
+      }
+   }
 
    // TODO: Implement
    iterator
    insert(const_iterator pos, std::initializer_list<T> init_list)
-   {}
+   {
+      return insert(pos, init_list.begin(), init_list.end());
+   }
 
    // TODO: insert_range()
+   template <container_compatible_range<T> Range>
+   constexpr iterator
+   insert_range(const_iterator pos, Range &&range)
+   {
+      return insert(std::ranges::begin(range), std::ranges::end(range));
+   }
 
    /// @brief Inserts a new element directly before `pos`.
    ///
@@ -2179,11 +2301,11 @@ private:
    /// valid but unspecified state and no resources are leaked.
    ///
    constexpr iterator
-   realloc_insert_n(iterator pos, size_type count, T const &value)
+   realloc_insert(iterator pos, size_type count, T const &value)
    {
       auto [ptr, mem_count]{ this->allocate_memory_for_at_least(
-          calculate_growth_size()) };
-      auto pos_ptr{ ptr + std::ranges::distance(begin(), pos) };
+          calculate_growth_size(size() + count)) };
+      auto pos_ptr{ ptr + std::ranges::distance(cbegin(), pos) };
 
       if constexpr (
           std::is_nothrow_move_constructible_v<T>
@@ -2210,6 +2332,75 @@ private:
          {
             auto tail_ptr{ uninitialized_fill_n(
                 this->m_allocator, pos_ptr, count, value) };
+
+            // Guard elements that were previously constructed incase an
+            // exception is thrown while migrating data from the first half of
+            // the old memory.
+            detail::ElementGuard elem_guard(
+                this->m_allocator, pos_ptr, tail_ptr);
+
+            uninitialized_move_if_noexcept(
+                this->m_allocator, begin(), pos, ptr);
+
+            // Expand the guard to include the first half of migrated data
+            // incase an exception is thrown while migrating the last half of
+            // data from the old memory.
+            elem_guard.first = ptr;
+
+            auto new_finish{ uninitialized_move_if_noexcept(
+                this->m_allocator, pos, end(), tail_ptr) };
+
+            // Migration complete, use the guards to destroy and deallocate the
+            // old memory.
+            elem_guard.reassign(this->m_start, this->m_finish);
+            mem_guard.reassign(this->m_start, capacity());
+
+            this->m_start = ptr;
+            this->m_finish = new_finish;
+            this->m_end_of_storage = ptr + mem_count;
+         }
+      }
+
+      return pos_ptr;
+   }
+
+   template <
+       std::input_iterator InputIterator,
+       std::sentinel_for<InputIterator> Sentinel
+   >
+   constexpr iterator
+   realloc_insert(iterator pos, InputIterator first, Sentinel last)
+   {
+      auto const count{ std::ranges::distance(first, last) };
+      auto [ptr, mem_count]{ this->allocate_memory_for_at_least(
+          calculate_growth_size(size() + count)) };
+      auto pos_ptr{ ptr + std::ranges::distance(cbegin(), pos) };
+
+      if constexpr (
+          std::is_nothrow_move_constructible_v<T>
+          && std::is_nothrow_copy_constructible_v<T>)
+      {
+         auto tail_ptr{ uninitialized_copy(
+             this->m_allocator, first, last, pos_ptr) };
+
+         uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
+
+         auto new_finish{ uninitialized_move_if_noexcept(
+             this->m_allocator, pos, end(), tail_ptr) };
+
+         clear();
+         this->deallocate_memory();
+
+         this->m_start = ptr;
+         this->m_finish = new_finish;
+         this->m_end_of_storage = ptr + mem_count;
+      }
+      else
+      {
+         detail::AllocationGuard mem_guard(this->m_allocator, ptr, mem_count);
+         {
+            auto tail_ptr{ uninitialized_copy(
+                this->m_allocator, first, last, pos_ptr) };
 
             // Guard elements that were previously constructed incase an
             // exception is thrown while migrating data from the first half of
