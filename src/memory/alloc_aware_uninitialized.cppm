@@ -36,9 +36,11 @@ uninitialized_fill_n(
     std::size_t count,
     T const &val)
 {
+   auto const end{ first + count };
+
    if constexpr (std::is_nothrow_copy_constructible_v<T>)
    {
-      for (; count != 0UZ; --count, ++first)
+      for (; first != end; ++first)
       {
          std::allocator_traits<Allocator>::construct(allocator, first, val);
       }
@@ -47,7 +49,7 @@ uninitialized_fill_n(
    {
       detail::ElementGuard elem_guard(allocator, first, first);
 
-      for (; count != 0UZ; --count, ++elem_guard.last)
+      for (; elem_guard.last != end; ++elem_guard.last)
       {
          std::allocator_traits<Allocator>::construct(
              allocator, elem_guard.last, val);
@@ -56,7 +58,7 @@ uninitialized_fill_n(
       elem_guard.dismiss();
    }
 
-   return first + count;
+   return end;
 }
 
 /// @brief Copies elements in the range `[first, last)` to uninitialized memory
