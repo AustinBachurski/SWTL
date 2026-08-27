@@ -58,7 +58,7 @@ struct TestController
    /// `count_of.destruction`.
    ///
    constexpr bool
-   all_new_instances_destroyed() const noexcept
+   all_instances_destroyed() const noexcept
    {
       return sum_of_constructions() == count_of.destruction;
    }
