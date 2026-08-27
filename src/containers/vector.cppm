@@ -1366,7 +1366,7 @@ public:
           = destroy(this->m_allocator, this->m_start, this->m_finish);
    }
 
-   /// @brief Inserts a copy of `value` before `pos`.
+   /// @brief Inserts a copy of `value` at `pos`.
    ///
    /// Copy-inserts `value` into the vector at iterator `pos`; the existing
    /// element(s), if any, at and after `pos` are shifted one position to the
@@ -1397,7 +1397,7 @@ public:
       return emplace(pos, value);
    }
 
-   /// @brief Moves `value` into the vector before `pos`.
+   /// @brief Moves `value` into the vector at `pos`.
    ///
    /// Move-inserts `value` into the vector at iterator `pos`; the existing
    /// element(s), if any, at and after `pos` are shifted one position to the
@@ -1431,15 +1431,15 @@ public:
    /// @brief Copy-inserts `count` copies of `value` into the vector before
    /// `pos`.
    ///
-   /// Copy-inserts `count` copies of `value` into the vector at iterator `pos`;
-   /// the existing element(s), if any, at and after `pos` are shifted one
-   /// position to the right in the vector.
+   /// Inserts `count` copies of `value` into the vector at iterator `pos`; the
+   /// existing element(s), if any, at and after `pos` are shifted one position
+   /// to the right in the vector.
    ///
    /// @param pos Iterator to the position in the vector to insert `value`.
    /// @param count The number of elements to construct.
    /// @param value The value to be copy-inserted into the vector.
    ///
-   /// @return An iterator to the first inserted value.
+   /// @return An iterator to the first inserted elements.
    ///
    /// @pre `pos` must be an iterator to `*this`.
    ///
@@ -1553,26 +1553,33 @@ public:
       return mut_pos;
    }
 
-   /// @brief Copy-inserts elements in the range `[first, last)` into the vector
-   /// at `pos`.
+   /// @brief Inserts elements from the range `[first, last)` at `pos`.
+   ///
+   /// Constructs elements from the range `[first, last)` in the vector at
+   /// iterator `pos`; the existing element(s), if any, at and after `pos` are
+   /// shifted one position to the right in the vector.
    ///
    /// @param pos Iterator to the position in the vector to insert `value`.
-   /// @param first Input iterator to the start of the data.
-   /// @param last Sentinel for first.
+   /// @param first Iterator to the beginning of the range to insert.
+   /// @param last Sentinel for `first`.
    ///
-   /// @return An iterator to the first inserted value.
+   /// @return An iterator to the first inserted element.
    ///
    /// @pre `pos` must be an iterator to `*this`.
-   /// @pre `first` and `last` are not iterators into *this.
    ///
-   /// @throws (...) Any exception thrown by the allocator as a result of a call
-   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by the allocator as a result of a
+   /// call to `std::allocator_traits<Allocator>::allocate` if the vector is
+   /// resized.
    /// @throws (...) Any exception thrown by T during element construction or
    /// assignment.
    ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// by construction at the end by an iterator pair that supports
+   /// `sized_sentinel_for`, the vector is unmodified.
+   ///
    /// @note Provides a basic exception guarantee: if an exception is thrown
-   /// during element assignment or construction, the vector is left in a valid
-   /// but unspecified state and no resources are leaked.
+   /// during element assignment or construction, the vector is left in a
+   /// valid but unspecified state and no resources are leaked.
    ///
    template <typename InputIterator, std::sentinel_for<InputIterator> Sentinel>
    iterator
@@ -1673,14 +1680,64 @@ public:
       }
    }
 
-   // TODO: Implement
+   /// @brief Inserts the contents of the initializer list at `pos`.
+   ///
+   /// Constructs elements from the initializer list in the vector at iterator
+   /// `pos`; the existing element(s), if any, at and after `pos` are shifted
+   /// one position to the right in the vector.
+   ///
+   /// @param pos Iterator to the position in the vector to insert `value`.
+   /// @param init_list The initializer list of elements to insert.
+   ///
+   /// @return An iterator to the first inserted element.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a
+   /// call to `std::allocator_traits<Allocator>::allocate` if the vector is
+   /// resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// by construction at the end, the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment or construction, the vector is left in a
+   /// valid but unspecified state and no resources are leaked.
+   ///
    iterator
    insert(const_iterator pos, std::initializer_list<T> init_list)
    {
       return insert(pos, init_list.begin(), init_list.end());
    }
 
-   // TODO: insert_range()
+   /// @brief Inserts the contents of the range at `pos`.
+   ///
+   /// Constructs elements from the range in the vector at iterator `pos`; the
+   /// existing element(s), if any, at and after `pos` are shifted one position
+   /// to the right in the vector.
+   ///
+   /// @param pos Iterator to the position in the vector to insert `value`.
+   /// @param range The range of elements to insert.
+   ///
+   /// @return An iterator to the inserted value.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a
+   /// call to `std::allocator_traits<Allocator>::allocate` if the vector is
+   /// resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown
+   /// by construction at the end, the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment or construction, the vector is left in a
+   /// valid but unspecified state and no resources are leaked.
+   ///
    template <container_compatible_range<T> Range>
    constexpr iterator
    insert_range(const_iterator pos, Range &&range)
@@ -1688,7 +1745,7 @@ public:
       return insert(pos, std::ranges::begin(range), std::ranges::end(range));
    }
 
-   /// @brief Inserts a new element directly before `pos`.
+   /// @brief Inserts a new element at `pos`.
    ///
    /// Constructs a new element in the vector at iterator `pos`; the existing
    /// element(s), if any, at and after `pos` are shifted one position to the
@@ -1697,7 +1754,7 @@ public:
    /// @param pos Iterator to the position in the vector to insert `value`.
    /// @param args The arguments to forward to `T`'s constructor.
    ///
-   /// @return An iterator to the inserted value.
+   /// @return An iterator to the first inserted element.
    ///
    /// @pre `pos` must be an iterator to `*this`.
    ///
@@ -2284,7 +2341,7 @@ private:
    /// @param count The number of elements to construct.
    /// @param value The value to be copy-inserted into the vector.
    ///
-   /// @return An iterator to the first inserted value.
+   /// @return An iterator to the first inserted element.
    ///
    /// @pre `pos` must be an iterator to `*this`.
    ///
