@@ -1348,7 +1348,62 @@ public:
       return this->allocated_capacity();
    }
 
-   // TODO: shrink_to_fit()
+   /// @brief Requests reallocation to new memory in order to reduce
+   /// `capacity()` to `size()`.
+   ///
+   /// Has no effect if `capacity()` is equal to `size()`, nor if the
+   /// newly allocated chunk is greater than or equal in size to `capacity()`
+   /// since `allocate_at_least()` is used for allocation.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Proveds a strong exception guarantee: if `T` is nothrow move
+   /// constructible or copy constructible and an exception is thrown during
+   /// reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if `T` is not nothrow
+   /// moveable or copyable and an exception is thrown during reallocation,
+   /// the vector is left in a valid but unspecified state and no resources are
+   /// leaked.
+   ///
+   constexpr void
+   shrink_to_fit()
+   {
+      if (capacity() == size())
+      {
+         return;
+      }
+
+      if (is_empty())
+      {
+         this->deallocate_memory();
+         return;
+      }
+
+      auto [ptr, count]{ this->allocate_memory_for_at_least(size()) };
+
+      detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+
+      if (capacity() <= count)
+      {
+         return;
+      }
+
+      auto const new_finish{ uninitialized_move_if_noexcept(
+          this->m_allocator, begin(), end(), ptr) };
+
+      clear();
+      mem_guard.reassign(this->m_start, capacity());
+
+      this->m_start = ptr;
+      this->m_finish = new_finish;
+      this->m_end_of_storage = ptr + count;
+   }
 
    /// @}
 
@@ -2373,7 +2428,7 @@ private:
 
          uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
 
-         auto new_finish{ uninitialized_move_if_noexcept(
+         auto const new_finish{ uninitialized_move_if_noexcept(
              this->m_allocator, pos, end(), tail_ptr) };
 
          clear();
@@ -2404,7 +2459,7 @@ private:
             // data from the old memory.
             elem_guard.first = ptr;
 
-            auto new_finish{ uninitialized_move_if_noexcept(
+            auto const new_finish{ uninitialized_move_if_noexcept(
                 this->m_allocator, pos, end(), tail_ptr) };
 
             // Migration complete, use the guards to destroy and deallocate the
@@ -2442,7 +2497,7 @@ private:
 
          uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
 
-         auto new_finish{ uninitialized_move_if_noexcept(
+         auto const new_finish{ uninitialized_move_if_noexcept(
              this->m_allocator, pos, end(), tail_ptr) };
 
          clear();
@@ -2473,7 +2528,7 @@ private:
             // data from the old memory.
             elem_guard.first = ptr;
 
-            auto new_finish{ uninitialized_move_if_noexcept(
+            auto const new_finish{ uninitialized_move_if_noexcept(
                 this->m_allocator, pos, end(), tail_ptr) };
 
             // Migration complete, use the guards to destroy and deallocate the

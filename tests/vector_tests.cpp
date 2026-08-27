@@ -1575,20 +1575,88 @@ TEST_CASE(
    }
 }
 
-TEST_CASE("capacity() returns a sane value.", "[vector][capacity]")
+TEST_CASE("capacity() returns expected values.", "[vector][capacity]")
 {
    swtl::Vector<int> vec;
 
    REQUIRE(vec.capacity() == 0);
 
-   SECTION(
-       "Adding capacity increases the return value of capacity() as expected.")
+   SECTION("Adding capacity increases the return value as expected.")
    {
       auto const value{ 10UZ };
       vec.reserve(value);
 
       REQUIRE(vec.capacity() >= value);
    }
+}
+
+TEMPLATE_TEST_CASE(
+    "shrink_to_fit() reduces capacity to size if appropriate.",
+    "[vector][capacity]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector<TestType> vec;
+
+      SECTION("Shrinking a vector with no capacity does nothing.")
+      {
+         vec.shrink_to_fit();
+
+         REQUIRE(vec.capacity() == 0UZ);
+         REQUIRE(vec.data() == nullptr);
+      }
+
+      SECTION("Shrinking an empty vector releases memroy.")
+      {
+         vec.reserve(100UZ);
+
+         vec.shrink_to_fit();
+
+         REQUIRE(vec.capacity() == 0UZ);
+         REQUIRE(vec.data() == nullptr);
+      }
+
+      SECTION(
+          "Shrinking a container that has no reserve capacity does nothing.")
+      {
+         vec.reserve(100UZ);
+         helpers::fill_to_capacity(vec);
+
+         auto const previous_capacity{ vec.capacity() };
+         auto const previous_data_pointer{ vec.data() };
+         auto const previous_size{ vec.size() };
+
+         vec.shrink_to_fit();
+
+         REQUIRE(vec.capacity() == previous_capacity);
+         REQUIRE(vec.data() == previous_data_pointer);
+         REQUIRE(vec.size() == previous_size);
+      }
+
+      SECTION(
+          "Shrinking a vector with excess capacity reduces capacity without "
+          "modifying elements.")
+      {
+         vec.reserve(100UZ);
+         helpers::fill_to_capacity(vec);
+         vec.reserve(200UZ);
+
+         auto const previous_capacity{ vec.capacity() };
+         auto const previous_data_pointer{ vec.data() };
+         auto const previous_size{ vec.size() };
+
+         vec.shrink_to_fit();
+
+         REQUIRE(vec.capacity() < previous_capacity);
+         REQUIRE(vec.data() != previous_data_pointer);
+         REQUIRE(vec.size() == previous_size);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
