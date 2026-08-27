@@ -3,11 +3,63 @@ export module swtl.memory:alloc_aware_uninitialized;
 import std;
 
 import :concepts;
-import :alloc_aware_destroy;
 import :alloc_aware_guards;
 
 namespace swtl
 {
+
+/// @brief Copy-constructs `count` instances of `val` into the uninitialized
+/// range beginning at `first` via`std::allocator_traits<Allocator>::construct`.
+///
+/// @note This function initializes object lifetimes but does not allocate
+/// storage.
+///
+/// @param allocator Reference to the allocator that allocated the memory
+/// pointed to by `first`.
+/// @param first Pointer to the first element in the source range.
+/// @param count The number of elements to construct.
+/// @param val Const reference to the value to be copied.
+///
+/// @return Pointer to one past the last element constructed.
+///
+/// @pre `[first, first + count)` must contain sufficient uninitialized storage.
+///
+/// @note Exception Safety: Strong guarantee.  If an exception is thrown during
+/// construction, any elements already constructed in the destination range are
+/// destroyed.
+///
+export template <AllocatorType Allocator, typename T>
+constexpr std::allocator_traits<Allocator>::pointer
+uninitialized_fill_n(
+    Allocator allocator,
+    typename std::allocator_traits<Allocator>::pointer first,
+    std::size_t count,
+    T const &val)
+{
+   auto const end{ first + count };
+
+   if constexpr (std::is_nothrow_copy_constructible_v<T>)
+   {
+      for (; first != end; ++first)
+      {
+         std::allocator_traits<Allocator>::construct(allocator, first, val);
+      }
+   }
+   else
+   {
+      detail::ElementGuard elem_guard(allocator, first, first);
+
+      for (; elem_guard.last != end; ++elem_guard.last)
+      {
+         std::allocator_traits<Allocator>::construct(
+             allocator, elem_guard.last, val);
+      }
+
+      elem_guard.dismiss();
+   }
+
+   return end;
+}
 
 /// @brief Copies elements in the range `[first, last)` to uninitialized memory
 /// via the allocator.

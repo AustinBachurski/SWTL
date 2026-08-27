@@ -13,6 +13,22 @@ import swtl.test.helpers;
 
 namespace helpers = swtl::test_helpers;
 
+namespace Catch
+{
+
+// Allows Catch2 to print the id of any test object.
+template <helpers::PrintableTestType T>
+struct StringMaker<T>
+{
+   static std::string
+   convert(T const &type)
+   {
+      return "{" + std::to_string(type.id) + "}";
+   }
+};
+
+}  // namespace Catch
+
 TEST_CASE(
     "Default construction creates an empty Vector.", "[vector][constructor]")
 {
@@ -537,7 +553,7 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "Special Member Functions: Strong Exception Safety for copy operations.",
-    "[vector][special member functions][default_allocator][exception safety]")
+    "[vector][special member functions][default_allocator][exception]")
 {
    auto const element_count{ 10UZ };
    auto source{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
@@ -555,7 +571,7 @@ TEST_CASE(
       REQUIRE_THROWS_AS(
           swtl::Vector<helpers::TrackedObject>{ source },
           helpers::TestException);
-      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+      REQUIRE(helpers::g_test_controller.all_instances_destroyed());
       REQUIRE(source == expected);
    }
 
@@ -570,14 +586,14 @@ TEST_CASE(
       helpers::g_test_controller.throw_when.copy_assignment = element_count;
 
       REQUIRE_THROWS_AS(vec = source, helpers::TestException);
-      REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+      REQUIRE(helpers::g_test_controller.all_instances_destroyed());
       REQUIRE(source == expected);
    }
 }
 
 TEST_CASE(
     "Vector(size_type count) exception safety.",
-    "[vector][constructor][exception safety]")
+    "[vector][constructor][exception]")
 {
    const auto instances{ 10UZ };
 
@@ -587,12 +603,12 @@ TEST_CASE(
 
    REQUIRE_THROWS_AS(
        swtl::Vector<helpers::TrackedObject>(instances), helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(size_type count, T const &value) exception safety.",
-    "[vector][constructor][exception safety]")
+    "[vector][constructor][exception]")
 {
    const auto instances{ 10UZ };
    helpers::TrackedObject const reference_object;
@@ -604,12 +620,12 @@ TEST_CASE(
    REQUIRE_THROWS_AS(
        swtl::Vector<helpers::TrackedObject>(instances, reference_object),
        helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(InputIterator src_begin, Sentinel src_end) exception safety.",
-    "[vector][constructor][exception safety]")
+    "[vector][constructor][exception]")
 {
    auto const instances{ 10UZ };
    std::vector<helpers::TrackedObject> const source(instances);
@@ -621,12 +637,12 @@ TEST_CASE(
    REQUIRE_THROWS_AS(
        swtl::Vector<helpers::TrackedObject>(source.begin(), source.end()),
        helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
     "Vector(std::from_range_t, Range, &&range) exception safety.",
-    "[vector][constructor][exception safety]")
+    "[vector][constructor][exception]")
 {
    auto const instances{ 10UZ };
    std::vector<helpers::TrackedObject> const source(instances);
@@ -638,7 +654,7 @@ TEST_CASE(
    REQUIRE_THROWS_AS(
        swtl::Vector<helpers::TrackedObject>(std::from_range, source),
        helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 // ** ASSIGNMENT **
@@ -719,7 +735,7 @@ TEST_CASE(
 
    REQUIRE_THROWS_AS(
        vec.assign(new_count, helpers::TrackedObject{}), helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
    REQUIRE(vec == expected);
 }
 
@@ -776,7 +792,7 @@ TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
     "lifetimes correctly if an exception is thrown with an iterator pair that "
     "can be checked for size.",
-    "[vector][assign][exception safety]")
+    "[vector][assign][exception]")
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -798,7 +814,7 @@ TEST_CASE(
     "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
     "lifetimes correctly if an exception is thrown with an iterator pair that "
     "cannot be checked for size.",
-    "[vector][assign][exception safety]")
+    "[vector][assign][exception]")
 {
    auto const source_size{ 20UZ };
    auto const initial_size{ 10UZ };
@@ -1170,6 +1186,7 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
+      // Using rvalue reference to support std::vector<bool> specialization.
       for (auto &&element : expiring)
       {
          vec.push_back(std::move(element));
@@ -1205,6 +1222,7 @@ TEMPLATE_TEST_CASE(
    {
       auto expiring{ data };
 
+      // Using rvalue reference to support std::vector<bool> specialization.
       for (auto &&element : expiring)
       {
          vec.emplace_back(std::move(element));
@@ -1335,21 +1353,17 @@ TEMPLATE_TEST_CASE(
     std::string)
 {
    auto vec{ helpers::generate_populated<swtl::Vector<TestType>>() };
+   helpers::fill_to_capacity(vec);
    auto const before_growth{ vec };
 
-   while (vec.size() < vec.capacity())
-   {
-      vec.emplace_back();
-   }
    vec.emplace_back();
 
-   for (auto const &pair : std::views::zip(vec, before_growth))
+   for (auto const &[value, expected] : std::views::zip(vec, before_growth))
    {
-      REQUIRE(std::get<0>(pair) == std::get<1>(pair));
+      REQUIRE(value == expected);
    }
 }
 
-// TODO: WORKING HERE
 TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 {
    auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
@@ -1365,43 +1379,56 @@ TEST_CASE("Reallocation exception safety.", "[vector][growth][exception]")
 
    REQUIRE_THROWS_AS(vec.emplace_back(), helpers::TestException);
    REQUIRE(vec == expected);
-   REQUIRE(helpers::g_test_controller.all_new_instances_destroyed());
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
-    "Reallocation copies if move is not noexcept.",
+    "Reallocation copies elements if `T`'s move constructor is not noexcept.",
     "[vector][growth][exception]")
 {
-   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
-       10UZ) };
-
+   swtl::Vector<helpers::TrackedObject> vec(10UZ);
    helpers::fill_to_capacity(vec);
 
    auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
 
    REQUIRE_NOTHROW(vec.emplace_back());
-
-   // TODO: This should fail, but does it?
    REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
 }
 
 TEST_CASE(
-    "Reallocation copies if object is not movable.",
+    "Reallocation copies elements if `T` is not movable.",
     "[vector][growth][exception]")
 {
-   auto vec{
-      helpers::generate_unique<swtl::Vector<helpers::CopyOnlyTrackedObject>>(
-          10UZ)
-   };
-
+   swtl::Vector<helpers::CopyOnlyTrackedObject> vec(10UZ);
    helpers::fill_to_capacity(vec);
 
    auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
 
    REQUIRE_NOTHROW(vec.emplace_back());
-
-   // TODO: This should fail, but does it?
    REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
+}
+
+TEST_CASE(
+    "Reallocation moves elements even with a throwing move constructor if `T` "
+    "is not copyable.",
+    "[vector][growth][exception]")
+{
+   swtl::Vector<helpers::MoveOnlyTrackedObject> vec(10UZ);
+   helpers::fill_to_capacity(vec);
+
+   auto const expected{ vec.size() + 1 };
+   helpers::g_test_controller.reset();
+
+   REQUIRE_NOTHROW(vec.emplace_back());
+   REQUIRE(vec.size() == expected);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
 }
 
 TEST_CASE(
@@ -1439,7 +1466,7 @@ TEST_CASE("Vector comparison.", "[vector][comparison]")
    swtl::Vector<int> const smaller_vec_with_greater_values{ 9, 8, 7 };
    swtl::Vector<int> const different_elements_but_same_size{ 1, 2, 3, 4, 5, 6 };
    swtl::Vector<int> same_elements_different_capacity{ 0, 1, 2, 3, 4, 5 };
-   same_elements_different_capacity.reserve(100);
+   same_elements_different_capacity.reserve(100UZ);
 
    REQUIRE(baseline_vec == equal_vec);
    REQUIRE(baseline_vec == same_elements_different_capacity);
@@ -1576,4 +1603,706 @@ TEST_CASE(
    REQUIRE(vec.size() == 0UZ);
    REQUIRE(vec.capacity() == populated_capacity);
    REQUIRE(vec.data() != nullptr);
+}
+
+TEMPLATE_TEST_CASE(
+    "emplace(const_iterator pos, Args &&...args) constructs a value at the "
+    "desired location of a vector with sufficient storage.",
+    "[vector][modifiers][emplace]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ }, T{ 5UZ },
+                        T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      vec.reserve(10UZ);
+      auto const args{ 0UZ };
+
+      SECTION("Calling emplace with `begin()` inserts at the beginning.")
+      {
+         swtl::Vector const expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
+                                      T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
+                                      T{ 8UZ }, T{ 9UZ } };
+
+         vec.emplace(vec.cbegin(), args);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Calling emplace with `end()` inserts at the end.")
+      {
+         swtl::Vector const expected{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                                      T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ },
+                                      T{ 9UZ }, T{ 0UZ } };
+
+         vec.emplace(vec.cend(), args);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION(
+          "Calling emplace with an iterator to the middle inserts in the "
+          "correct position.")
+      {
+         swtl::Vector const expected{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                                      T{ 0UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
+                                      T{ 8UZ }, T{ 9UZ } };
+         auto const index{ 4UZ };
+         auto const iter_pos{ vec.cbegin() + index };
+
+         vec.emplace(iter_pos, args);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Vector does not grow when there is sufficient capacity.")
+      {
+         auto const old_capacity{ vec.capacity() };
+         swtl::Vector const expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
+                                      T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
+                                      T{ 8UZ }, T{ 9UZ } };
+
+         vec.emplace(vec.cbegin(), args);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.capacity() == old_capacity);
+      }
+
+      SECTION("Vector does grow when additional capacity is required.")
+      {
+         helpers::fill_to_capacity(vec);
+         auto const old_capacity{ vec.capacity() };
+
+         swtl::Vector expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
+                                T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
+                                T{ 8UZ }, T{ 9UZ } };
+
+         while (expected.size() != vec.size() + 1)
+         {
+            expected.emplace_back();
+         }
+
+         vec.emplace(vec.cbegin(), args);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.capacity() > old_capacity);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEST_CASE(
+    "emplace(const_iterator pos, Args &&...args) returns an iterator to the "
+    "inserted element.",
+    "[vector][modifiers][emplace]")
+{
+   auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
+       10UZ) };
+   helpers::TrackedObject const value_to_insert(42UZ);
+
+   auto inserted_iter{ vec.emplace(vec.cbegin(), value_to_insert) };
+
+   REQUIRE(inserted_iter == vec.begin());
+   REQUIRE(*inserted_iter == value_to_insert);
+}
+
+TEST_CASE(
+    "Passing arguments to emplace(const_iterator pos, Args &&...args) "
+    "constructs an object in place.",
+    "[vector][modifiers][emplace]")
+{
+   swtl::Vector<helpers::TrackedObject> vec(10UZ);
+   vec.reserve(12UZ);
+
+   helpers::g_test_controller.reset();
+
+   vec.emplace(vec.cend(), 42UZ);
+
+   REQUIRE(helpers::g_test_controller.count_of.arg_construction == 1UZ);
+   REQUIRE(helpers::g_test_controller.count_of.default_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
+}
+
+TEST_CASE(
+    "emplace(const_iterator pos, Args &&...args) exception safety.",
+    "[vector][modifiers][emplace][exception]")
+{
+   using T = helpers::TrackedObject;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ }, T{ 5UZ },
+                        T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      vec.reserve(10UZ);
+      auto const args{ 0UZ };
+      swtl::Vector const unmodified{ vec };
+
+      SECTION("Calling emplace with `begin()`.")
+      {
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.arg_construction
+             = helpers::g_test_controller.count_of.arg_construction + 1UZ;
+
+         REQUIRE_THROWS_AS(
+             vec.emplace(vec.cbegin(), args), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION("Calling emplace with `end()`.")
+      {
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.arg_construction
+             = helpers::g_test_controller.count_of.arg_construction + 1UZ;
+
+         REQUIRE_THROWS_AS(
+             vec.emplace(vec.cend(), args), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION("Calling emplace with an iterator to the middle.")
+      {
+         auto const index{ 4UZ };
+         auto const iter_pos{ vec.cbegin() + index };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.arg_construction
+             = helpers::g_test_controller.count_of.arg_construction + 1UZ;
+
+         REQUIRE_THROWS_AS(vec.emplace(iter_pos, args), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION("No leaks if an exception happens during growth.")
+      {
+         helpers::fill_to_capacity(vec);
+
+         auto const old_capacity{ vec.capacity() };
+         swtl::Vector const expected{ vec };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.arg_construction
+             = helpers::g_test_controller.count_of.arg_construction + 1UZ;
+
+         REQUIRE_THROWS_AS(
+             vec.emplace(vec.cbegin(), args), helpers::TestException);
+
+         REQUIRE(vec == expected);
+         REQUIRE(vec.capacity() == old_capacity);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+// Vector::insert(const_iterator pos, T const &value) uses emplace() internally.
+TEST_CASE(
+    "insert(const_iterator pos, T const &value) copy-inserts an lvalue",
+    "[vector][modifiers][insert]")
+{
+   auto const initial_size{ 10UZ };
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+   vec.reserve(initial_size + 1UZ);
+   helpers::TrackedObject const element;
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(vec.cend(), element);
+
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
+}
+
+// Vector::insert(const_iterator pos, T &&value) uses emplace() internally.
+TEST_CASE(
+    "insert(const_iterator pos, T &&value) inserts an rvalue",
+    "[vector][modifiers][insert]")
+{
+   auto const initial_size{ 10UZ };
+   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+   vec.reserve(initial_size + 1UZ);
+   helpers::TrackedObject element;
+
+   helpers::g_test_controller.reset();
+
+   vec.insert(vec.cend(), std::move(element));
+
+   REQUIRE(helpers::g_test_controller.count_of.move_construction > 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
+}
+
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) inserts "
+    "`count` instances of `value` before `pos`.",
+    "[vector][modifiers][insert]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      auto const reference_element{ T{ 42UZ } };
+      auto const count{ 4UZ };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cbegin() + 3UZ };
+
+         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
+                                      T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
+                                      T{ 42UZ }, T{ 3UZ },  T{ 4UZ },
+                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() - 2UZ };
+
+         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
+                                      T{ 3UZ },  T{ 4UZ },  T{ 5UZ },
+                                      T{ 6UZ },  T{ 7UZ },  T{ 42UZ },
+                                      T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() };
+
+         swtl::Vector const expected{
+            T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
+            T{ 5UZ },  T{ 6UZ },  T{ 7UZ },  T{ 8UZ },  T{ 9UZ },
+            T{ 42UZ }, T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
+         };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Resizes as needed.")
+      {
+         helpers::fill_to_capacity(vec);
+         auto const pos{ vec.cbegin() };
+
+         swtl::Vector const expected{ T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
+                                      T{ 42UZ }, T{ 0UZ },  T{ 1UZ },
+                                      T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
+                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, count, reference_element);
+
+         REQUIRE(vec == expected);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEST_CASE(
+    "insert(const_iterator pos, size_type count, T const &value) exception "
+    "safety.",
+    "[vector][modifiers][insert][exception]")
+{
+   using T = helpers::TrackedObject;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      auto const reference_element{ T{ 42UZ } };
+      auto const count{ 4UZ };
+      swtl::Vector const unmodified{ vec };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cbegin() + 3UZ };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         REQUIRE_THROWS_AS(
+             vec.insert(pos, count, reference_element), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() - 2UZ };
+
+         // Because elements are constructed in uninitialized storage before
+         // other elements are shuffled around, one local copy, two successful
+         // insertions, and then the third insertion throws.
+         swtl::Vector const expected{
+            T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },  T{ 5UZ },
+            T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ }, T{ 42UZ }, T{ 42UZ },
+         };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         REQUIRE_THROWS_AS(
+             vec.insert(pos, count, reference_element), helpers::TestException);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         REQUIRE_THROWS_AS(
+             vec.insert(pos, count, reference_element), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION("When resize is triggered.")
+      {
+         helpers::fill_to_capacity(vec);
+         auto const initial_capacity{ vec.capacity() };
+         auto const pos{ vec.cbegin() };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         REQUIRE_THROWS_AS(
+             vec.insert(pos, count, reference_element), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+         REQUIRE(vec.capacity() == initial_capacity);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, InputIterator first, Sentinel last) inserts "
+    "elements from the source range into the vector before `pos`.",
+    "[vector][modifiers][insert]",
+    helpers::InputIterator<helpers::NoThrowTrackedObject const>,
+    swtl::ContiguousIterator<helpers::NoThrowTrackedObject const>,
+    helpers::InputIterator<helpers::TrackedObject const>,
+    swtl::ContiguousIterator<helpers::TrackedObject const>)
+{
+   using T = std::iter_value_t<TestType>;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      swtl::Vector const source{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ } };
+
+      TestType begin{ source.data() };
+      TestType end{ source.data() + source.size() };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cbegin() + 3UZ };
+
+         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
+                                      T{ 42UZ }, T{ 43UZ }, T{ 44UZ },
+                                      T{ 45UZ }, T{ 3UZ },  T{ 4UZ },
+                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() - 2UZ };
+
+         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
+                                      T{ 3UZ },  T{ 4UZ },  T{ 5UZ },
+                                      T{ 6UZ },  T{ 7UZ },  T{ 42UZ },
+                                      T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() };
+
+         swtl::Vector const expected{
+            T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
+            T{ 5UZ },  T{ 6UZ },  T{ 7UZ },  T{ 8UZ },  T{ 9UZ },
+            T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
+         };
+
+         vec.insert(pos, begin, end);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Resizes as needed.")
+      {
+         helpers::fill_to_capacity(vec);
+
+         auto const pos{ vec.cbegin() };
+
+         swtl::Vector const expected{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ },
+                                      T{ 45UZ }, T{ 0UZ },  T{ 1UZ },
+                                      T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
+                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         vec.insert(pos, begin, end);
+
+         for (auto const &[left, right] : std::views::zip(vec, expected))
+         {
+            REQUIRE(left == right);
+         }
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, InputIterator first, Sentinel last) exception "
+    "safety.",
+    "[vector][modifiers][insert][exception]",
+    helpers::InputIterator<helpers::TrackedObject const>,
+    swtl::ContiguousIterator<helpers::TrackedObject const>)
+{
+   using T = std::iter_value_t<TestType>;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      swtl::Vector const source{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ } };
+
+      TestType begin{ source.data() };
+      TestType end{ source.data() + source.size() };
+
+      swtl::Vector const unmodified{ vec };
+
+      SECTION(
+          "Insertion when elements fit inside the existing initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cbegin() + 3UZ };
+
+         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
+                                      T{ 42UZ }, T{ 43UZ }, T{ 44UZ },
+                                      T{ 45UZ }, T{ 3UZ },  T{ 4UZ },
+                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                      T{ 8UZ },  T{ 9UZ } };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source.size();
+
+         REQUIRE_THROWS_AS(vec.insert(pos, begin, end), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+
+      SECTION(
+          "Insertion when elements are placed outside of the initialized "
+          "range.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() - 2UZ };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source.size();
+
+         REQUIRE_THROWS_AS(vec.insert(pos, begin, end), helpers::TestException);
+
+         if constexpr (
+             std::is_same_v<TestType, swtl::ContiguousIterator<T const>>)
+         {
+            // Elements are moved out of the way first, new elements are
+            // assigned, then constructed at the end - which throws.
+            swtl::Vector const expected{
+               T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },  T{ 4UZ },
+               T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 42UZ }, T{ 43UZ },
+            };
+
+            REQUIRE(vec == expected);
+         }
+         else
+         {
+            REQUIRE(vec == unmodified);
+         }
+      }
+
+      SECTION("Insertion at the end.")
+      {
+         vec.reserve(20UZ);
+         auto const pos{ vec.cend() };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source.size();
+
+         REQUIRE_THROWS_AS(vec.insert(pos, begin, end), helpers::TestException);
+
+         if constexpr (
+             std::is_same_v<TestType, swtl::ContiguousIterator<T const>>)
+         {
+            REQUIRE(vec == unmodified);
+         }
+         else
+         {
+            // Insertion at the end with an iterator that does not support
+            // `sized_sentinel_for` is done via repeat calls to push_back.
+            swtl::Vector const expected{
+               T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ }, T{ 4UZ },
+               T{ 5UZ },  T{ 6UZ },  T{ 7UZ },  T{ 8UZ }, T{ 9UZ },
+               T{ 42UZ }, T{ 43UZ }, T{ 44UZ },
+            };
+
+            REQUIRE(vec == expected);
+         }
+      }
+
+      SECTION("Resizes as needed.")
+      {
+         helpers::fill_to_capacity(vec);
+
+         auto const pos{ vec.cbegin() };
+
+         helpers::g_test_controller.enable_throwing();
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source.size();
+
+         REQUIRE_THROWS_AS(vec.insert(pos, begin, end), helpers::TestException);
+
+         REQUIRE(vec == unmodified);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+// Vector::insert(const_iterator pos, std::initializer_list init_list) uses
+// insert(const_iterator pos, InputIterator first, Sentinel last) internally.
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, std::initializer_list init_list) inserts the "
+    "elements from the initializer list before `pos`.",
+    "[vector][modifiers][insert]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      std::initializer_list const init_list{
+         T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ }
+      };
+
+      swtl::Vector const expected{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
+                                   T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },
+                                   T{ 4UZ },  T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                   T{ 8UZ },  T{ 9UZ } };
+
+      auto const pos{ vec.cbegin() };
+
+      vec.insert(pos, init_list);
+
+      REQUIRE(vec == expected);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+// Vector::insert(const_iterator pos, Range &&range) uses
+// insert(const_iterator pos, InputIterator first, Sentinel last) internally.
+TEMPLATE_TEST_CASE(
+    "insert(const_iterator pos, Range &&range) inserts the elements from "
+    "the "
+    "source range before `pos`.",
+    "[vector][modifiers][insert]",
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
+                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+
+      swtl::Vector const source{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ } };
+
+      swtl::Vector const expected{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
+                                   T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },
+                                   T{ 4UZ },  T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
+                                   T{ 8UZ },  T{ 9UZ } };
+
+      auto const pos{ vec.cbegin() };
+
+      vec.insert_range(pos, source);
+
+      REQUIRE(vec == expected);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }

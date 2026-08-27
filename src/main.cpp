@@ -20,7 +20,7 @@ struct S
       std::puts("S(S const &)");
    }
 
-   S(S &&)
+   S(S &&) noexcept
    {
       std::puts("S(S &&)");
    }
@@ -33,7 +33,7 @@ struct S
    }
 
    S &
-   operator=(S &&)
+   operator=(S &&) noexcept
    {
       std::puts("operator=(S &&)");
       return *this;

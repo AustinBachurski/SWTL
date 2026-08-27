@@ -9,6 +9,12 @@ import swtl.format;
 export namespace swtl::test_helpers
 {
 
+/// Allows Catch2 to print the id of any test object.
+template <typename T>
+concept PrintableTestType = requires(T const &t) {
+   { std::to_string(t.id) } -> std::same_as<std::string>;
+};
+
 /// @brief Exception class used during testing.
 ///
 class TestException : std::runtime_error
@@ -52,7 +58,7 @@ struct TestController
    /// `count_of.destruction`.
    ///
    constexpr bool
-   all_new_instances_destroyed() const noexcept
+   all_instances_destroyed() const noexcept
    {
       return sum_of_constructions() == count_of.destruction;
    }
@@ -90,7 +96,7 @@ struct TestController
    /// @brief Prints the state of the controller to stdout.
    ///
    constexpr void
-   report_state() const
+   report() const
    {
       // TODO: Use reflection here when supported?
       std::println();
