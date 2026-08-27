@@ -29,109 +29,294 @@ struct StringMaker<T>
 
 }  // namespace Catch
 
-TEST_CASE(
-    "Default construction creates an empty Vector.", "[vector][constructor]")
+TEMPLATE_TEST_CASE(
+    "Default construction creates an empty vector.",
+    "[vector][constructor]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject)
 {
-   swtl::Vector<int> const vec;
+   helpers::g_test_controller.reset();
+   {
+      swtl::Vector<TestType> vec;
 
-   REQUIRE(vec.is_empty());
-   REQUIRE(vec.size() == 0UZ);
-   REQUIRE(vec.capacity() == 0UZ);
-   REQUIRE(vec.data() == nullptr);
-}
-
-TEST_CASE(
-    "Vector(std::initializer_list) creates a Vector with elements from "
-    "the initializer list.",
-    "[vector][constructor]")
-{
-   std::initializer_list<int> const init_list{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-   swtl::Vector<int> const vec(init_list);
-
-   REQUIRE(!vec.is_empty());
-   REQUIRE(vec.size() == init_list.size());
-   REQUIRE(vec.capacity() >= init_list.size());
-   REQUIRE(vec.data() != nullptr);
-   REQUIRE(std::ranges::equal(vec, init_list));
-}
-
-TEST_CASE(
-    "Vector(size_type count) creates a Vector with count elements of type T.",
-    "[vector][constructor]")
-{
-   swtl::Vector<int> const should_be_empty(0);
-   swtl::Vector<int> const expected{ 0, 0, 0, 0, 0 };
-   swtl::Vector<int> const vec(expected.size());
-
-   REQUIRE(should_be_empty.is_empty());
-   REQUIRE(!vec.is_empty());
-   REQUIRE(vec.size() == expected.size());
-   REQUIRE(vec.capacity() >= expected.size());
-   REQUIRE(vec.data() != nullptr);
-   REQUIRE(vec == expected);
+      REQUIRE(vec.is_empty());
+      REQUIRE(vec.size() == 0UZ);
+      REQUIRE(vec.capacity() == 0UZ);
+      REQUIRE(vec.data() == nullptr);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector(size_type count, T const &value) creates a Vector with count "
+    "Vector{braced-initializer-list} creates a vector with elements from the "
+    "braced initializer list.",
+    "[vector][constructor]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = TestType;
+
+      swtl::Vector<T> const vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
+                                 T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+
+      std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },
+                                                T{ 4 }, T{ 5 }, T{ 6 }, T{ 7 },
+                                                T{ 8 }, T{ 9 } };
+      REQUIRE(std::ranges::equal(vec, init_list));
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector{braced-initializer-list} exception safety.",
+    "[vector][constructor]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = TestType;
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction + 10UZ;
+
+      REQUIRE_THROWS(
+          swtl::Vector<T>{ T{ 0 },
+                           T{ 1 },
+                           T{ 2 },
+                           T{ 3 },
+                           T{ 4 },
+                           T{ 5 },
+                           T{ 6 },
+                           T{ 7 },
+                           T{ 8 },
+                           T{ 9 } });
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(std::initializer_list init_list) creates a vector with elements "
+    "from the initializer list.",
+    "[vector][constructor]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = TestType;
+
+      std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },
+                                                T{ 4 }, T{ 5 }, T{ 6 }, T{ 7 },
+                                                T{ 8 }, T{ 9 } };
+      swtl::Vector<T> const vec(init_list);
+
+      REQUIRE(std::ranges::equal(vec, init_list));
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEST_CASE(
+    "Vector(std::initializer_list init_list) exception safety.",
+    "[vector][constructor][exception]")
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = helpers::TrackedObject;
+
+      std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },
+                                                T{ 4 }, T{ 5 }, T{ 6 }, T{ 7 },
+                                                T{ 8 }, T{ 9 } };
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction
+          + init_list.size();
+
+      REQUIRE_THROWS_AS(swtl::Vector<T>(init_list), helpers::TestException);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(size_type count) creates a vector with count default constructed "
+    "elements of type T.",
+    "[vector][constructor]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = TestType;
+
+      auto count{ 10UZ };
+      swtl::Vector<T> const empty_vec(0);
+
+      swtl::Vector<T> expected;
+
+      for (auto counter{ 0UZ }; counter != count; ++counter)
+      {
+         expected.emplace_back();
+      }
+
+      swtl::Vector<T> const vec(count);
+
+      REQUIRE(empty_vec.is_empty());
+      REQUIRE(vec == expected);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEST_CASE("Vector(size_type count) exception safety.", "[vector][constructor]")
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = helpers::TrackedObject;
+
+      auto const count{ 5UZ };
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.default_construction = count;
+
+      REQUIRE_THROWS_AS(swtl::Vector<T>(count), helpers::TestException);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(size_type count, T const &value) creates a vector with count "
     "elements of type T equal to value.",
     "[vector][constructor]",
+    std::uint8_t,
     int,
-    double,
-    std::string)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
 {
-   auto const count{ 4UZ };
-   auto const value{ []()
+   helpers::g_test_controller.reset();
    {
-      if constexpr (std::same_as<TestType, int>)
+      using T = TestType;
+
+      auto const count{ 4UZ };
+      auto const reference_value{ T{ 42UZ } };
+
+      swtl::Vector<TestType> const vec(count, reference_value);
+      swtl::Vector<TestType> expected;
+      expected.assign(count, reference_value);
+
+      REQUIRE(vec == expected);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(size_type count, T const &value) exception safety.",
+    "[vector][constructor]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      using T = TestType;
+
+      auto const count{ 4UZ };
+      auto const reference_value{ T{ 42UZ } };
+
+      swtl::Vector<TestType> expected;
+      expected.assign(count, reference_value);
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction + count;
+
+      REQUIRE_THROWS_AS(
+          swtl::Vector<TestType>(count, reference_value),
+          helpers::TestException);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(InputIterator first, Sentinel last) creates a vector with elements "
+    "from the source container using a contiguous iterator.",
+    "[vector][constructor]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      auto source{ helpers::generate_vector<TestType>() };
+
+      if constexpr (!std::is_move_constructible_v<TestType>)
       {
-         return 42;
-      }
-      else if constexpr (std::same_as<TestType, double>)
-      {
-         return 4.2;
-      }
-      else if constexpr (std::same_as<TestType, std::string>)
-      {
-         return std::string{ "forty-two" };
+         swtl::Vector const vec(source.begin(), source.end());
+         REQUIRE(vec == source);
       }
       else
       {
-         throw std::invalid_argument(
-             "Missing conditional block to generate "
-             "value for TestType.");
+         swtl::Vector const vec(
+             std::make_move_iterator(source.begin()),
+             std::make_move_iterator(source.end()));
+         REQUIRE(vec == source);
       }
-   }() };
-
-   swtl::Vector<TestType> const vec(count, value);
-
-   REQUIRE(!vec.is_empty());
-   REQUIRE(vec.size() == count);
-   REQUIRE(vec.capacity() >= count);
-   REQUIRE(vec.data() != nullptr);
-   REQUIRE(std::ranges::equal(vec, std::vector<TestType>(count, value)));
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector(iterator, iterator) creates a Vector with elements from the "
-    "source container.",
+    "Vector(InputIterator first, Sentinel last) creates a vector with elements "
+    "from the source container using an input iterator.",
     "[vector][constructor]",
-    bool,
-    unsigned char,
+    std::uint8_t,
     int,
-    double,
-    std::string)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto const source_data{
-      helpers::generate_populated<std::vector<TestType>>()
-   };
-   swtl::Vector const vec(source_data.begin(), source_data.end());
+   helpers::g_test_controller.reset();
+   {
+      auto source{ helpers::generate_vector<TestType>() };
 
-   REQUIRE(!vec.is_empty());
-   REQUIRE(vec.size() == source_data.size());
-   REQUIRE(vec.capacity() >= source_data.size());
-   REQUIRE(vec.data() != nullptr);
-   REQUIRE(std::ranges::equal(vec, source_data));
+      auto begin{ helpers::InputIterator(source.data()) };
+      auto end{ helpers::InputIterator(source.data() + source.size()) };
+
+      if constexpr (!std::is_move_constructible_v<TestType>)
+      {
+         swtl::Vector const vec(begin, end);
+         REQUIRE(vec == source);
+      }
+      else
+      {
+         swtl::Vector const vec(
+             std::make_move_iterator(begin), std::make_move_iterator(end));
+         REQUIRE(vec == source);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
+
+// TODO: WORKING HERE - Add exception safety tests for both iterator types, the
+// one above, and the one above that.
 
 TEMPLATE_TEST_CASE(
     "Vector(std::from_range, range) creates a Vector with elements from "
@@ -143,6 +328,12 @@ TEMPLATE_TEST_CASE(
     double,
     std::string)
 {
+   helpers::g_test_controller.reset();
+   {
+      // TODO: WORKING HERE NEXT
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+
    auto const range_of_data{
       helpers::generate_populated<std::vector<TestType>>()
    };

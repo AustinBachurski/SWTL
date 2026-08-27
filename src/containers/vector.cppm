@@ -389,7 +389,11 @@ public:
    /// during construction, all elements that were constructed prior to the
    /// exception are destroyed and any allocated memory is deallocated.
    ///
-   constexpr Vector(size_type count, T const &value)
+   constexpr Vector(
+       size_type count,
+       T const &value,
+       Allocator const &allocator = Allocator())
+       : Base{ allocator }
    {
       this->create_storage(count);
 
@@ -434,10 +438,31 @@ public:
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      this->create_storage(
-          static_cast<size_type>(std::ranges::distance(first, last)));
-      this->m_finish
-          = uninitialized_copy(this->m_allocator, first, last, this->m_start);
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
+      {
+         this->create_storage(
+             static_cast<size_type>(std::ranges::distance(first, last)));
+         this->m_finish = uninitialized_copy(
+             this->m_allocator, first, last, this->m_start);
+      }
+      else
+      {
+         try
+         {
+            while (first != last)
+            {
+               push_back(*first);
+               ++first;
+            }
+         }
+         catch (...)
+         {
+            clear();
+            throw;
+         }
+      }
    }
 
    /// @brief Constructs a vector from a container-compatible range.
@@ -455,7 +480,11 @@ public:
    /// exception are destroyed and any allocated memory is deallocated.
    ///
    template <container_compatible_range<T> Range>
-   constexpr Vector(std::from_range_t, Range &&range)
+   constexpr Vector(
+       std::from_range_t,
+       Range &&range,
+       Allocator const &allocator = Allocator())
+       : Base{ allocator }
    {
       if constexpr (std::ranges::sized_range<Range>)
       {
@@ -467,6 +496,8 @@ public:
       }
       else
       {
+         // TODO: FIX: No idea what I was thinking here, no allocation, clearly
+         // this branch wasn't tested...
          detail::ElementGuard elem_guard(
              this->m_allocator, this->m_start, this->m_start);
 
@@ -1721,7 +1752,8 @@ public:
          {
             while (first != last)
             {
-               push_back(*first++);
+               push_back(*first);
+               ++first;
             }
 
             return begin() + std::ranges::distance(cbegin(), pos);
@@ -2274,34 +2306,32 @@ private:
    {
       auto [ptr, count]{ this->allocate_memory_for_at_least(
           calculate_growth_size()) };
+
       auto const new_element_ptr{ ptr + size() };
       auto const new_element_finish{ new_element_ptr + 1 };
 
+      detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
+
+      a_traits::construct(
+          this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
       {
-         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
+         // The newly inserted element exists and must be destroyed if an
+         // exception is thrown.
+         detail::ElementGuard elem_guard{ this->m_allocator,
+                                          new_element_ptr,
+                                          new_element_finish };
 
-         a_traits::construct(
-             this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
-         {
-            // The newly inserted element exists and must be destroyed if an
-            // exception is thrown.
-            detail::ElementGuard elem_guard{ this->m_allocator,
-                                             new_element_ptr,
-                                             new_element_finish };
+         uninitialized_move_if_noexcept(this->m_allocator, begin(), end(), ptr);
 
-            uninitialized_move_if_noexcept(
-                this->m_allocator, begin(), end(), ptr);
+         // Scary part's over, reassign the guards to the old elements and
+         // memory.
+         elem_guard.reassign(this->m_start, this->m_finish);
+         mem_guard.reassign(this->m_start, capacity());
 
-            // Scary part's over, reassign the guards to the old elements and
-            // memory.
-            elem_guard.reassign(this->m_start, this->m_finish);
-            mem_guard.reassign(this->m_start, capacity());
-
-            this->m_start = ptr;
-            this->m_finish = new_element_finish;
-            this->m_end_of_storage = ptr + count;
-            return back();
-         }
+         this->m_start = ptr;
+         this->m_finish = new_element_finish;
+         this->m_end_of_storage = ptr + count;
+         return back();
       }
    }
 
