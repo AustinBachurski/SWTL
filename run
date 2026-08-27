@@ -23,7 +23,8 @@ cmake --build --preset ${build_preset}
 
 if [[ $1 == "--test" ]]; then
    echo -e "\n--- Running Tests ${test_preset} ---"
-   ctest --preset ${test_preset}
+   #ctest --preset ${test_preset}
+   ./out/bin/x64-gcc-debug/tests
 else
    echo -e "\n--- Executing Binary ---\n"
    ./out/bin/${build_preset}/"${binary}"
