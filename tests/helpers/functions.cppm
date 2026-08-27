@@ -138,6 +138,37 @@ generate_unique(std::size_t count)
    return container;
 }
 
+/// @brief Returns a swtl::Vector<T> with `count` elements with incrementing
+/// values.
+///
+/// Used to generate test data for unit tests.
+///
+/// @tparam T The template argument for the vector.
+///
+/// @return A new swtl::Vector<T> with `count` elements with incrementing
+/// values.
+///
+/// @note Since the default type pack for testing includes a `std::uint8_t`, the
+/// reference value is of type `std::uint8_t`; this means that ids will go to
+/// 255 and wrap if you request a large amount of elements.  Well defined, just
+/// be aware of that.
+///
+template <typename T>
+constexpr swtl::Vector<T>
+generate_vector(std::size_t count = 8UZ)
+{
+   swtl::Vector<T> vec;
+
+   std::uint8_t reference_value{};
+
+   for (; count != 0UZ; --count)
+   {
+      vec.emplace_back(reference_value++);
+   }
+
+   return vec;
+}
+
 }  // namespace swtl::test_helpers
 
 /// @endcond
