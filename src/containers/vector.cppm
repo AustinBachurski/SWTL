@@ -2390,7 +2390,7 @@ private:
             auto tail_ptr{ uninitialized_fill_n(
                 this->m_allocator, pos_ptr, count, value) };
 
-            // Guard elements that were previously constructed incase an
+            // Guard elements that were previously constructed in case an
             // exception is thrown while migrating data from the first half of
             // the old memory.
             detail::ElementGuard elem_guard(
@@ -2400,7 +2400,7 @@ private:
                 this->m_allocator, begin(), pos, ptr);
 
             // Expand the guard to include the first half of migrated data
-            // incase an exception is thrown while migrating the last half of
+            // in case an exception is thrown while migrating the last half of
             // data from the old memory.
             elem_guard.first = ptr;
 
@@ -2459,7 +2459,7 @@ private:
             auto tail_ptr{ uninitialized_copy(
                 this->m_allocator, first, last, pos_ptr) };
 
-            // Guard elements that were previously constructed incase an
+            // Guard elements that were previously constructed in case an
             // exception is thrown while migrating data from the first half of
             // the old memory.
             detail::ElementGuard elem_guard(
@@ -2469,7 +2469,7 @@ private:
                 this->m_allocator, begin(), pos, ptr);
 
             // Expand the guard to include the first half of migrated data
-            // incase an exception is thrown while migrating the last half of
+            // in case an exception is thrown while migrating the last half of
             // data from the old memory.
             elem_guard.first = ptr;
 
