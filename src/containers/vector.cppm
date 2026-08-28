@@ -644,11 +644,76 @@ public:
    {
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
       {
-         contract_assert(
-             last - first >= 0 && "`last` must be reachable from `first`");
+         assert(last - first >= 0 && "`last` must be reachable from `first`");
       }
 
-      assign_from_range(first, last);
+      // If distance can be checked then do so and reallocate or overwrite
+      // elements as necessary.
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
+      {
+         if (auto const input_size{
+               static_cast<size_type>(std::ranges::distance(first, last)) };
+             capacity() < input_size)
+         {
+            auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
+
+            if constexpr (std::is_nothrow_copy_constructible_v<T>)
+            {
+               clear();
+               this->deallocate_memory();
+               this->m_start = ptr;
+               this->m_end_of_storage = ptr + count;
+
+               this->m_finish
+                   = uninitialized_copy(this->m_allocator, first, last, ptr);
+            }
+            else
+            {
+               detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+
+               auto const new_finish{ uninitialized_copy(
+                   this->m_allocator, first, last, ptr) };
+
+               clear();
+               mem_guard.reassign(this->m_start, capacity());
+
+               this->m_start = ptr;
+               this->m_finish
+                   = new_finish;  // Assign AFTER the call to clear().
+               this->m_end_of_storage = ptr + count;
+            }
+         }
+         else
+         {
+            auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
+
+            this->m_finish
+                = std::to_address(destroy(this->m_allocator, dest_pos, end()));
+
+            while (src_pos != last)
+            {
+               a_traits::construct(
+                   this->m_allocator, this->m_finish, *src_pos++);
+               ++this->m_finish;  // Increment after successful construction.
+            }
+         }
+      }
+      // If distance cannot be checked, overwrite existing elements and then
+      // let push_back resize if needed.
+      else
+      {
+         auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
+
+         this->m_finish
+             = std::to_address(destroy(this->m_allocator, dest_pos, end()));
+
+         while (src_pos != last)
+         {
+            push_back(*src_pos++);
+         }
+      }
    }
 
    /// @brief Replaces the vector's contents with the elements from an
@@ -674,7 +739,7 @@ public:
    constexpr void
    assign(std::initializer_list<T> init_list)
    {
-      assign_from_range(init_list.begin(), init_list.end());
+      assign(init_list.begin(), init_list.end());
    }
 
    /// @brief Replaces the vector's contents with the elements from a
@@ -708,7 +773,7 @@ public:
    constexpr void
    assign_range(Range &&range)
    {
-      assign_from_range(std::ranges::begin(range), std::ranges::end(range));
+      assign(std::ranges::begin(range), std::ranges::end(range));
    }
 
    /// @}
@@ -832,7 +897,7 @@ public:
       // destination retains it's allocator. Simply copy over the elements from
       // source.
 
-      assign_from_range(other.begin(), other.end());
+      assign(other.begin(), other.end());
       return *this;
    }
 
@@ -2128,112 +2193,6 @@ public:
 
 private:
    /// @cond INTERNAL_DOCUMENTATION
-   /// @brief Replaces the vector's contents with the elements from the range
-   /// `[first, last)`.
-   ///
-   /// Reuses existing memory if possible, overwriting old element and
-   /// appending new ones, or reallocates new memory for the elements.
-   /// Reallocation is done ahead of time if the distance between the
-   /// iterator and the sentinel; if distance cannot be calculated
-   /// reallocation is accomplished via calls to `push_back()`.
-   ///
-   /// @tparam InputIterator An input iterator type.
-   /// @tparam Sentinel A sentinel type for `InputIterator`.
-   ///
-   /// @param first The start of the range.
-   /// @param last The end of the range.
-   ///
-   /// @throws (...) Any exception thrown by the allocator as a result of a
-   /// call to `std::allocator_traits<Allocator>::allocate` if reallocation
-   /// occurs.
-   /// @throws (...) Any exception thrown by T during element assignment or
-   /// construction.
-   ///
-   /// @note Provides a strong exception guarantee if reallocation occurs: if
-   /// an exception is thrown during reallocation, any new elements that were
-   /// constructed prior to the exception are destroyed, any newly allocated
-   /// memory is deallocated, and the vector is unmodified.
-   ///
-   /// @note Provides a basic exception guarantee if no reallocation occurs:
-   /// if an exception is thrown during element assignment or construction,
-   /// the vector is left in a valid but unspecified state and no resources
-   /// are leaked.
-   ///
-   template <
-       std::input_iterator InputIterator,
-       std::sentinel_for<InputIterator> Sentinel
-   >
-   constexpr void
-   assign_from_range(InputIterator first, Sentinel last)
-   {
-      // If distance can be checked then do so and reallocate or overwrite
-      // elements as necessary.
-      if constexpr (
-          std::sized_sentinel_for<Sentinel, InputIterator>
-          || std::forward_iterator<InputIterator>)
-      {
-         if (auto const input_size{
-               static_cast<size_type>(std::ranges::distance(first, last)) };
-             capacity() < input_size)
-         {
-            auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
-
-            if constexpr (std::is_nothrow_copy_constructible_v<T>)
-            {
-               clear();
-               this->deallocate_memory();
-               this->m_start = ptr;
-               this->m_end_of_storage = ptr + count;
-
-               this->m_finish
-                   = uninitialized_copy(this->m_allocator, first, last, ptr);
-            }
-            else
-            {
-               detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
-
-               auto const new_finish{ uninitialized_copy(
-                   this->m_allocator, first, last, ptr) };
-
-               clear();
-               mem_guard.reassign(this->m_start, capacity());
-
-               this->m_start = ptr;
-               this->m_finish
-                   = new_finish;  // Assign AFTER the call to clear().
-               this->m_end_of_storage = ptr + count;
-            }
-         }
-         else
-         {
-            auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
-
-            this->m_finish
-                = std::to_address(destroy(this->m_allocator, dest_pos, end()));
-
-            while (src_pos != last)
-            {
-               a_traits::construct(
-                   this->m_allocator, this->m_finish, *src_pos++);
-               ++this->m_finish;  // Increment after successful construction.
-            }
-         }
-      }
-      // If distance cannot be checked, overwrite existing elements and then
-      // let push_back resize if needed.
-      else
-      {
-         auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
-
-         this->m_finish
-             = std::to_address(destroy(this->m_allocator, dest_pos, end()));
-
-         while (src_pos != last)
-         {
-            push_back(*src_pos++);
-         }
-      }
-   }
 
    /// @brief Calculates the new capacity required for reallocation during
    /// growth.
