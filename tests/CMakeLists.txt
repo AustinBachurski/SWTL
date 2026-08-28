@@ -37,4 +37,14 @@ enable_warnings_for_target(tests)
 enable_address_sanitizer_for_target(tests)
 enable_undefined_behavior_sanitizer_for_target(tests)
 
+# Path Coverage testing.
+option(SWTL_ENABLE_COVERAGE_TESTS
+   "Enable path coverage testing."
+   OFF
+)
+if(SWTL_ENABLE_COVERAGE_TESTS)
+   target_compile_options(tests PRIVATE $<$<CONFIG:Debug>:--coverage>)
+   target_link_libraries(tests PRIVATE --coverage)
+endif()
+
 catch_discover_tests(tests)

@@ -1,3 +1,20 @@
+/*  Default set of template test case types - remove after refactor is done.
+
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+
+   helpers::g_test_controller.reset();
+   {
+      // TODO: WORKING HERE NEXT
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+
+*/
+
 #include "catch2/catch_template_test_macros.hpp"
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers.hpp"
@@ -35,18 +52,28 @@ TEMPLATE_TEST_CASE(
     std::uint8_t,
     int,
     helpers::TrackedObject,
-    helpers::NoThrowTrackedObject)
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
    helpers::g_test_controller.reset();
-   {
-      swtl::Vector<TestType> vec;
 
-      REQUIRE(vec.is_empty());
-      REQUIRE(vec.size() == 0UZ);
-      REQUIRE(vec.capacity() == 0UZ);
-      REQUIRE(vec.data() == nullptr);
-   }
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+   swtl::Vector<TestType> vec;
+
+   // Vector is empty.
+   REQUIRE(vec.is_empty());
+   REQUIRE(vec.size() == 0UZ);
+   REQUIRE(vec.capacity() == 0UZ);
+   REQUIRE(vec.data() == nullptr);
+
+   // No elements were created.
+   REQUIRE(helpers::g_test_controller.count_of.default_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.arg_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.copy_assignment == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_construction == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.move_assignment == 0UZ);
+   REQUIRE(helpers::g_test_controller.count_of.destruction == 0UZ);
 }
 
 TEMPLATE_TEST_CASE(
@@ -74,15 +101,13 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "Vector{braced-initializer-list} exception safety.",
-    "[vector][constructor]",
-    helpers::TrackedObject,
-    helpers::CopyOnlyTrackedObject)
+    "[vector][constructor][exception]")
 {
    helpers::g_test_controller.reset();
    {
-      using T = TestType;
+      using T = helpers::TrackedObject;
 
       helpers::g_test_controller.enable_throwing();
       helpers::g_test_controller.throw_when.copy_construction
@@ -182,7 +207,9 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEST_CASE("Vector(size_type count) exception safety.", "[vector][constructor]")
+TEST_CASE(
+    "Vector(size_type count) exception safety.",
+    "[vector][constructor][exception]")
 {
    helpers::g_test_controller.reset();
    {
@@ -224,20 +251,18 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEMPLATE_TEST_CASE(
+TEST_CASE(
     "Vector(size_type count, T const &value) exception safety.",
-    "[vector][constructor]",
-    helpers::TrackedObject,
-    helpers::CopyOnlyTrackedObject)
+    "[vector][constructor][exception]")
 {
    helpers::g_test_controller.reset();
    {
-      using T = TestType;
+      using T = helpers::TrackedObject;
 
       auto const count{ 4UZ };
       auto const reference_value{ T{ 42UZ } };
 
-      swtl::Vector<TestType> expected;
+      swtl::Vector<T> expected;
       expected.assign(count, reference_value);
 
       helpers::g_test_controller.enable_throwing();
@@ -245,8 +270,7 @@ TEMPLATE_TEST_CASE(
           = helpers::g_test_controller.count_of.copy_construction + count;
 
       REQUIRE_THROWS_AS(
-          swtl::Vector<TestType>(count, reference_value),
-          helpers::TestException);
+          swtl::Vector<T>(count, reference_value), helpers::TestException);
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -277,6 +301,44 @@ TEMPLATE_TEST_CASE(
              std::make_move_iterator(source.begin()),
              std::make_move_iterator(source.end()));
          REQUIRE(vec == source);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(InputIterator first, Sentinel last) exception saftey for "
+    "contiguous iterators.",
+    "[vector][constructor]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      auto source{ helpers::generate_vector<TestType>() };
+
+      auto const count{ source.size() };
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction + count;
+      helpers::g_test_controller.throw_when.move_construction
+          = helpers::g_test_controller.count_of.move_construction + count;
+
+      if constexpr (!std::is_move_constructible_v<TestType>)
+      {
+         REQUIRE_THROWS_AS(
+             swtl::Vector(source.begin(), source.end()),
+             helpers::TestException);
+      }
+      else
+      {
+         REQUIRE_THROWS_AS(
+             swtl::Vector(
+                 std::make_move_iterator(source.begin()),
+                 std::make_move_iterator(source.end())),
+             helpers::TestException);
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -315,72 +377,155 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-// TODO: WORKING HERE - Add exception safety tests for both iterator types, the
-// one above, and the one above that.
-
 TEMPLATE_TEST_CASE(
-    "Vector(std::from_range, range) creates a Vector with elements from "
-    "the provided range.",
-    "[vector][constructor]",
-    bool,
-    unsigned char,
-    int,
-    double,
-    std::string)
+    "Vector(InputIterator first, Sentinel last) exception safety for input "
+    "iterators.",
+    "[vector][constructor][exception]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
    helpers::g_test_controller.reset();
    {
-      // TODO: WORKING HERE NEXT
+      auto source{ helpers::generate_vector<TestType>() };
+
+      auto const count{ source.size() };
+
+      auto begin{ helpers::InputIterator(source.data()) };
+      auto end{ helpers::InputIterator(source.data() + source.size()) };
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction + count;
+      helpers::g_test_controller.throw_when.move_construction
+          = helpers::g_test_controller.count_of.move_construction + count;
+
+      if constexpr (!std::is_move_constructible_v<TestType>)
+      {
+         REQUIRE_THROWS_AS(swtl::Vector(begin, end), helpers::TestException);
+      }
+      else
+      {
+         REQUIRE_THROWS_AS(
+             swtl::Vector(
+                 std::make_move_iterator(begin), std::make_move_iterator(end)),
+             helpers::TestException);
+      }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
 
-   auto const range_of_data{
-      helpers::generate_populated<std::vector<TestType>>()
-   };
-   swtl::Vector const vec(std::from_range, range_of_data);
+TEMPLATE_TEST_CASE(
+    "Vector(std::from_range, Range &&range) creates a vector with elements "
+    "from the provided range.",
+    "[vector][constructor][range]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      auto source{ helpers::generate_vector<TestType>() };
 
-   REQUIRE(!vec.is_empty());
-   REQUIRE(vec.size() == range_of_data.size());
-   REQUIRE(vec.capacity() >= range_of_data.size());
-   REQUIRE(vec.data() != nullptr);
-   REQUIRE(std::ranges::equal(vec, range_of_data));
+      if constexpr (!std::is_move_constructible_v<TestType>)
+      {
+         swtl::Vector const vec(std::from_range, source);
+         REQUIRE(vec == source);
+      }
+      else
+      {
+         swtl::Vector const vec(std::from_range, std::views::as_rvalue(source));
+         REQUIRE(vec == source);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector(std::from_range, Range &&range) exception safety.",
+    "[vector][constructor][range][exception]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      auto source{ helpers::generate_vector<TestType>() };
+
+      auto const count{ source.size() };
+
+      helpers::g_test_controller.enable_throwing();
+      helpers::g_test_controller.throw_when.copy_construction
+          = helpers::g_test_controller.count_of.copy_construction + count;
+      helpers::g_test_controller.throw_when.move_construction
+          = helpers::g_test_controller.count_of.move_construction + count;
+
+      if constexpr (!std::is_move_constructible_v<TestType>)
+      {
+         REQUIRE_THROWS_AS(
+             swtl::Vector(std::from_range, source), helpers::TestException);
+      }
+      else
+      {
+         REQUIRE_THROWS_AS(
+             swtl::Vector(std::from_range, std::views::as_rvalue(source)),
+             helpers::TestException);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
     "CTAD correctly deduces types.",
-    "[vector][constructor]",
+    "[vector][constructor][ctad]",
+    std::uint8_t,
     int,
-    bool,
-    unsigned char,
-    float,
-    double,
-    char const *,
-    std::string_view,
-    std::string)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
 {
    TestType value{};
-   std::vector<TestType> std_vector_of_value;
+   swtl::Vector<TestType> source;
 
-   SECTION("CTAD from braced construction.")
+   SECTION("CTAD from a braced initializer list.")
    {
-      swtl::Vector vec{ value };
+      swtl::Vector vec{ value, value, value };
 
       STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
    }
 
-   SECTION("CTAD from iterator construction.")
+   SECTION("CTAD from iterators.")
    {
-      swtl::Vector vec(std_vector_of_value.begin(), std_vector_of_value.end());
+      swtl::Vector vec(source.begin(), source.end());
+
+      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+   }
+
+   SECTION("CTAD from a range.")
+   {
+      swtl::Vector vec(std::from_range, source);
 
       STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
    }
 }
 
-TEST_CASE(
-    "Iterator calls return a const correct iterators.", "[vector][iterator]")
+TEMPLATE_TEST_CASE(
+    "Iterator calls return const correct iterators.",
+    "[vector][iterator]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
-   auto const const_vec{ vec };
+   using T = TestType;
+
+   auto vec{ helpers::generate_vector<T>() };
+   auto const const_vec{ helpers::generate_vector<T>() };
 
    // Forward iterators.
    SECTION(
@@ -388,11 +533,11 @@ TEST_CASE(
        "const iterator from a const container..")
    {
       STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.begin()), swtl::ContiguousIterator<int>>);
+          std::is_same_v<decltype(vec.begin()), swtl::ContiguousIterator<T>>);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.begin()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
    }
 
@@ -401,11 +546,11 @@ TEST_CASE(
        "const iterator from a const container..")
    {
       STATIC_REQUIRE(
-          std::is_same_v<decltype(vec.end()), swtl::ContiguousIterator<int>>);
+          std::is_same_v<decltype(vec.end()), swtl::ContiguousIterator<T>>);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.end()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
    }
 
@@ -414,12 +559,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.cbegin()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.cbegin()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
    }
 
@@ -428,12 +573,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.cend()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.cend()),
-              swtl::ContiguousIterator<int const>
+              swtl::ContiguousIterator<T const>
           >);
    }
 
@@ -445,12 +590,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.rbegin()),
-              std::reverse_iterator<swtl::ContiguousIterator<int>>
+              std::reverse_iterator<swtl::ContiguousIterator<T>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.rbegin()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
    }
 
@@ -461,12 +606,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.rend()),
-              std::reverse_iterator<swtl::ContiguousIterator<int>>
+              std::reverse_iterator<swtl::ContiguousIterator<T>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.rend()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
    }
 
@@ -475,12 +620,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.crbegin()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.crbegin()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
    }
 
@@ -489,12 +634,12 @@ TEST_CASE(
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(vec.crend()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
       STATIC_REQUIRE(
           std::is_same_v<
               decltype(const_vec.crend()),
-              std::reverse_iterator<swtl::ContiguousIterator<int const>>
+              std::reverse_iterator<swtl::ContiguousIterator<T const>>
           >);
    }
 }
@@ -504,7 +649,7 @@ TEST_CASE(
     "elements.",
     "[vector][iterator]")
 {
-   auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
+   auto vec{ helpers::generate_vector<int>() };
 
    // References are used in these sections so that the actual return value of
    // the iterator can be tested, as opposed to the result of a copy.
@@ -570,7 +715,7 @@ TEST_CASE(
 
 TEST_CASE("Non-const iterator mutability.", "[vector][iterator]")
 {
-   auto const vec{ helpers::generate_populated<swtl::Vector<int>>() };
+   auto const vec{ helpers::generate_vector<int>() };
 
    SECTION("Non-const forward iterator is mutable.")
    {
@@ -598,361 +743,354 @@ TEST_CASE("Non-const iterator mutability.", "[vector][iterator]")
 }
 
 TEMPLATE_TEST_CASE(
-    "Special Member Functions: Copy Operations",
-    "[vector][special member functions][default_allocator]",
-    bool,
-    unsigned char,
+    "Special Member Functions: Copy operations",
+    "[vector][special member functions]",
+    std::uint8_t,
     int,
-    double,
-    std::string)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
 {
-   auto source{ helpers::generate_populated<swtl::Vector<TestType>>() };
-
-   SECTION("Copy constructor from non-const source copies correctly.")
+   helpers::g_test_controller.reset();
    {
-      auto const copied{ source };
+      auto source{ helpers::generate_vector<TestType>() };
+      auto const const_source{ helpers::generate_vector<TestType>() };
+      auto const expected{ helpers::generate_vector<TestType>() };
 
-      REQUIRE(source == copied);
-      REQUIRE(source.data() != copied.data());
+      SECTION("Copy constructor from copies from non-const source.")
+      {
+         auto const destination{ source };
+
+         REQUIRE(destination == expected);
+         REQUIRE(source == expected);
+         REQUIRE(destination.data() != source.data());
+      }
+
+      SECTION("Copy constructor from copies from const source.")
+      {
+         auto const destination{ const_source };
+
+         REQUIRE(destination == expected);
+         REQUIRE(destination.data() != const_source.data());
+      }
+
+      SECTION("Copy assignment operator copies from non-const source.")
+      {
+         swtl::Vector<TestType> destination;
+         destination = source;
+
+         REQUIRE(destination == expected);
+         REQUIRE(source == expected);
+         REQUIRE(destination.data() != source.data());
+      }
+
+      SECTION("Copy assignment operator copies from const source.")
+      {
+         swtl::Vector<TestType> destination;
+         destination = const_source;
+
+         REQUIRE(destination == expected);
+         REQUIRE(destination.data() != const_source.data());
+      }
+
+      SECTION("Self copy assignment does nothing.")
+      {
+         auto const &reference_to_source{ source };
+
+         auto const data_ptr_before_copy{ source.data() };
+         auto const capacity_before_copy{ source.capacity() };
+         auto const size_before_copy{ source.size() };
+
+         source = reference_to_source;
+
+         REQUIRE(source.data() == data_ptr_before_copy);
+         REQUIRE(source.capacity() == capacity_before_copy);
+         REQUIRE(source.size() == size_before_copy);
+      }
    }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
 
-   SECTION("Copy assignment operator allocates new memory.")
+TEMPLATE_TEST_CASE(
+    "Special Member Functions: Copy operations - exception saftey.",
+    "[vector][special member functions][exception]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
    {
-      swtl::Vector<TestType> destination;
-      destination = source;
+      auto source{ helpers::generate_vector<TestType>() };
+      auto const count{ source.size() };
 
-      REQUIRE(destination == source);
-      REQUIRE(destination.data() != source.data());
+      auto const expected{ helpers::generate_vector<TestType>() };
+
+      helpers::g_test_controller.enable_throwing();
+
+      SECTION("Copy constructor.")
+      {
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         REQUIRE_THROWS_AS(swtl::Vector(source), helpers::TestException);
+         REQUIRE(source == expected);
+      }
+
+      SECTION("Copy assignment operator.")
+      {
+         // Although this is copy assignment for the vector, the elements are
+         // still being copy constructed in the empty destination.
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         swtl::Vector<TestType> destination;
+
+         REQUIRE_THROWS_AS(destination = source, helpers::TestException);
+         REQUIRE(source == expected);
+      }
    }
-
-   SECTION("Self copy assignment does nothing.")
-   {
-      auto const data_ptr_before_copy{ source.data() };
-      auto const capacity_before_copy{ source.capacity() };
-      auto const size_before_copy{ source.size() };
-      auto const &reference_to_source{ source };
-      source = reference_to_source;
-
-      REQUIRE(source.data() == data_ptr_before_copy);
-      REQUIRE(source.capacity() == capacity_before_copy);
-      REQUIRE(source.size() == size_before_copy);
-   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
     "Special Member Functions: Move Operations",
-    "[vector][special member functions][default_allocator]",
-    bool,
+    "[vector][special member functions]",
+    std::uint8_t,
     int,
-    double,
-    std::string)
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto source{ helpers::generate_populated<swtl::Vector<TestType>>() };
-
-   SECTION(
-       "Move constructor from non-const source moves data without allocating.")
+   helpers::g_test_controller.reset();
    {
-      auto const known_good_copy{ source };
+      auto source{ helpers::generate_vector<TestType>() };
+      auto const &const_reference_to_source{ source };
+
       auto const data_ptr_before_move{ source.data() };
       auto const capacity_before_move{ source.capacity() };
       auto const size_before_move{ source.size() };
-      auto const moved{ std::move(source) };
 
-      REQUIRE(known_good_copy == moved);
-      REQUIRE(source != moved);
-      REQUIRE(moved.data() == data_ptr_before_move);
-      REQUIRE(moved.capacity() == capacity_before_move);
-      REQUIRE(moved.size() == size_before_move);
+      auto const expected{ helpers::generate_vector<TestType>() };
 
-      REQUIRE(source.data() == nullptr);
-      REQUIRE(source.size() == 0UZ);
-      REQUIRE(source.capacity() == 0UZ);
+      if constexpr (std::is_move_constructible_v<TestType>)
+      {
+         SECTION("Move constructor from non-const source moves data.")
+         {
+            auto const destination{ std::move(source) };
+
+            REQUIRE(destination == expected);
+            REQUIRE(destination != source);
+            REQUIRE(destination.data() == data_ptr_before_move);
+            REQUIRE(destination.capacity() == capacity_before_move);
+            REQUIRE(destination.size() == size_before_move);
+
+            REQUIRE(source.data() == nullptr);
+            REQUIRE(source.size() == 0UZ);
+            REQUIRE(source.capacity() == 0UZ);
+         }
+      }
+
+      if constexpr (std::is_move_assignable_v<TestType>)
+      {
+         SECTION("Move assignment from non-const source moves data.")
+         {
+            swtl::Vector<TestType> destination;
+            destination = std::move(source);
+
+            REQUIRE(destination == expected);
+            REQUIRE(destination != source);
+            REQUIRE(destination.data() == data_ptr_before_move);
+            REQUIRE(destination.capacity() == capacity_before_move);
+            REQUIRE(destination.size() == size_before_move);
+
+            REQUIRE(source.data() == nullptr);
+            REQUIRE(source.size() == 0UZ);
+            REQUIRE(source.capacity() == 0UZ);
+         }
+      }
+
+      if constexpr (std::is_copy_constructible_v<TestType>)
+      {
+         SECTION("Move constructor from const source falls back to copying.")
+         {
+            auto destination{ std::move(const_reference_to_source) };
+
+            REQUIRE(destination == expected);
+            REQUIRE(destination == source);
+            REQUIRE(destination.data() != data_ptr_before_move);
+            // Capacity may be different due to use of allocate_at_least().
+            REQUIRE(destination.size() == size_before_move);
+
+            REQUIRE(source.data() != nullptr);
+            REQUIRE(source.size() != 0UZ);
+            REQUIRE(source.capacity() != 0UZ);
+         }
+      }
+
+      if constexpr (std::is_copy_assignable_v<TestType>)
+      {
+         SECTION("Move assignment from const source falls back to copying.")
+         {
+            swtl::Vector<TestType> destination;
+            destination = std::move(const_reference_to_source);
+
+            REQUIRE(destination == expected);
+            REQUIRE(destination == source);
+            REQUIRE(destination.data() != data_ptr_before_move);
+            // Capacity may be different due to use of allocate_at_least().
+            REQUIRE(destination.size() == size_before_move);
+
+            REQUIRE(source.data() != nullptr);
+            REQUIRE(source.size() != 0UZ);
+            REQUIRE(source.capacity() != 0UZ);
+         }
+      }
+
+      if constexpr (std::is_move_assignable_v<TestType>)
+      {
+         SECTION("Self move assignment does nothing.")
+         {
+            auto &ref_to_self{ source };  // To bypass -Wself-move.
+
+            source = std::move(ref_to_self);
+
+            REQUIRE(source == expected);
+            REQUIRE(source.data() == data_ptr_before_move);
+            REQUIRE(source.capacity() == capacity_before_move);
+            REQUIRE(source.size() == size_before_move);
+         }
+      }
    }
-
-   SECTION(
-       "Move assignment operator from non-const source moves data without "
-       "allocating.")
-   {
-      auto const known_good_copy{ source };
-      auto const data_ptr_before_move{ source.data() };
-
-      swtl::Vector<TestType> destination;
-      destination = std::move(source);
-
-      REQUIRE(destination == known_good_copy);
-      REQUIRE(destination != source);
-      REQUIRE(destination.data() == data_ptr_before_move);
-
-      REQUIRE(source.data() == nullptr);
-      REQUIRE(source.size() == 0UZ);
-      REQUIRE(source.capacity() == 0UZ);
-   }
-
-   SECTION(
-       "Move constructor from const source allocates new memory and does "
-       "not modify the source.")
-   {
-      auto const known_good_copy{ source };
-      auto const data_ptr_before_move{ source.data() };
-      auto const &reference_to_const_source{ source };
-      auto moved{ std::move(reference_to_const_source) };
-
-      REQUIRE(known_good_copy == moved);
-      REQUIRE(source == moved);
-      REQUIRE(moved.data() != data_ptr_before_move);
-
-      REQUIRE(source.data() != nullptr);
-      REQUIRE(source.size() != 0UZ);
-      REQUIRE(source.capacity() != 0UZ);
-   }
-
-   SECTION(
-       "Move assignment operator from const source allocates new memory and "
-       "does not modify the source.")
-   {
-      auto const known_good_copy{ source };
-      auto const data_ptr_before_move{ source.data() };
-      auto const &reference_to_const_source{ source };
-
-      swtl::Vector<TestType> destination;
-      destination = std::move(reference_to_const_source);
-
-      REQUIRE(destination == known_good_copy);
-      REQUIRE(destination == source);
-      REQUIRE(destination.data() != data_ptr_before_move);
-
-      REQUIRE(source.data() != nullptr);
-      REQUIRE(source.size() != 0UZ);
-      REQUIRE(source.capacity() != 0UZ);
-   }
-
-   SECTION("Self move assignment does nothing.")
-   {
-      auto const known_good_copy{ source };
-      auto const data_ptr_before_move{ source.data() };
-      auto const capacity_before_move{ source.capacity() };
-      auto const size_before_move{ source.size() };
-      auto &ref_to_self{ source };  // To bypass -Wself-move.
-      source = std::move(ref_to_self);
-
-      REQUIRE(source == known_good_copy);
-      REQUIRE(source.data() == data_ptr_before_move);
-      REQUIRE(source.capacity() == capacity_before_move);
-      REQUIRE(source.size() == size_before_move);
-   }
-}
-
-TEST_CASE(
-    "Special Member Functions: Strong Exception Safety for copy operations.",
-    "[vector][special member functions][default_allocator][exception]")
-{
-   auto const element_count{ 10UZ };
-   auto source{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
-       element_count) };
-   auto const expected{ source };
-
-   SECTION(
-       "Copy construction doesn't modify source elements and all new elements "
-       "are destroyed when an exception is thrown.")
-   {
-      helpers::g_test_controller.reset();
-      helpers::g_test_controller.enable_throwing();
-      helpers::g_test_controller.throw_when.copy_construction = element_count;
-
-      REQUIRE_THROWS_AS(
-          swtl::Vector<helpers::TrackedObject>{ source },
-          helpers::TestException);
-      REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-      REQUIRE(source == expected);
-   }
-
-   SECTION(
-       "Copy assignment doesn't modify source elements and all new elements "
-       "are destroyed when an exception is thrown.")
-   {
-      swtl::Vector<helpers::TrackedObject> vec(element_count);
-
-      helpers::g_test_controller.reset();
-      helpers::g_test_controller.enable_throwing();
-      helpers::g_test_controller.throw_when.copy_assignment = element_count;
-
-      REQUIRE_THROWS_AS(vec = source, helpers::TestException);
-      REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-      REQUIRE(source == expected);
-   }
-}
-
-TEST_CASE(
-    "Vector(size_type count) exception safety.",
-    "[vector][constructor][exception]")
-{
-   const auto instances{ 10UZ };
-
-   helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.default_construction = instances;
-
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::TrackedObject>(instances), helpers::TestException);
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEST_CASE(
-    "Vector(size_type count, T const &value) exception safety.",
-    "[vector][constructor][exception]")
-{
-   const auto instances{ 10UZ };
-   helpers::TrackedObject const reference_object;
+// Move construction is always noexcept.
+// Move assignment may throw, but we need to use a different allocator.
+// TODO: Implement an allocator that will allow an exception in the move
+// assignment operator and test accordingly.
 
-   helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = instances;
-
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::TrackedObject>(instances, reference_object),
-       helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-}
-
-TEST_CASE(
-    "Vector(InputIterator src_begin, Sentinel src_end) exception safety.",
-    "[vector][constructor][exception]")
-{
-   auto const instances{ 10UZ };
-   std::vector<helpers::TrackedObject> const source(instances);
-
-   helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = instances;
-
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::TrackedObject>(source.begin(), source.end()),
-       helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-}
-
-TEST_CASE(
-    "Vector(std::from_range_t, Range, &&range) exception safety.",
-    "[vector][constructor][exception]")
-{
-   auto const instances{ 10UZ };
-   std::vector<helpers::TrackedObject> const source(instances);
-
-   helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = instances;
-
-   REQUIRE_THROWS_AS(
-       swtl::Vector<helpers::TrackedObject>(std::from_range, source),
-       helpers::TestException);
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-}
-
-// ** ASSIGNMENT **
 TEMPLATE_TEST_CASE(
     "Vector::assign(size_type count, T const &value) updates the vector with "
-    "new data.",
+    "count copies of value.",
     "[vector][assign]",
+    std::uint8_t,
+    int,
     helpers::TrackedObject,
-    helpers::NoThrowTrackedObject)
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject)
 {
-   auto const new_count{ 10UZ };
-   swtl::Vector<TestType> vec;
-   swtl::Vector<TestType> const expected(new_count, TestType{});
-
-   vec.assign(new_count, TestType{});
-
-   REQUIRE(vec == expected);
-}
-
-TEMPLATE_TEST_CASE(
-    "Vector::assign(size_type count, T const &value) correctly manages old "
-    "resources when reallocating.",
-    "[vector][assign]",
-    helpers::TrackedObject,
-    helpers::NoThrowTrackedObject)
-{
-   auto const base_count{ 2UZ };
-   auto const new_count{ 128UZ };
-   swtl::Vector<TestType> const expected(new_count, TestType{});
-
    helpers::g_test_controller.reset();
+   {
+      auto const initial_count{ 8UZ };
+      swtl::Vector<TestType> vec(initial_count);
 
-   swtl::Vector<TestType> vec(base_count);
-   auto const initial_capacity{ vec.capacity() };
-   vec.assign(new_count, TestType{});
+      SECTION("Assignment triggers reallocation.")
+      {
+         auto const count{ 10UZ };
+         swtl::Vector<TestType> const expected(count);
 
-   INFO(
-       "INFO: if the initial vec.capacity() (which was "
-       << initial_capacity << ") is not less than `new_count` (which was "
-       << new_count << ") this test is invalid.");
+         vec.assign(count, TestType{});
 
-   REQUIRE(initial_capacity < new_count);  // Ensure test is valid.
-   REQUIRE(vec == expected);
-   REQUIRE(helpers::g_test_controller.instances_alive() == new_count);
-}
+         REQUIRE(vec == expected);
+      }
 
-TEST_CASE(
-    "Vector::assign(size_type count, T const &value) correctly manages "
-    "lifetimes of existing elements if old size > new size.",
-    "[vector][assign]")
-{
-   auto const base_count{ 10UZ };
-   auto const expected_count{ 5UZ };
-   swtl::Vector<helpers::TrackedObject> const expected(expected_count);
+      SECTION("Assignment to existing memory.")
+      {
+         auto const count{ 6UZ };
+         swtl::Vector<TestType> const expected(count);
 
-   helpers::g_test_controller.reset();
+         vec.assign(count, TestType{});
 
-   swtl::Vector<helpers::TrackedObject> vec(base_count);
-   vec.assign(expected_count, helpers::TrackedObject{});
-
-   REQUIRE(vec == expected);
-   REQUIRE(helpers::g_test_controller.instances_alive() == expected_count);
-}
-
-TEST_CASE(
-    "Vector::assign(size_type count, T const &value) does not leak if an "
-    "exception is thrown.",
-    "[vector][assign][exception]")
-{
-   auto const base_count{ 5UZ };
-   auto const new_count{ 10UZ };
-   swtl::Vector<helpers::TrackedObject> vec(base_count);
-   auto const expected{ vec };
-
-   helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = new_count;
-
-   REQUIRE_THROWS_AS(
-       vec.assign(new_count, helpers::TrackedObject{}), helpers::TestException);
+         REQUIRE(vec == expected);
+      }
+   }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-   REQUIRE(vec == expected);
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
-    "from the source iterator and correctly manages existing element "
-    "lifetimes.",
-    "[vector][assign]",
-    helpers::InputIterator<helpers::TrackedObject const>,
-    swtl::ContiguousIterator<helpers::TrackedObject const>)
+    "Vector::assign(size_type count, T const &value) exception saftey.",
+    "[vector][assign][exception]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject)
 {
-   auto const source_size{ 10UZ };
-   auto const initial_size{ 20UZ };
-
-   swtl::Vector<helpers::TrackedObject> const source(source_size);
-
-   TestType begin{ source.data() };
-   TestType end{ source.data() + source.size() };
-
    helpers::g_test_controller.reset();
+   {
+      auto const initial_count{ 8UZ };
+      swtl::Vector<TestType> vec(initial_count);
 
-   swtl::Vector<helpers::TrackedObject> vec(initial_size);
-   vec.assign(begin, end);
+      helpers::g_test_controller.enable_throwing();
+      SECTION("Assignment triggers reallocation.")
+      {
+         auto const count{ 10UZ };
 
-   REQUIRE(vec == source);
-   REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
+         swtl::Vector<TestType> const expected(initial_count);
+
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction + count;
+
+         INFO(
+             "If count (which was "
+             << count << " ) is less than initial_count (which was "
+             << initial_count << " ) this test is invalid.");
+
+         REQUIRE_THROWS_AS(
+             vec.assign(count, TestType{}), helpers::TestException);
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Assignment to existing memory.")
+      {
+         auto const count{ 6UZ };
+
+         helpers::g_test_controller.throw_when.copy_assignment
+             = helpers::g_test_controller.count_of.copy_assignment + count;
+
+         INFO(
+             "If count (which was "
+             << count
+             << " ) is greater than or equal to initial_count (which was "
+             << initial_count << " ) this test is invalid.");
+
+         REQUIRE_THROWS_AS(
+             vec.assign(count, TestType{}), helpers::TestException);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns from a "
+    "contiguous iterator.",
+    "[vector][assign]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   helpers::g_test_controller.reset();
+   {
+      // TODO: WORKING HERE: Implement test for contiguour iterator, then
+      // duplicate and modify for insert iterator.
+      auto const source_size{ 10UZ };
+      auto const initial_size{ 20UZ };
+
+      swtl::Vector<helpers::TrackedObject> const source(source_size);
+
+      TestType begin{ source.data() };
+      TestType end{ source.data() + source.size() };
+
+      helpers::g_test_controller.reset();
+
+      swtl::Vector<helpers::TrackedObject> vec(initial_size);
+      vec.assign(begin, end);
+
+      REQUIRE(vec == source);
+      REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
@@ -1033,20 +1171,6 @@ TEST_CASE(
    // allocating new memory and copying everything in before committing the
    // pointers.
    REQUIRE(helpers::g_test_controller.instances_alive() == source_size - 1);
-}
-
-TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) triggers a "
-    "contract violation if arguments are reversed and the iterator supports "
-    "operator-.",
-    "[vector][contracts][assign]")
-{
-   auto const source{ helpers::generate_populated<std::vector<int>>() };
-   swtl::Vector<int> vec;
-
-   REQUIRE_NOTHROW(vec.assign(source.begin(), source.end()));
-   REQUIRE_THROWS_AS(
-       vec.assign(source.end(), source.begin()), ContractException);
 }
 
 TEST_CASE(
@@ -1852,7 +1976,7 @@ TEMPLATE_TEST_CASE(
 
 TEST_CASE(
     "clear() removes all elements of the vector without affecting capacity.",
-    "[vector][modifiers]")
+    "[vector]")
 {
    auto vec{ helpers::generate_populated<swtl::Vector<int>>() };
    auto const populated_capacity{ vec.capacity() };
@@ -1867,7 +1991,7 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) constructs a value at the "
     "desired location of a vector with sufficient storage.",
-    "[vector][modifiers][emplace]",
+    "[vector][emplace]",
     helpers::TrackedObject,
     helpers::NoThrowTrackedObject)
 {
@@ -1957,7 +2081,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) returns an iterator to the "
     "inserted element.",
-    "[vector][modifiers][emplace]")
+    "[vector][emplace]")
 {
    auto vec{ helpers::generate_unique<swtl::Vector<helpers::TrackedObject>>(
        10UZ) };
@@ -1972,7 +2096,7 @@ TEST_CASE(
 TEST_CASE(
     "Passing arguments to emplace(const_iterator pos, Args &&...args) "
     "constructs an object in place.",
-    "[vector][modifiers][emplace]")
+    "[vector][emplace]")
 {
    swtl::Vector<helpers::TrackedObject> vec(10UZ);
    vec.reserve(12UZ);
@@ -1989,7 +2113,7 @@ TEST_CASE(
 
 TEST_CASE(
     "emplace(const_iterator pos, Args &&...args) exception safety.",
-    "[vector][modifiers][emplace][exception]")
+    "[vector][emplace][exception]")
 {
    using T = helpers::TrackedObject;
 
@@ -2064,7 +2188,7 @@ TEST_CASE(
 // Vector::insert(const_iterator pos, T const &value) uses emplace() internally.
 TEST_CASE(
     "insert(const_iterator pos, T const &value) copy-inserts an lvalue",
-    "[vector][modifiers][insert]")
+    "[vector][insert]")
 {
    auto const initial_size{ 10UZ };
    swtl::Vector<helpers::TrackedObject> vec(initial_size);
@@ -2082,7 +2206,7 @@ TEST_CASE(
 // Vector::insert(const_iterator pos, T &&value) uses emplace() internally.
 TEST_CASE(
     "insert(const_iterator pos, T &&value) inserts an rvalue",
-    "[vector][modifiers][insert]")
+    "[vector][insert]")
 {
    auto const initial_size{ 10UZ };
    swtl::Vector<helpers::TrackedObject> vec(initial_size);
@@ -2100,7 +2224,7 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, size_type count, T const &value) inserts "
     "`count` instances of `value` before `pos`.",
-    "[vector][modifiers][insert]",
+    "[vector][insert]",
     helpers::TrackedObject,
     helpers::NoThrowTrackedObject)
 {
@@ -2188,7 +2312,7 @@ TEMPLATE_TEST_CASE(
 TEST_CASE(
     "insert(const_iterator pos, size_type count, T const &value) exception "
     "safety.",
-    "[vector][modifiers][insert][exception]")
+    "[vector][insert][exception]")
 {
    using T = helpers::TrackedObject;
 
@@ -2281,7 +2405,7 @@ TEST_CASE(
 TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, InputIterator first, Sentinel last) inserts "
     "elements from the source range into the vector before `pos`.",
-    "[vector][modifiers][insert]",
+    "[vector][insert]",
     helpers::InputIterator<helpers::NoThrowTrackedObject const>,
     swtl::ContiguousIterator<helpers::NoThrowTrackedObject const>,
     helpers::InputIterator<helpers::TrackedObject const>,
@@ -2377,7 +2501,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, InputIterator first, Sentinel last) exception "
     "safety.",
-    "[vector][modifiers][insert][exception]",
+    "[vector][insert][exception]",
     helpers::InputIterator<helpers::TrackedObject const>,
     swtl::ContiguousIterator<helpers::TrackedObject const>)
 {
@@ -2504,7 +2628,7 @@ TEMPLATE_TEST_CASE(
 TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, std::initializer_list init_list) inserts the "
     "elements from the initializer list before `pos`.",
-    "[vector][modifiers][insert]",
+    "[vector][insert]",
     helpers::TrackedObject,
     helpers::NoThrowTrackedObject)
 {
@@ -2539,7 +2663,7 @@ TEMPLATE_TEST_CASE(
     "insert(const_iterator pos, Range &&range) inserts the elements from "
     "the "
     "source range before `pos`.",
-    "[vector][modifiers][insert]",
+    "[vector][insert]",
     helpers::TrackedObject,
     helpers::NoThrowTrackedObject)
 {
