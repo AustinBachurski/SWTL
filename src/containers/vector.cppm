@@ -496,19 +496,18 @@ public:
       }
       else
       {
-         // TODO: FIX: No idea what I was thinking here, no allocation, clearly
-         // this branch wasn't tested...
-         detail::ElementGuard elem_guard(
-             this->m_allocator, this->m_start, this->m_start);
-
-         for (auto &&element : range)
+         try
          {
-            a_traits::construct(this->m_allocator, elem_guard.last, element);
-            ++elem_guard.last;
+            for (auto &&element : range)
+            {
+               push_back(element);
+            }
          }
-
-         this->m_finish = elem_guard.last;
-         elem_guard.dismiss();
+         catch (...)
+         {
+            clear();
+            throw;
+         }
       }
    }
 
