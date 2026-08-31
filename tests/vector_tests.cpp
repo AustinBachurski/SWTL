@@ -1072,105 +1072,305 @@ TEMPLATE_TEST_CASE(
 {
    helpers::g_test_controller.reset();
    {
-      // TODO: WORKING HERE: Implement test for contiguour iterator, then
-      // duplicate and modify for insert iterator.
       auto const source_size{ 10UZ };
-      auto const initial_size{ 20UZ };
+      auto source{ helpers::generate_vector<TestType>(source_size) };
+      auto const expected{ helpers::generate_vector<TestType>(source_size) };
 
-      swtl::Vector<helpers::TrackedObject> const source(source_size);
+      SECTION("Assignment triggers reallocation.")
+      {
+         auto const initial_size{ 8UZ };
+         swtl::Vector<TestType> vec(initial_size);
 
-      TestType begin{ source.data() };
-      TestType end{ source.data() + source.size() };
+         INFO(
+             "If initial_size (which was "
+             << initial_size
+             << " ) is greater than or equal to source_size (which was "
+             << source_size << " ) this test is invalid.");
 
-      helpers::g_test_controller.reset();
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            vec.assign(source.begin(), source.end());
+            REQUIRE(vec == expected);
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.end()));
+            REQUIRE(vec == expected);
+         }
+      }
 
-      swtl::Vector<helpers::TrackedObject> vec(initial_size);
-      vec.assign(begin, end);
+      SECTION("Assignment to existing memory.")
+      {
+         auto const initial_size{ 12UZ };
+         swtl::Vector<TestType> vec(initial_size);
 
-      REQUIRE(vec == source);
-      REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
+         INFO(
+             "If initial_size (which was "
+             << initial_size << " ) is less than source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            vec.assign(source.begin(), source.end());
+            REQUIRE(vec == expected);
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.end()));
+            REQUIRE(vec == expected);
+         }
+      }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns "
-    "from the source iterator and grows when needed.",
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) exception "
+    "safety for contiguous iterators.",
     "[vector][assign]",
-    helpers::InputIterator<helpers::TrackedObject const>,
-    swtl::ContiguousIterator<helpers::TrackedObject const>)
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto const source_size{ 20UZ };
-   auto const initial_size{ 10UZ };
-
-   swtl::Vector<helpers::TrackedObject> const source(source_size);
-
-   TestType begin{ source.data() };
-   TestType end{ source.data() + source.size() };
-
    helpers::g_test_controller.reset();
+   {
+      auto const source_size{ 10UZ };
+      auto source{ helpers::generate_vector<TestType>(source_size) };
 
-   swtl::Vector<helpers::TrackedObject> vec(initial_size);
-   vec.assign(begin, end);
+      helpers::g_test_controller.enable_throwing();
 
-   REQUIRE(vec == source);
-   REQUIRE(helpers::g_test_controller.instances_alive() == source_size);
+      SECTION("Assignment triggers reallocation.")
+      {
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source_size;
+         helpers::g_test_controller.throw_when.move_construction
+             = helpers::g_test_controller.count_of.move_construction
+             + source_size;
+
+         auto const initial_size{ 8UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size
+             << " ) is greater than or equal to source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(source.begin(), source.end()),
+                helpers::TestException);
+         }
+         else
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(
+                    std::make_move_iterator(source.begin()),
+                    std::make_move_iterator(source.end())),
+                helpers::TestException);
+         }
+      }
+
+      SECTION("Assignment to existing memory.")
+      {
+         helpers::g_test_controller.throw_when.copy_assignment
+             = helpers::g_test_controller.count_of.copy_assignment
+             + source_size;
+         helpers::g_test_controller.throw_when.move_assignment
+             = helpers::g_test_controller.count_of.move_assignment
+             + source_size;
+
+         auto const initial_size{ 12UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size << " ) is less than source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(source.begin(), source.end()),
+                helpers::TestException);
+         }
+         else
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(
+                    std::make_move_iterator(source.begin()),
+                    std::make_move_iterator(source.end())),
+                helpers::TestException);
+         }
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
-    "lifetimes correctly if an exception is thrown with an iterator pair that "
-    "can be checked for size.",
-    "[vector][assign][exception]")
+TEMPLATE_TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) assigns from an "
+    "input iterator.",
+    "[vector][assign]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto const source_size{ 20UZ };
-   auto const initial_size{ 10UZ };
-
-   swtl::Vector<helpers::TrackedObject> const source(source_size);
-
    helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = source_size;
+   {
+      auto const source_size{ 10UZ };
+      auto source{ helpers::generate_vector<TestType>(source_size) };
+      auto const expected{ helpers::generate_vector<TestType>(source_size) };
 
-   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+      helpers::InputIterator<TestType> begin{ source.data() };
+      helpers::InputIterator<TestType> end{ source.data() + source.size() };
 
-   REQUIRE_THROWS_AS(
-       vec.assign(source.begin(), source.end()), helpers::TestException);
-   REQUIRE(helpers::g_test_controller.instances_alive() == initial_size);
+      SECTION("Assignment triggers reallocation.")
+      {
+         auto const initial_size{ 8UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size
+             << " ) is greater than or equal to source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            vec.assign(begin, end);
+            REQUIRE(vec == expected);
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(begin), std::make_move_iterator(end));
+            REQUIRE(vec == expected);
+         }
+      }
+
+      SECTION("Assignment to existing memory.")
+      {
+         auto const initial_size{ 12UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size << " ) is less than source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            vec.assign(begin, end);
+            REQUIRE(vec == expected);
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(begin), std::make_move_iterator(end));
+            REQUIRE(vec == expected);
+         }
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) manages "
-    "lifetimes correctly if an exception is thrown with an iterator pair that "
-    "cannot be checked for size.",
-    "[vector][assign][exception]")
+TEMPLATE_TEST_CASE(
+    "Vector::assign(InputIterator src_begin, Sentinel src_end) exception "
+    "safety for input iterators.",
+    "[vector][assign]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   auto const source_size{ 20UZ };
-   auto const initial_size{ 10UZ };
-
-   swtl::Vector<helpers::TrackedObject> const source(source_size);
-
-   helpers::InputIterator<helpers::TrackedObject const> begin{ source.data() };
-   helpers::InputIterator<helpers::TrackedObject const> end{ source.data()
-                                                             + source.size() };
-
    helpers::g_test_controller.reset();
-   helpers::g_test_controller.enable_throwing();
-   helpers::g_test_controller.throw_when.copy_construction = source_size;
+   {
+      auto const source_size{ 10UZ };
+      auto source{ helpers::generate_vector<TestType>(source_size) };
 
-   swtl::Vector<helpers::TrackedObject> vec(initial_size);
+      helpers::InputIterator<TestType> begin{ source.data() };
+      helpers::InputIterator<TestType> end{ source.data() + source.size() };
 
-   REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
+      helpers::g_test_controller.enable_throwing();
 
-   // When the size of the input range cannot be determined due to the iterator
-   // not supporting operator-, copy assignment will occur until the initial
-   // elements of the destination vector are overwritten; after which
-   // `push_back` is used.  This means that each element successfully
-   // constructed is effectively a "transaction" rather than the whole
-   // collection like we'd see if we could calculate the size before hand,
-   // allocating new memory and copying everything in before committing the
-   // pointers.
-   REQUIRE(helpers::g_test_controller.instances_alive() == source_size - 1);
+      SECTION("Assignment triggers reallocation.")
+      {
+         auto const initial_size{ 8UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         helpers::g_test_controller.throw_when.copy_construction
+             = helpers::g_test_controller.count_of.copy_construction
+             + source_size;
+         // We know the size of the source is large enough to trigger
+         // reallocation but the iterator can't be measured at runtime, so the
+         // implementation falls back to recursive calls to push_back, which
+         // means we're going to get move assignment until the initial size is
+         // exhausted and reallocation is triggered - this is why
+         // `source_size - initial_size` is used below.
+         helpers::g_test_controller.throw_when.move_construction
+             = helpers::g_test_controller.count_of.move_construction
+             + source_size - initial_size;
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size
+             << " ) is greater than or equal to source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
+         }
+         else
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(
+                    std::make_move_iterator(begin),
+                    std::make_move_iterator(end)),
+                helpers::TestException);
+         }
+      }
+
+      SECTION("Assignment to existing memory.")
+      {
+         helpers::g_test_controller.throw_when.copy_assignment
+             = helpers::g_test_controller.count_of.copy_assignment
+             + source_size;
+         helpers::g_test_controller.throw_when.move_assignment
+             = helpers::g_test_controller.count_of.move_assignment
+             + source_size;
+
+         auto const initial_size{ 12UZ };
+         swtl::Vector<TestType> vec(initial_size);
+
+         INFO(
+             "If initial_size (which was "
+             << initial_size << " ) is less than source_size (which was "
+             << source_size << " ) this test is invalid.");
+
+         if constexpr (!std::is_move_constructible_v<TestType>)
+         {
+            REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
+         }
+         else
+         {
+            REQUIRE_THROWS_AS(
+                vec.assign(
+                    std::make_move_iterator(begin),
+                    std::make_move_iterator(end)),
+                helpers::TestException);
+         }
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
 TEST_CASE(
