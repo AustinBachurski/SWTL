@@ -80,7 +80,10 @@ zip_copy(
 
    while (src_first != src_last && dest_first != dest_last)
    {
-      *dest_first++ = *src_first++;
+      *dest_first = *src_first;
+      // Post-increment returns void for single pass iterators.
+      ++dest_first;
+      ++src_first;
    }
 
    return { .src_pos = src_first, .dest_pos = dest_first };

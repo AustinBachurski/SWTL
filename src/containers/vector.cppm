@@ -454,6 +454,7 @@ public:
             while (first != last)
             {
                push_back(*first);
+               // Post-increment returns void for single pass iterators.
                ++first;
             }
          }
@@ -711,7 +712,9 @@ public:
 
          while (src_pos != last)
          {
-            push_back(*src_pos++);
+            push_back(*src_pos);
+            // Post-increment returns void for single pass iterators.
+            ++src_pos;
          }
       }
    }
@@ -1817,6 +1820,7 @@ public:
             while (first != last)
             {
                push_back(*first);
+               // Post-increment returns void for single pass iterators.
                ++first;
             }
 
