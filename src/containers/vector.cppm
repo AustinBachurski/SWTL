@@ -1828,10 +1828,18 @@ public:
          }
 
          Vector temp(first, last, this->m_allocator);
-         return insert(
-             pos,
-             std::make_move_iterator(temp.begin()),
-             std::make_move_iterator(temp.end()));
+         if constexpr (
+             std::is_move_assignable_v<T> && std::is_move_constructible_v<T>)
+         {
+            return insert(
+                pos,
+                std::make_move_iterator(temp.begin()),
+                std::make_move_iterator(temp.end()));
+         }
+         else
+         {
+            return insert(pos, temp.begin(), temp.end());
+         }
       }
    }
 
