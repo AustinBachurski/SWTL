@@ -1989,7 +1989,93 @@ public:
       return mut_pos;
    }
 
-   // TODO: erase()
+   /// @brief Erases the element at `pos`.
+   ///
+   /// Removes the element at `pos` and shifts elements after `pos` one position
+   /// to the left.
+   ///
+   /// @param pos Iterator to the element to remove.
+   ///
+   /// @pre `pos` must be a dereferenceable iterator to `*this`.
+   ///
+   /// @return Iterator to one element past the erased element.
+   ///
+   /// @throws Any exception thrown by the assignment operators of `T`.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment, the vector is left in a valid but unspecified
+   /// state and no resources are leaked.
+   ///
+   constexpr iterator
+   erase(const_iterator pos)
+   {
+      auto mut_pos{ begin() + std::ranges::distance(cbegin(), pos) };
+
+      if constexpr (
+          std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
+      {
+         std::ranges::move(mut_pos + 1, end(), mut_pos);
+      }
+      else
+      {
+         std::ranges::copy(mut_pos + 1, end(), mut_pos);
+      }
+
+      a_traits::destroy(this->m_allocator, this->m_finish--);
+      return mut_pos;
+   }
+
+   /// @brief Erases elements in the range `[first, last)`.
+   ///
+   /// Any elements at or to the right of `last` are shifted to the left `last -
+   /// first` elements.
+   ///
+   /// @param first Iterator to the first element to remove.
+   /// @param last Iterator to the element past the last element to remove.
+   ///
+   /// @pre `[first, last)` must denote a valid range of `*this`.
+   ///
+   /// @return Iterator to one element past the erased element.
+   ///
+   /// @throws Any exception thrown by the assignment operators of `T`.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element assignment, the vector is left in a valid but unspecified
+   /// state and no resources are leaked.
+   ///
+   constexpr iterator
+   erase(const_iterator first, const_iterator last)
+   {
+      assert(last - first >= 0 && "`last` must be reachable from `first`");
+
+      auto mut_first{ begin() + std::ranges::distance(cbegin(), first) };
+
+      if (last == end())
+      {
+         destroy(this->m_allocator, mut_first, end());
+         this->m_finish = std::to_address(mut_first);
+         return mut_first;
+      }
+
+      auto mut_last{ begin() + std::ranges::distance(cbegin(), last) };
+
+      iterator new_end;
+
+      if constexpr (
+          std::is_nothrow_move_assignable_v<T> || !std::is_copy_assignable_v<T>)
+      {
+         new_end = std::ranges::move(mut_last, end(), mut_first).out;
+      }
+      else
+      {
+         new_end = std::ranges::copy(mut_last, end(), mut_first).out;
+      }
+
+      destroy(this->m_allocator, new_end, end());
+      this->m_finish = std::to_address(new_end);
+
+      return mut_first;
+   }
 
    /// @brief Appends a copy of `value` to the end of the container.
    ///
@@ -2121,13 +2207,12 @@ public:
          swap(this->m_allocator, other.m_allocator);
       }
       // If the allocators always compare equal there's no point in checking
-      // the contract_assert.
+      // the assert.
       else if constexpr (!a_traits::is_always_equal::value)
       {
-         contract_assert(
-             this->m_allocator != other.m_allocator
-             && "swap requires that allocators compare equal when "
-                "`propagate_on_container_swap` is false");
+         assert(this->m_allocator != other.m_allocator
+                && "swap requires that allocators compare equal when "
+                   "`propagate_on_container_swap` is false");
       }
 
       std::swap(this->m_start, other.m_start);

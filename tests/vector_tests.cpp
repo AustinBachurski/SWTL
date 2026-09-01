@@ -4085,6 +4085,244 @@ TEMPLATE_TEST_CASE(
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator pos) removes the element at pos and returns "
+    "an iterator to the next element.",
+    "[vector][modifiers][erase]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      auto vec{ helpers::generate_vector<T>() };
+
+      SECTION("Erase removes the element at begin.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin()) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
+      }
+
+      SECTION("Erase removes the element at end.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ) };
+
+         auto ret_val{ vec.erase(vec.cend() - 1) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.end());
+      }
+
+      SECTION("Erase removes an element in the middle.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto const element_idx{ 3UZ };
+
+         auto ret_val{ vec.erase(vec.cbegin() + element_idx) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + element_idx);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator pos) exception safety - exhaustive test.",
+    "[vector][modifiers][erase][exception][exhaustive]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   bool possibilities_exhausted{ false };
+
+   for (auto pos{ 0UZ }; !possibilities_exhausted; ++pos)
+   {
+      bool clean_pass{ false };
+
+      for (auto ops_count{ 1UZ }; !clean_pass; ++ops_count)
+      {
+         helpers::g_test_controller.reset();
+         {
+            swtl::Vector vec{ helpers::generate_vector<T>() };
+
+            helpers::g_test_controller.enable_throwing();
+            helpers::g_test_controller.throw_when.total_operations
+                = helpers::g_test_controller.count_of.total_operations
+                + ops_count;
+
+            try
+            {
+               if (pos <= vec.size())
+               {
+                  vec.erase(vec.cbegin() + pos);
+
+                  clean_pass = true;
+               }
+               else
+               {
+                  helpers::g_test_controller.disable_throwing();
+                  possibilities_exhausted = true;
+                  clean_pass = true;
+               }
+            }
+            catch (helpers::TestException const &)
+            {
+               REQUIRE(vec.size() <= vec.capacity());
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive() == vec.size());
+            }
+         }
+         REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+      }
+   }
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator first, const_iterator last) removes elements "
+    "in the specified range and returns an iterator to the next element.",
+    "[vector][modifiers][erase]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      auto vec{ helpers::generate_vector<T>() };
+
+      SECTION("Erase removes elements from the beginning.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             3UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin(), vec.cbegin() + 3UZ) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
+      }
+
+      SECTION("Erase removes elements at the end.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(0UZ, 1UZ, 2UZ, 3UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin() + 4UZ, vec.cend()) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.end());
+      }
+
+      SECTION("Erase removes elements from the middle.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto const first_distance{ 3UZ };
+         auto const last_distance{ 5UZ };
+
+         auto const first{ vec.cbegin() + first_distance };
+         auto const last{ vec.cbegin() + last_distance };
+
+         auto ret_val{ vec.erase(first, last) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + first_distance);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator first, const_iterator last) exception safety "
+    "- exhaustive test.",
+    "[vector][modifiers][erase][exception][exhaustive]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   bool first_range_exhausted{ false };
+
+   for (auto first_pos{ 0UZ }; !first_range_exhausted; ++first_pos)
+   {
+      bool last_range_exhausted{ false };
+
+      for (auto last_pos{ first_pos }; !last_range_exhausted; ++last_pos)
+      {
+         bool clean_pass{ false };
+
+         for (auto ops_count{ 1UZ }; !clean_pass; ++ops_count)
+         {
+            helpers::g_test_controller.reset();
+            {
+               swtl::Vector vec{ helpers::generate_vector<T>() };
+               auto const limit{ vec.size() };
+
+               helpers::g_test_controller.enable_throwing();
+               helpers::g_test_controller.throw_when.total_operations
+                   = helpers::g_test_controller.count_of.total_operations
+                   + ops_count;
+
+               try
+               {
+                  if (first_pos < limit && last_pos <= limit)
+                  {
+                     vec.erase(
+                         vec.cbegin() + first_pos, vec.cbegin() + last_pos);
+
+                     clean_pass = true;
+                  }
+                  else
+                  {
+                     helpers::g_test_controller.disable_throwing();
+
+                     if (first_pos == limit)
+                     {
+                        first_range_exhausted = true;
+                     }
+
+                     if (last_pos > limit)
+                     {
+                        last_range_exhausted = true;
+                     }
+
+                     clean_pass = true;
+                  }
+               }
+               catch (helpers::TestException const &)
+               {
+                  REQUIRE(vec.size() <= vec.capacity());
+                  REQUIRE(
+                      helpers::g_test_controller.instances_alive()
+                      == vec.size());
+               }
+            }
+            REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+         }
+      }
+   }
+}
+
 /* Test template.
 
 TEMPLATE_TEST_CASE(
@@ -4097,6 +4335,8 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
    }
