@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module swtl.memory:alloc_aware_destroy;
 
 import std;
@@ -33,8 +37,7 @@ destroy(Allocator &allocator, Iterator first, Sentinel last) noexcept
 {
    if constexpr (std::sized_sentinel_for<Sentinel, Iterator>)
    {
-      contract_assert(
-          last - first >= 0 && "`last` must be reachable from `first`");
+      assert(last - first >= 0 && "`last` must be reachable from `first`");
    }
 
    auto const destroy_start{ first };
