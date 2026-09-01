@@ -72,7 +72,7 @@ generate_vector(std::size_t count = 8UZ)
 ///
 template <typename T, typename... Args>
 constexpr auto
-make_vector_from_list(Args &&...args)
+make_vec_of(Args &&...args)
 {
    swtl::Vector<T> vec;
    vec.reserve(sizeof...(Args));
