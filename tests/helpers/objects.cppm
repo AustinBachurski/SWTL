@@ -39,6 +39,7 @@ struct OpCounters
    std::size_t copy_assignment{};       ///< Count of copy assignment calls.
    std::size_t move_construction{};     ///< Count of move constructions.
    std::size_t move_assignment{};       ///< Count of move assigment calls.
+   std::size_t total_operations{};      ///< Count of all non-destruction calls.
    std::size_t destruction{};           ///< Count of destructor calls.
 };
 
@@ -111,6 +112,7 @@ struct TestController
       std::println("- copy_assignment = {}", count_of.copy_assignment);
       std::println("- move_construction = {}", count_of.move_construction);
       std::println("- move_assignment = {}", count_of.move_assignment);
+      std::println("- total_operations = {}", count_of.total_operations);
       std::println("- destruction = {}", count_of.destruction);
       std::println();
       std::println("Throws When:");
@@ -121,6 +123,7 @@ struct TestController
       std::println("- copy_assignment == {}", throw_when.copy_assignment);
       std::println("- move_construction == {}", throw_when.move_construction);
       std::println("- move_assignment == {}", throw_when.move_assignment);
+      std::println("- total_operations == {}", throw_when.total_operations);
       std::println("- destruction == {}", throw_when.destruction);
       std::println();
    }
@@ -251,14 +254,17 @@ struct TrackedObject
    constexpr TrackedObject()
    {
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.default_construction + 1
-                 == g_test_controller.throw_when.default_construction)
+          && (g_test_controller.count_of.default_construction + 1
+                  == g_test_controller.throw_when.default_construction
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from default constructor.");
       }
 
       ++g_test_controller.count_of.default_construction;
+      ++g_test_controller.count_of.total_operations;
    }
 
    /// @brief Single argument constructor that sets `id`.
@@ -271,8 +277,10 @@ struct TrackedObject
        : id{ identifier }
    {
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.arg_construction + 1
-                 == g_test_controller.throw_when.arg_construction)
+          && (g_test_controller.count_of.arg_construction + 1
+                  == g_test_controller.throw_when.arg_construction
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          auto const id_value{ swtl::integral_to_string(identifier) };
@@ -282,6 +290,7 @@ struct TrackedObject
       }
 
       ++g_test_controller.count_of.arg_construction;
+      ++g_test_controller.count_of.total_operations;
    }
 
    /// @brief Copy constructor.
@@ -292,14 +301,17 @@ struct TrackedObject
        : id{ other.id }
    {
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.copy_construction + 1
-                 == g_test_controller.throw_when.copy_construction)
+          && (g_test_controller.count_of.copy_construction + 1
+                  == g_test_controller.throw_when.copy_construction
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from copy constructor.");
       }
 
       ++g_test_controller.count_of.copy_construction;
+      ++g_test_controller.count_of.total_operations;
    }
 
    /// @brief Copy assignment operator.
@@ -311,17 +323,20 @@ struct TrackedObject
    constexpr TrackedObject &
    operator=(TrackedObject const &other)
    {
-      id = other.id;
-
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.copy_assignment + 1
-                 == g_test_controller.throw_when.copy_assignment)
+          && (g_test_controller.count_of.copy_assignment + 1
+                  == g_test_controller.throw_when.copy_assignment
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from copy assignment.");
       }
 
       ++g_test_controller.count_of.copy_assignment;
+      ++g_test_controller.count_of.total_operations;
+
+      id = other.id;
       return *this;
    }
 
@@ -333,14 +348,17 @@ struct TrackedObject
        : id{ other.id }
    {
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.move_construction + 1
-                 == g_test_controller.throw_when.move_construction)
+          && (g_test_controller.count_of.move_construction + 1
+                  == g_test_controller.throw_when.move_construction
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from move constructor.");
       }
 
       ++g_test_controller.count_of.move_construction;
+      ++g_test_controller.count_of.total_operations;
    }
 
    /// @brief Move assignment operator.
@@ -352,17 +370,20 @@ struct TrackedObject
    constexpr TrackedObject &
    operator=(TrackedObject &&other)
    {
-      id = other.id;
-
       if (g_test_controller.should_throw
-          && g_test_controller.count_of.move_assignment + 1
-                 == g_test_controller.throw_when.move_assignment)
+          && (g_test_controller.count_of.move_assignment + 1
+                  == g_test_controller.throw_when.move_assignment
+              || g_test_controller.count_of.total_operations + 1
+                     == g_test_controller.throw_when.total_operations))
       {
          g_test_controller.disable_throwing();
          throw TestException("Throw from move assignment.");
       }
 
       ++g_test_controller.count_of.move_assignment;
+      ++g_test_controller.count_of.total_operations;
+
+      id = other.id;
       return *this;
    }
 

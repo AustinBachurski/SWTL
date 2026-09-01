@@ -389,7 +389,11 @@ public:
    /// during construction, all elements that were constructed prior to the
    /// exception are destroyed and any allocated memory is deallocated.
    ///
-   constexpr Vector(size_type count, T const &value)
+   constexpr Vector(
+       size_type count,
+       T const &value,
+       Allocator const &allocator = Allocator())
+       : Base{ allocator }
    {
       this->create_storage(count);
 
@@ -434,10 +438,32 @@ public:
        Allocator const &allocator = Allocator())
        : Base{ allocator }
    {
-      this->create_storage(
-          static_cast<size_type>(std::ranges::distance(first, last)));
-      this->m_finish
-          = uninitialized_copy(this->m_allocator, first, last, this->m_start);
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
+      {
+         this->create_storage(
+             static_cast<size_type>(std::ranges::distance(first, last)));
+         this->m_finish = uninitialized_copy(
+             this->m_allocator, first, last, this->m_start);
+      }
+      else
+      {
+         try
+         {
+            while (first != last)
+            {
+               push_back(*first);
+               // Post-increment returns void for single pass iterators.
+               ++first;
+            }
+         }
+         catch (...)
+         {
+            clear();
+            throw;
+         }
+      }
    }
 
    /// @brief Constructs a vector from a container-compatible range.
@@ -455,7 +481,11 @@ public:
    /// exception are destroyed and any allocated memory is deallocated.
    ///
    template <container_compatible_range<T> Range>
-   constexpr Vector(std::from_range_t, Range &&range)
+   constexpr Vector(
+       std::from_range_t,
+       Range &&range,
+       Allocator const &allocator = Allocator())
+       : Base{ allocator }
    {
       if constexpr (std::ranges::sized_range<Range>)
       {
@@ -467,17 +497,18 @@ public:
       }
       else
       {
-         detail::ElementGuard elem_guard(
-             this->m_allocator, this->m_start, this->m_start);
-
-         for (auto &&element : range)
+         try
          {
-            a_traits::construct(this->m_allocator, elem_guard.last, element);
-            ++elem_guard.last;
+            for (auto &&element : range)
+            {
+               push_back(element);
+            }
          }
-
-         this->m_finish = elem_guard.last;
-         elem_guard.dismiss();
+         catch (...)
+         {
+            clear();
+            throw;
+         }
       }
    }
 
@@ -614,11 +645,78 @@ public:
    {
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
       {
-         contract_assert(
-             last - first >= 0 && "`last` must be reachable from `first`");
+         assert(last - first >= 0 && "`last` must be reachable from `first`");
       }
 
-      assign_from_range(first, last);
+      // If distance can be checked then do so and reallocate or overwrite
+      // elements as necessary.
+      if constexpr (
+          std::sized_sentinel_for<Sentinel, InputIterator>
+          || std::forward_iterator<InputIterator>)
+      {
+         if (auto const input_size{
+               static_cast<size_type>(std::ranges::distance(first, last)) };
+             capacity() < input_size)
+         {
+            auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
+
+            if constexpr (std::is_nothrow_copy_constructible_v<T>)
+            {
+               clear();
+               this->deallocate_memory();
+               this->m_start = ptr;
+               this->m_end_of_storage = ptr + count;
+
+               this->m_finish
+                   = uninitialized_copy(this->m_allocator, first, last, ptr);
+            }
+            else
+            {
+               detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+
+               auto const new_finish{ uninitialized_copy(
+                   this->m_allocator, first, last, ptr) };
+
+               clear();
+               mem_guard.reassign(this->m_start, capacity());
+
+               this->m_start = ptr;
+               this->m_finish
+                   = new_finish;  // Assign AFTER the call to clear().
+               this->m_end_of_storage = ptr + count;
+            }
+         }
+         else
+         {
+            auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
+
+            this->m_finish
+                = std::to_address(destroy(this->m_allocator, dest_pos, end()));
+
+            while (src_pos != last)
+            {
+               a_traits::construct(
+                   this->m_allocator, this->m_finish, *src_pos++);
+               ++this->m_finish;  // Increment after successful construction.
+            }
+         }
+      }
+      // If distance cannot be checked, overwrite existing elements and then
+      // let push_back resize if needed.
+      else
+      {
+         auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
+
+         this->m_finish
+             = std::to_address(destroy(this->m_allocator, dest_pos, end()));
+
+         while (src_pos != last)
+         {
+            push_back(*src_pos);
+            // Post-increment returns void for single pass iterators.
+            ++src_pos;
+         }
+      }
    }
 
    /// @brief Replaces the vector's contents with the elements from an
@@ -644,7 +742,7 @@ public:
    constexpr void
    assign(std::initializer_list<T> init_list)
    {
-      assign_from_range(init_list.begin(), init_list.end());
+      assign(init_list.begin(), init_list.end());
    }
 
    /// @brief Replaces the vector's contents with the elements from a
@@ -678,7 +776,7 @@ public:
    constexpr void
    assign_range(Range &&range)
    {
-      assign_from_range(std::ranges::begin(range), std::ranges::end(range));
+      assign(std::ranges::begin(range), std::ranges::end(range));
    }
 
    /// @}
@@ -802,7 +900,7 @@ public:
       // destination retains it's allocator. Simply copy over the elements from
       // source.
 
-      assign_from_range(other.begin(), other.end());
+      assign(other.begin(), other.end());
       return *this;
    }
 
@@ -1348,7 +1446,62 @@ public:
       return this->allocated_capacity();
    }
 
-   // TODO: shrink_to_fit()
+   /// @brief Requests reallocation to new memory in order to reduce
+   /// `capacity()` to `size()`.
+   ///
+   /// Has no effect if `capacity()` is equal to `size()`, nor if the
+   /// newly allocated chunk is greater than or equal in size to `capacity()`
+   /// since `allocate_at_least()` is used for allocation.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate` if the vector is resized.
+   /// @throws (...) Any exception thrown by T during element construction or
+   /// assignment.
+   ///
+   /// @note Proveds a strong exception guarantee: if `T` is nothrow move
+   /// constructible or copy constructible and an exception is thrown during
+   /// reallocation, any new elements that were constructed prior to the
+   /// exception are destroyed, any newly allocated memory is deallocated, and
+   /// the vector is unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if `T` is not nothrow
+   /// moveable or copyable and an exception is thrown during reallocation,
+   /// the vector is left in a valid but unspecified state and no resources are
+   /// leaked.
+   ///
+   constexpr void
+   shrink_to_fit()
+   {
+      if (capacity() == size())
+      {
+         return;
+      }
+
+      if (is_empty())
+      {
+         this->deallocate_memory();
+         return;
+      }
+
+      auto [ptr, count]{ this->allocate_memory_for_at_least(size()) };
+
+      detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
+
+      if (capacity() <= count)
+      {
+         return;
+      }
+
+      auto const new_finish{ uninitialized_move_if_noexcept(
+          this->m_allocator, begin(), end(), ptr) };
+
+      clear();
+      mem_guard.reassign(this->m_start, capacity());
+
+      this->m_start = ptr;
+      this->m_finish = new_finish;
+      this->m_end_of_storage = ptr + count;
+   }
 
    /// @}
 
@@ -1666,17 +1819,27 @@ public:
          {
             while (first != last)
             {
-               push_back(*first++);
+               push_back(*first);
+               // Post-increment returns void for single pass iterators.
+               ++first;
             }
 
             return begin() + std::ranges::distance(cbegin(), pos);
          }
 
          Vector temp(first, last, this->m_allocator);
-         return insert(
-             pos,
-             std::make_move_iterator(temp.begin()),
-             std::make_move_iterator(temp.end()));
+         if constexpr (
+             std::is_move_assignable_v<T> && std::is_move_constructible_v<T>)
+         {
+            return insert(
+                pos,
+                std::make_move_iterator(temp.begin()),
+                std::make_move_iterator(temp.end()));
+         }
+         else
+         {
+            return insert(pos, temp.begin(), temp.end());
+         }
       }
    }
 
@@ -2042,112 +2205,6 @@ public:
 
 private:
    /// @cond INTERNAL_DOCUMENTATION
-   /// @brief Replaces the vector's contents with the elements from the range
-   /// `[first, last)`.
-   ///
-   /// Reuses existing memory if possible, overwriting old element and
-   /// appending new ones, or reallocates new memory for the elements.
-   /// Reallocation is done ahead of time if the distance between the
-   /// iterator and the sentinel; if distance cannot be calculated
-   /// reallocation is accomplished via calls to `push_back()`.
-   ///
-   /// @tparam InputIterator An input iterator type.
-   /// @tparam Sentinel A sentinel type for `InputIterator`.
-   ///
-   /// @param first The start of the range.
-   /// @param last The end of the range.
-   ///
-   /// @throws (...) Any exception thrown by the allocator as a result of a
-   /// call to `std::allocator_traits<Allocator>::allocate` if reallocation
-   /// occurs.
-   /// @throws (...) Any exception thrown by T during element assignment or
-   /// construction.
-   ///
-   /// @note Provides a strong exception guarantee if reallocation occurs: if
-   /// an exception is thrown during reallocation, any new elements that were
-   /// constructed prior to the exception are destroyed, any newly allocated
-   /// memory is deallocated, and the vector is unmodified.
-   ///
-   /// @note Provides a basic exception guarantee if no reallocation occurs:
-   /// if an exception is thrown during element assignment or construction,
-   /// the vector is left in a valid but unspecified state and no resources
-   /// are leaked.
-   ///
-   template <
-       std::input_iterator InputIterator,
-       std::sentinel_for<InputIterator> Sentinel
-   >
-   constexpr void
-   assign_from_range(InputIterator first, Sentinel last)
-   {
-      // If distance can be checked then do so and reallocate or overwrite
-      // elements as necessary.
-      if constexpr (
-          std::sized_sentinel_for<Sentinel, InputIterator>
-          || std::forward_iterator<InputIterator>)
-      {
-         if (auto const input_size{
-               static_cast<size_type>(std::ranges::distance(first, last)) };
-             capacity() < input_size)
-         {
-            auto [ptr, count]{ this->allocate_memory_for_at_least(input_size) };
-
-            if constexpr (std::is_nothrow_copy_constructible_v<T>)
-            {
-               clear();
-               this->deallocate_memory();
-               this->m_start = ptr;
-               this->m_end_of_storage = ptr + count;
-
-               this->m_finish
-                   = uninitialized_copy(this->m_allocator, first, last, ptr);
-            }
-            else
-            {
-               detail::AllocationGuard mem_guard(this->m_allocator, ptr, count);
-
-               auto const new_finish{ uninitialized_copy(
-                   this->m_allocator, first, last, ptr) };
-
-               clear();
-               mem_guard.reassign(this->m_start, capacity());
-
-               this->m_start = ptr;
-               this->m_finish
-                   = new_finish;  // Assign AFTER the call to clear().
-               this->m_end_of_storage = ptr + count;
-            }
-         }
-         else
-         {
-            auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
-
-            this->m_finish
-                = std::to_address(destroy(this->m_allocator, dest_pos, end()));
-
-            while (src_pos != last)
-            {
-               a_traits::construct(
-                   this->m_allocator, this->m_finish, *src_pos++);
-               ++this->m_finish;  // Increment after successful construction.
-            }
-         }
-      }
-      // If distance cannot be checked, overwrite existing elements and then
-      // let push_back resize if needed.
-      else
-      {
-         auto [src_pos, dest_pos]{ zip_copy(first, last, begin(), end()) };
-
-         this->m_finish
-             = std::to_address(destroy(this->m_allocator, dest_pos, end()));
-
-         while (src_pos != last)
-         {
-            push_back(*src_pos++);
-         }
-      }
-   }
 
    /// @brief Calculates the new capacity required for reallocation during
    /// growth.
@@ -2219,34 +2276,32 @@ private:
    {
       auto [ptr, count]{ this->allocate_memory_for_at_least(
           calculate_growth_size()) };
+
       auto const new_element_ptr{ ptr + size() };
       auto const new_element_finish{ new_element_ptr + 1 };
 
+      detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
+
+      a_traits::construct(
+          this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
       {
-         detail::AllocationGuard mem_guard{ this->m_allocator, ptr, count };
+         // The newly inserted element exists and must be destroyed if an
+         // exception is thrown.
+         detail::ElementGuard elem_guard{ this->m_allocator,
+                                          new_element_ptr,
+                                          new_element_finish };
 
-         a_traits::construct(
-             this->m_allocator, new_element_ptr, std::forward<Args>(args)...);
-         {
-            // The newly inserted element exists and must be destroyed if an
-            // exception is thrown.
-            detail::ElementGuard elem_guard{ this->m_allocator,
-                                             new_element_ptr,
-                                             new_element_finish };
+         uninitialized_move_if_noexcept(this->m_allocator, begin(), end(), ptr);
 
-            uninitialized_move_if_noexcept(
-                this->m_allocator, begin(), end(), ptr);
+         // Scary part's over, reassign the guards to the old elements and
+         // memory.
+         elem_guard.reassign(this->m_start, this->m_finish);
+         mem_guard.reassign(this->m_start, capacity());
 
-            // Scary part's over, reassign the guards to the old elements and
-            // memory.
-            elem_guard.reassign(this->m_start, this->m_finish);
-            mem_guard.reassign(this->m_start, capacity());
-
-            this->m_start = ptr;
-            this->m_finish = new_element_finish;
-            this->m_end_of_storage = ptr + count;
-            return back();
-         }
+         this->m_start = ptr;
+         this->m_finish = new_element_finish;
+         this->m_end_of_storage = ptr + count;
+         return back();
       }
    }
 
@@ -2373,7 +2428,7 @@ private:
 
          uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
 
-         auto new_finish{ uninitialized_move_if_noexcept(
+         auto const new_finish{ uninitialized_move_if_noexcept(
              this->m_allocator, pos, end(), tail_ptr) };
 
          clear();
@@ -2404,7 +2459,7 @@ private:
             // data from the old memory.
             elem_guard.first = ptr;
 
-            auto new_finish{ uninitialized_move_if_noexcept(
+            auto const new_finish{ uninitialized_move_if_noexcept(
                 this->m_allocator, pos, end(), tail_ptr) };
 
             // Migration complete, use the guards to destroy and deallocate the
@@ -2442,7 +2497,7 @@ private:
 
          uninitialized_move_if_noexcept(this->m_allocator, begin(), pos, ptr);
 
-         auto new_finish{ uninitialized_move_if_noexcept(
+         auto const new_finish{ uninitialized_move_if_noexcept(
              this->m_allocator, pos, end(), tail_ptr) };
 
          clear();
@@ -2473,7 +2528,7 @@ private:
             // data from the old memory.
             elem_guard.first = ptr;
 
-            auto new_finish{ uninitialized_move_if_noexcept(
+            auto const new_finish{ uninitialized_move_if_noexcept(
                 this->m_allocator, pos, end(), tail_ptr) };
 
             // Migration complete, use the guards to destroy and deallocate the
