@@ -380,6 +380,7 @@ public:
    ///
    /// @param count The number of elements to construct.
    /// @param value The value to copy-construct elements from.
+   /// @param allocator The allocator to use for memory allocation.
    ///
    /// @throws (...) Any exception thrown by the allocator as a result of a call
    /// to `std::allocator_traits<Allocator>::allocate`.
@@ -471,6 +472,7 @@ public:
    /// @tparam Range A range type compatible with `T`.
    ///
    /// @param range The input range to copy or move elements from.
+   /// @param allocator The allocator to use for memory allocation.
    ///
    /// @throws (...) Any exception thrown by the allocator as a result of a call
    /// to `std::allocator_traits<Allocator>::allocate`.
@@ -2476,6 +2478,31 @@ private:
       return pos_ptr;
    }
 
+   /// @brief Copy-inserts elements from the source range `[first, last)` into
+   /// new memory, then moves elements from old memory before and/or after the
+   /// new elements based on `pos`.
+   ///
+   /// @param pos Mutable iterator to the position in the vector to insert
+   /// `value`.
+   /// @param first Iterator to the beginning of the range to insert.
+   /// @param last Sentinel for `first`.
+   ///
+   /// @return An iterator to the first inserted element.
+   ///
+   /// @pre `pos` must be an iterator to `*this`.
+   ///
+   /// @throws (...) Any exception thrown by the allocator as a result of a call
+   /// to `std::allocator_traits<Allocator>::allocate`.
+   /// @throws (...) Any exception thrown by T during element construction.
+   ///
+   /// @note Provides a strong exception guarantee: if an exception is thrown as
+   /// a result of allocation, or `T`'s copy constructor the vector is
+   /// unmodified.
+   ///
+   /// @note Provides a basic exception guarantee: if an exception is thrown
+   /// during element move assignment or construction, the vector is left in a
+   /// valid but unspecified state and no resources are leaked.
+   ///
    template <
        std::input_iterator InputIterator,
        std::sentinel_for<InputIterator> Sentinel
