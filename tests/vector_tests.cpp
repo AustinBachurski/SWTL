@@ -2022,6 +2022,12 @@ TEMPLATE_TEST_CASE(
           vec.reserve(std::numeric_limits<std::size_t>::max()),
           std::length_error);
    }
+
+   // TODO: Working here - adding tests for path coverage.
+   SECTION("Allocating max.")
+   {
+      vec.reserve(vec.max_size());
+   }
 }
 
 TEMPLATE_TEST_CASE(
