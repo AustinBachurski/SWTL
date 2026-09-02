@@ -91,26 +91,3 @@ TEST_CASE("zip_copy copys uneven ranges correctly.", "[algorithm][zip_copy]")
               std::ranges::subrange(destination.begin(), dest_pos)));
    }
 }
-
-TEST_CASE(
-    "zip_copy triggers a contract violation if iterator arguments are "
-    "reversed.",
-    "[algorithm][zip_copy]")
-{
-   auto src{ helpers::generate_vector<int>() };
-   auto dest{ src };
-
-   SECTION("Source iterator pair swapped.")
-   {
-      REQUIRE_THROWS_AS(
-          swtl::zip_copy(src.end(), src.begin(), dest.begin(), dest.end()),
-          ContractException);
-   }
-
-   SECTION("Destination iterator pair swapped.")
-   {
-      REQUIRE_THROWS_AS(
-          swtl::zip_copy(src.begin(), src.end(), dest.end(), dest.begin()),
-          ContractException);
-   }
-}

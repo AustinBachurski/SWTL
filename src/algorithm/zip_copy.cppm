@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module swtl.algorithm:zip_copy;
 
 import std;
@@ -54,18 +58,20 @@ export template <
     std::input_or_output_iterator DestinationIterator,
     std::sentinel_for<DestinationIterator> DestinationSentinel
 >
+   requires std::indirectly_writable<
+       DestinationIterator,
+       std::iter_reference_t<SourceIterator>
+   >
 constexpr ZipCopyResult<SourceIterator, DestinationIterator>
 zip_copy(
     SourceIterator src_first,
     SourceSentinel src_last,
     DestinationIterator dest_first,
-    DestinationSentinel dest_last)
-    noexcept(
-        swtl::config::nothrow_contracts && noexcept(*dest_first = *src_first))
+    DestinationSentinel dest_last) noexcept(noexcept(*dest_first = *src_first))
 {
    if constexpr (std::sized_sentinel_for<SourceSentinel, SourceIterator>)
    {
-      contract_assert(
+      assert(
           src_last - src_first >= 0
           && "`src_last` must be reachable from `src_first`");
    }
@@ -73,7 +79,7 @@ zip_copy(
    if constexpr (
        std::sized_sentinel_for<DestinationSentinel, DestinationIterator>)
    {
-      contract_assert(
+      assert(
           dest_last - dest_first >= 0
           && "`dest_last` must be reachable from `dest_first`");
    }
@@ -111,9 +117,7 @@ export template <
 >
 constexpr auto
 zip_copy(SourceRange &&src_range, DestinationRange &&dest_range) noexcept(
-    swtl::config::nothrow_contracts
-    && noexcept(
-        *std::ranges::begin(dest_range) = *std::ranges::begin(src_range)))
+    noexcept(*std::ranges::begin(dest_range) = *std::ranges::begin(src_range)))
 {
    return zip_copy(
        std::ranges::begin(src_range),

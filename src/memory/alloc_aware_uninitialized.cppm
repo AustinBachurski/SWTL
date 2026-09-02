@@ -39,6 +39,9 @@ uninitialized_fill_n(
     typename std::allocator_traits<Allocator>::pointer first,
     std::size_t count,
     T const &val)
+    noexcept(std::is_nothrow_copy_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    auto const end{ first + count };
 
@@ -103,6 +106,9 @@ uninitialized_copy(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(std::is_nothrow_copy_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
@@ -175,6 +181,9 @@ uninitialized_move(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(std::is_nothrow_move_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
@@ -250,6 +259,13 @@ uninitialized_move_if_noexcept(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(
+        std::is_nothrow_move_constructible_v<
+            typename std::allocator_traits<Allocator>::value_type
+        >
+        && std::is_nothrow_copy_constructible_v<
+            typename std::allocator_traits<Allocator>::value_type
+        >)
 {
    using value_type = std::allocator_traits<Allocator>::value_type;
 
