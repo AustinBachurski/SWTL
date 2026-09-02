@@ -65,6 +65,7 @@ compile_commands.json
 
 # Test Output & Cache
 Testing/
+coverage/
 .cache/
 out
 bin
