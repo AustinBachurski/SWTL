@@ -542,6 +542,13 @@ public:
    constexpr void
    assign(size_type count, T const &value)
    {
+      if (count == 0UZ)
+      {
+         clear();
+         this->deallocate_memory();
+         return;
+      }
+
       if (capacity() < count)
       {
          auto [ptr, size]{ this->allocate_memory_for_at_least(count) };
@@ -645,6 +652,13 @@ public:
    constexpr void
    assign(InputIterator first, Sentinel last)
    {
+      if (first == last)
+      {
+         clear();
+         this->deallocate_memory();
+         return;
+      }
+
       if constexpr (std::sized_sentinel_for<Sentinel, InputIterator>)
       {
          assert(last - first >= 0 && "`last` must be reachable from `first`");
@@ -2007,7 +2021,9 @@ public:
    /// state and no resources are leaked.
    ///
    constexpr iterator
-   erase(const_iterator pos)
+   erase(const_iterator pos) noexcept(
+       std::is_nothrow_move_assignable_v<T>
+       || std::is_nothrow_copy_assignable_v<T>)
    {
       auto mut_pos{ begin() + std::ranges::distance(cbegin(), pos) };
 
@@ -2044,7 +2060,9 @@ public:
    /// state and no resources are leaked.
    ///
    constexpr iterator
-   erase(const_iterator first, const_iterator last)
+   erase(const_iterator first, const_iterator last) noexcept(
+       std::is_nothrow_move_assignable_v<T>
+       || std::is_nothrow_copy_assignable_v<T>)
    {
       assert(last - first >= 0 && "`last` must be reachable from `first`");
 
