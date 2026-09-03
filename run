@@ -25,6 +25,10 @@ if [[ $1 == "--test" ]]; then
    echo -e "\n--- Running Tests ${test_preset} ---"
    #ctest --preset ${test_preset}
    ./out/bin/x64-gcc-debug/tests
+elif [[ $1 == "--coverage" ]]; then
+   ./out/bin/x64-gcc-debug/tests
+   mkdir -p coverage
+   gcovr --root . --object-directory build --filter "src/" --html-details -d -o coverage/coverage.html
 else
    echo -e "\n--- Executing Binary ---\n"
    ./out/bin/${build_preset}/"${binary}"

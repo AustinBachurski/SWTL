@@ -3,6 +3,7 @@
 #include "catch2/matchers/catch_matchers.hpp"
 #include "catch2/matchers/catch_matchers_exception.hpp"
 #include "catch2/matchers/catch_matchers_string.hpp"
+#include <stdexcept>
 
 import std;
 
@@ -73,12 +74,13 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector<T> const vec{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 }, T{ 4 },
-                                 T{ 5 }, T{ 6 }, T{ 7 }, T{ 8 }, T{ 9 } };
+      auto const vec{ helpers::make_vec_of<T>(
+          0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
-      std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },
-                                                T{ 4 }, T{ 5 }, T{ 6 }, T{ 7 },
-                                                T{ 8 }, T{ 9 } };
+      std::initializer_list<T> const init_list{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ },
+                                                T{ 3UZ }, T{ 4UZ }, T{ 5UZ },
+                                                T{ 6UZ }, T{ 7UZ }, T{ 8UZ },
+                                                T{ 9UZ } };
       REQUIRE(std::ranges::equal(vec, init_list));
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -125,12 +127,32 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 }, T{ 3 },
-                                                T{ 4 }, T{ 5 }, T{ 6 }, T{ 7 },
-                                                T{ 8 }, T{ 9 } };
-      swtl::Vector<T> const vec(init_list);
+      SECTION("Passing an empty initializer list results in an empty vector.")
+      {
+         std::initializer_list<T> init_list;
 
-      REQUIRE(std::ranges::equal(vec, init_list));
+         swtl::Vector<T> const vec(init_list);
+
+         REQUIRE(vec.is_empty());
+
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
+         {
+            REQUIRE(helpers::g_test_controller.instances_alive() == 0UZ);
+         }
+      }
+
+      SECTION(
+          "Passing a populated initializer list results in a vector with "
+          "elements.")
+      {
+         std::initializer_list<T> const init_list{ T{ 0 }, T{ 1 }, T{ 2 },
+                                                   T{ 3 }, T{ 4 }, T{ 5 },
+                                                   T{ 6 }, T{ 7 }, T{ 8 },
+                                                   T{ 9 } };
+         swtl::Vector<T> const vec(init_list);
+
+         REQUIRE(std::ranges::equal(vec, init_list));
+      }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -172,20 +194,35 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      auto count{ 10UZ };
-      swtl::Vector<T> const empty_vec(0);
-
-      swtl::Vector<T> expected;
-
-      for (auto counter{ 0UZ }; counter != count; ++counter)
+      SECTION("A count of zero results in an empty vector.")
       {
-         expected.emplace_back();
+         swtl::Vector<T> const vec(0UZ);
+
+         REQUIRE(vec.is_empty());
+
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
+         {
+            REQUIRE(helpers::g_test_controller.instances_alive() == 0UZ);
+         }
       }
 
-      swtl::Vector<T> const vec(count);
+      SECTION("A count of non-zero results in a vector of count elements.")
+      {
+         auto count{ 10UZ };
+         swtl::Vector<T> const empty_vec(0);
 
-      REQUIRE(empty_vec.is_empty());
-      REQUIRE(vec == expected);
+         swtl::Vector<T> expected;
+
+         for (auto counter{ 0UZ }; counter != count; ++counter)
+         {
+            expected.emplace_back();
+         }
+
+         swtl::Vector<T> const vec(count);
+
+         REQUIRE(empty_vec.is_empty());
+         REQUIRE(vec == expected);
+      }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -222,14 +259,29 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      auto const count{ 4UZ };
-      auto const reference_value{ T{ 42UZ } };
+      SECTION("A count of zero results in an empty vector.")
+      {
+         swtl::Vector<T> const vec(0UZ, T{});
 
-      swtl::Vector<TestType> const vec(count, reference_value);
-      swtl::Vector<TestType> expected;
-      expected.assign(count, reference_value);
+         REQUIRE(vec.is_empty());
 
-      REQUIRE(vec == expected);
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
+         {
+            REQUIRE(helpers::g_test_controller.instances_alive() == 0UZ);
+         }
+      }
+
+      SECTION("A count of non-zero results in a vector of count elements.")
+      {
+         auto const count{ 4UZ };
+         auto const reference_value{ T{ 42UZ } };
+
+         swtl::Vector<T> const vec(count, reference_value);
+         swtl::Vector<T> expected;
+         expected.assign(count, reference_value);
+
+         REQUIRE(vec == expected);
+      }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -269,21 +321,58 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
+      SECTION("Passing a range of size zero results in an empty vector.")
       {
-         swtl::Vector const vec(source.begin(), source.end());
-         REQUIRE(vec == source);
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(source.begin(), source.begin());
+
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive()
+                   == source.size());
+            }
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.begin()));
+
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive()
+                   == source.size());
+            }
+         }
       }
-      else
+
+      SECTION("Passing a range with elements results in a vector of elements.")
       {
-         swtl::Vector const vec(
-             std::make_move_iterator(source.begin()),
-             std::make_move_iterator(source.end()));
-         REQUIRE(vec == source);
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(source.begin(), source.end());
+            REQUIRE(vec == source);
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.end()));
+            REQUIRE(vec == source);
+         }
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -297,9 +386,11 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
 
       auto const count{ source.size() };
 
@@ -309,7 +400,7 @@ TEMPLATE_TEST_CASE(
       helpers::g_test_controller.throw_when.move_construction
           = helpers::g_test_controller.count_of.move_construction + count;
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
+      if constexpr (!std::is_move_constructible_v<T>)
       {
          REQUIRE_THROWS_AS(
              swtl::Vector(source.begin(), source.end()),
@@ -338,23 +429,59 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
 
       auto begin{ helpers::InputIterator(source.data()) };
       auto end{ helpers::InputIterator(source.data() + source.size()) };
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
+      SECTION("Passing a range of size zero results in an empty vector.")
       {
-         swtl::Vector const vec(begin, end);
-         REQUIRE(vec == source);
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(begin, begin);
+
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive()
+                   == source.size());
+            }
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::make_move_iterator(begin), std::make_move_iterator(begin));
+
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive()
+                   == source.size());
+            }
+         }
       }
-      else
+
+      SECTION("Passing a range with elements results in a vector of elements.")
       {
-         swtl::Vector const vec(
-             std::make_move_iterator(begin), std::make_move_iterator(end));
-         REQUIRE(vec == source);
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(begin, end);
+            REQUIRE(vec == source);
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::make_move_iterator(begin), std::make_move_iterator(end));
+            REQUIRE(vec == source);
+         }
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -368,9 +495,11 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
 
       auto const count{ source.size() };
 
@@ -383,7 +512,7 @@ TEMPLATE_TEST_CASE(
       helpers::g_test_controller.throw_when.move_construction
           = helpers::g_test_controller.count_of.move_construction + count;
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
+      if constexpr (!std::is_move_constructible_v<T>)
       {
          REQUIRE_THROWS_AS(swtl::Vector(begin, end), helpers::TestException);
       }
@@ -409,19 +538,52 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      SECTION("Passing an empty range results in an empty vector.")
+      {
+         swtl::Vector<T> source;
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
-      {
-         swtl::Vector const vec(std::from_range, source);
-         REQUIRE(vec == source);
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(std::from_range, source);
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(helpers::g_test_controller.instances_alive() == 0UZ);
+            }
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::from_range, std::views::as_rvalue(source));
+            REQUIRE(vec.is_empty());
+
+            if constexpr (std::derived_from<T, helpers::TrackedObject>)
+            {
+               REQUIRE(helpers::g_test_controller.instances_alive() == 0UZ);
+            }
+         }
       }
-      else
+
+      SECTION("Passing a non-empty range results in a vector of elements.")
       {
-         swtl::Vector const vec(std::from_range, std::views::as_rvalue(source));
-         REQUIRE(vec == source);
+         auto source{ helpers::generate_vector<T>() };
+
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            swtl::Vector const vec(std::from_range, source);
+            REQUIRE(vec == source);
+         }
+         else
+         {
+            swtl::Vector const vec(
+                std::from_range, std::views::as_rvalue(source));
+            REQUIRE(vec == source);
+         }
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -434,9 +596,11 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
 
       auto const count{ source.size() };
 
@@ -446,7 +610,7 @@ TEMPLATE_TEST_CASE(
       helpers::g_test_controller.throw_when.move_construction
           = helpers::g_test_controller.count_of.move_construction + count;
 
-      if constexpr (!std::is_move_constructible_v<TestType>)
+      if constexpr (!std::is_move_constructible_v<T>)
       {
          REQUIRE_THROWS_AS(
              swtl::Vector(std::from_range, source), helpers::TestException);
@@ -470,28 +634,30 @@ TEMPLATE_TEST_CASE(
     helpers::NoThrowTrackedObject,
     helpers::CopyOnlyTrackedObject)
 {
-   TestType value{};
-   swtl::Vector<TestType> source;
+   using T = TestType;
+
+   T value{};
+   swtl::Vector<T> source;
 
    SECTION("CTAD from a braced initializer list.")
    {
       swtl::Vector vec{ value, value, value };
 
-      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<T>>);
    }
 
    SECTION("CTAD from iterators.")
    {
       swtl::Vector vec(source.begin(), source.end());
 
-      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<T>>);
    }
 
    SECTION("CTAD from a range.")
    {
       swtl::Vector vec(std::from_range, source);
 
-      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<TestType>>);
+      STATIC_REQUIRE(std::is_same_v<decltype(vec), swtl::Vector<T>>);
    }
 }
 
@@ -734,11 +900,22 @@ TEMPLATE_TEST_CASE(
     helpers::NoThrowTrackedObject,
     helpers::CopyOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
-      auto const const_source{ helpers::generate_vector<TestType>() };
-      auto const expected{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
+      auto const const_source{ helpers::generate_vector<T>() };
+      auto const expected{ helpers::generate_vector<T>() };
+
+      SECTION("Copying from an empty source results in an empty vector.")
+      {
+         swtl::Vector<T> empty_source;
+
+         auto const vec{ empty_source };
+
+         REQUIRE(vec.is_empty());
+      }
 
       SECTION("Copy constructor from copies from non-const source.")
       {
@@ -759,7 +936,7 @@ TEMPLATE_TEST_CASE(
 
       SECTION("Copy assignment operator copies from non-const source.")
       {
-         swtl::Vector<TestType> destination;
+         swtl::Vector<T> destination;
          destination = source;
 
          REQUIRE(destination == expected);
@@ -769,7 +946,7 @@ TEMPLATE_TEST_CASE(
 
       SECTION("Copy assignment operator copies from const source.")
       {
-         swtl::Vector<TestType> destination;
+         swtl::Vector<T> destination;
          destination = const_source;
 
          REQUIRE(destination == expected);
@@ -800,12 +977,14 @@ TEMPLATE_TEST_CASE(
     helpers::TrackedObject,
     helpers::CopyOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
       auto const count{ source.size() };
 
-      auto const expected{ helpers::generate_vector<TestType>() };
+      auto const expected{ helpers::generate_vector<T>() };
 
       helpers::g_test_controller.enable_throwing();
 
@@ -825,7 +1004,7 @@ TEMPLATE_TEST_CASE(
          helpers::g_test_controller.throw_when.copy_construction
              = helpers::g_test_controller.count_of.copy_construction + count;
 
-         swtl::Vector<TestType> destination;
+         swtl::Vector<T> destination;
 
          REQUIRE_THROWS_AS(destination = source, helpers::TestException);
          REQUIRE(source == expected);
@@ -844,18 +1023,20 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto source{ helpers::generate_vector<TestType>() };
+      auto source{ helpers::generate_vector<T>() };
       auto const &const_reference_to_source{ source };
 
       auto const data_ptr_before_move{ source.data() };
       auto const capacity_before_move{ source.capacity() };
       auto const size_before_move{ source.size() };
 
-      auto const expected{ helpers::generate_vector<TestType>() };
+      auto const expected{ helpers::generate_vector<T>() };
 
-      if constexpr (std::is_move_constructible_v<TestType>)
+      if constexpr (std::is_move_constructible_v<T>)
       {
          SECTION("Move constructor from non-const source moves data.")
          {
@@ -873,11 +1054,11 @@ TEMPLATE_TEST_CASE(
          }
       }
 
-      if constexpr (std::is_move_assignable_v<TestType>)
+      if constexpr (std::is_move_assignable_v<T>)
       {
          SECTION("Move assignment from non-const source moves data.")
          {
-            swtl::Vector<TestType> destination;
+            swtl::Vector<T> destination;
             destination = std::move(source);
 
             REQUIRE(destination == expected);
@@ -892,7 +1073,7 @@ TEMPLATE_TEST_CASE(
          }
       }
 
-      if constexpr (std::is_copy_constructible_v<TestType>)
+      if constexpr (std::is_copy_constructible_v<T>)
       {
          SECTION("Move constructor from const source falls back to copying.")
          {
@@ -910,11 +1091,11 @@ TEMPLATE_TEST_CASE(
          }
       }
 
-      if constexpr (std::is_copy_assignable_v<TestType>)
+      if constexpr (std::is_copy_assignable_v<T>)
       {
          SECTION("Move assignment from const source falls back to copying.")
          {
-            swtl::Vector<TestType> destination;
+            swtl::Vector<T> destination;
             destination = std::move(const_reference_to_source);
 
             REQUIRE(destination == expected);
@@ -929,7 +1110,7 @@ TEMPLATE_TEST_CASE(
          }
       }
 
-      if constexpr (std::is_move_assignable_v<TestType>)
+      if constexpr (std::is_move_assignable_v<T>)
       {
          SECTION("Self move assignment does nothing.")
          {
@@ -962,27 +1143,46 @@ TEMPLATE_TEST_CASE(
     helpers::NoThrowTrackedObject,
     helpers::CopyOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto const initial_count{ 8UZ };
-      swtl::Vector<TestType> vec(initial_count);
+      auto vec{ helpers::generate_vector<T>() };
+      vec.reserve(10UZ);
+
+      SECTION("Count of zero clears the vector.")
+      {
+         vec.assign(0UZ, T{});
+
+         REQUIRE(vec.is_empty());
+         REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+      }
 
       SECTION("Assignment triggers reallocation.")
       {
-         auto const count{ 10UZ };
-         swtl::Vector<TestType> const expected(count);
+         auto const count{ 20UZ };
 
-         vec.assign(count, TestType{});
+         INFO(
+             "If count (which was "
+             << count
+             << " ) is less than or equal to vec.capacity() (which was "
+             << vec.capacity() << " ) this test is invalid.");
+         REQUIRE(count > vec.capacity());
+
+         swtl::Vector<T> const expected(count);
+
+         vec.assign(count, T{});
 
          REQUIRE(vec == expected);
       }
 
       SECTION("Assignment to existing memory.")
       {
-         auto const count{ 6UZ };
-         swtl::Vector<TestType> const expected(count);
+         auto const count{ vec.capacity() };
 
-         vec.assign(count, TestType{});
+         swtl::Vector<T> const expected(count);
+
+         vec.assign(count, T{});
 
          REQUIRE(vec == expected);
       }
@@ -996,17 +1196,19 @@ TEMPLATE_TEST_CASE(
     helpers::TrackedObject,
     helpers::CopyOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
       auto const initial_count{ 8UZ };
-      swtl::Vector<TestType> vec(initial_count);
+      swtl::Vector<T> vec(initial_count);
 
       helpers::g_test_controller.enable_throwing();
       SECTION("Assignment triggers reallocation.")
       {
          auto const count{ 10UZ };
 
-         swtl::Vector<TestType> const expected(initial_count);
+         swtl::Vector<T> const expected(initial_count);
 
          helpers::g_test_controller.throw_when.copy_construction
              = helpers::g_test_controller.count_of.copy_construction + count;
@@ -1016,8 +1218,7 @@ TEMPLATE_TEST_CASE(
              << count << " ) is less than initial_count (which was "
              << initial_count << " ) this test is invalid.");
 
-         REQUIRE_THROWS_AS(
-             vec.assign(count, TestType{}), helpers::TestException);
+         REQUIRE_THROWS_AS(vec.assign(count, T{}), helpers::TestException);
 
          REQUIRE(vec == expected);
       }
@@ -1035,8 +1236,7 @@ TEMPLATE_TEST_CASE(
              << " ) is greater than or equal to initial_count (which was "
              << initial_count << " ) this test is invalid.");
 
-         REQUIRE_THROWS_AS(
-             vec.assign(count, TestType{}), helpers::TestException);
+         REQUIRE_THROWS_AS(vec.assign(count, T{}), helpers::TestException);
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -1067,7 +1267,7 @@ TEMPLATE_TEST_CASE(
 
          try
          {
-            vec.assign(count, TestType{});
+            vec.assign(count, T{});
             clean_pass = true;
             helpers::g_test_controller.disable_throwing();
          }
@@ -1092,162 +1292,104 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto const source_size{ 10UZ };
-      auto source{ helpers::generate_vector<TestType>(source_size) };
-      auto const expected{ helpers::generate_vector<TestType>(source_size) };
+      auto const initial_size{ 10UZ };
+      auto const source_size{ initial_size * 2 };
+
+      swtl::Vector<T> vec(initial_size);
+      auto source{ helpers::generate_vector<T>(source_size) };
+
+      SECTION("Passing a zero sized range results in an empty vector.")
+      {
+         if constexpr (!std::is_move_constructible_v<T>)
+         {
+            vec.assign(source.begin(), source.begin());
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.begin()));
+         }
+
+         REQUIRE(vec.is_empty());
+
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
+         {
+            REQUIRE(
+                helpers::g_test_controller.instances_alive() == source.size());
+         }
+      }
 
       SECTION("Assignment triggers reallocation.")
       {
-         auto const initial_size{ 8UZ };
-         swtl::Vector<TestType> vec(initial_size);
+         auto const expected{ helpers::generate_vector<T>(source_size) };
 
-         INFO(
-             "If initial_size (which was "
-             << initial_size
-             << " ) is greater than or equal to source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         if constexpr (!std::is_move_constructible_v<T>)
          {
             vec.assign(source.begin(), source.end());
-            REQUIRE(vec == expected);
          }
          else
          {
             vec.assign(
                 std::make_move_iterator(source.begin()),
                 std::make_move_iterator(source.end()));
-            REQUIRE(vec == expected);
+         }
+
+         REQUIRE(vec == expected);
+      }
+
+      SECTION("Assignment to some existing elements.")
+      {
+         auto const count{ initial_size / 2 };
+
+         auto const expected{ helpers::generate_vector<T>(count) };
+
+         if constexpr (!std::is_move_assignable_v<T>)
+         {
+            vec.assign(source.begin(), source.begin() + count);
+         }
+         else
+         {
+            vec.assign(
+                std::make_move_iterator(source.begin()),
+                std::make_move_iterator(source.begin() + count));
+         }
+
+         REQUIRE(vec == expected);
+
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
+         {
+            // Ensures that existing elements past the new elements are
+            // destroyed following assignment.
+            REQUIRE(
+                helpers::g_test_controller.instances_alive()
+                == vec.size() + expected.size() + source.size());
          }
       }
 
       SECTION("Assignment to existing memory.")
       {
-         auto const initial_size{ 12UZ };
-         swtl::Vector<TestType> vec(initial_size);
+         vec.reserve(source_size);
 
-         INFO(
-             "If initial_size (which was "
-             << initial_size << " ) is less than source_size (which was "
-             << source_size << " ) this test is invalid.");
+         auto const expected{ helpers::generate_vector<T>(source_size) };
 
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         if constexpr (
+             !std::is_move_assignable_v<T> && !std::is_move_constructible_v<T>)
          {
             vec.assign(source.begin(), source.end());
-            REQUIRE(vec == expected);
-
-            if constexpr (std::derived_from<TestType, helpers::TrackedObject>)
-            {
-               // Ensures that existing elements past the new elements are
-               // destroyed following assignment.
-               REQUIRE(
-                   helpers::g_test_controller.instances_alive()
-                   == expected.size() + source.size() * 2);
-            }
          }
          else
          {
             vec.assign(
                 std::make_move_iterator(source.begin()),
                 std::make_move_iterator(source.end()));
-            REQUIRE(vec == expected);
-
-            if constexpr (std::derived_from<TestType, helpers::TrackedObject>)
-            {
-               // Ensures that existing elements past the new elements are
-               // destroyed following assignment.
-               REQUIRE(
-                   helpers::g_test_controller.instances_alive()
-                   == expected.size() + source.size() * 2);
-            }
          }
-      }
-   }
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-}
 
-TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) exception "
-    "safety for contiguous iterators.",
-    "[vector][assign]",
-    helpers::TrackedObject,
-    helpers::CopyOnlyTrackedObject,
-    helpers::MoveOnlyTrackedObject)
-{
-   helpers::g_test_controller.reset();
-   {
-      auto const source_size{ 10UZ };
-      auto source{ helpers::generate_vector<TestType>(source_size) };
-
-      helpers::g_test_controller.enable_throwing();
-
-      SECTION("Assignment triggers reallocation.")
-      {
-         helpers::g_test_controller.throw_when.copy_construction
-             = helpers::g_test_controller.count_of.copy_construction
-             + source_size;
-         helpers::g_test_controller.throw_when.move_construction
-             = helpers::g_test_controller.count_of.move_construction
-             + source_size;
-
-         auto const initial_size{ 8UZ };
-         swtl::Vector<TestType> vec(initial_size);
-
-         INFO(
-             "If initial_size (which was "
-             << initial_size
-             << " ) is greater than or equal to source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
-         {
-            REQUIRE_THROWS_AS(
-                vec.assign(source.begin(), source.end()),
-                helpers::TestException);
-         }
-         else
-         {
-            REQUIRE_THROWS_AS(
-                vec.assign(
-                    std::make_move_iterator(source.begin()),
-                    std::make_move_iterator(source.end())),
-                helpers::TestException);
-         }
-      }
-
-      SECTION("Assignment to existing memory.")
-      {
-         helpers::g_test_controller.throw_when.copy_assignment
-             = helpers::g_test_controller.count_of.copy_assignment
-             + source_size;
-         helpers::g_test_controller.throw_when.move_assignment
-             = helpers::g_test_controller.count_of.move_assignment
-             + source_size;
-
-         auto const initial_size{ 12UZ };
-         swtl::Vector<TestType> vec(initial_size);
-
-         INFO(
-             "If initial_size (which was "
-             << initial_size << " ) is less than source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
-         {
-            REQUIRE_THROWS_AS(
-                vec.assign(source.begin(), source.end()),
-                helpers::TestException);
-         }
-         else
-         {
-            REQUIRE_THROWS_AS(
-                vec.assign(
-                    std::make_move_iterator(source.begin()),
-                    std::make_move_iterator(source.end())),
-                helpers::TestException);
-         }
+         REQUIRE(vec == expected);
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -1426,150 +1568,84 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto const source_size{ 10UZ };
-      auto source{ helpers::generate_vector<TestType>(source_size) };
-      auto const expected{ helpers::generate_vector<TestType>(source_size) };
+      auto const initial_size{ 10UZ };
+      auto const source_size{ initial_size * 2 };
 
-      helpers::InputIterator<TestType> begin{ source.data() };
-      helpers::InputIterator<TestType> end{ source.data() + source.size() };
+      swtl::Vector<T> vec(initial_size);
+      auto source{ helpers::generate_vector<T>(source_size) };
+
+      helpers::InputIterator<T> begin{ source.data() };
+      helpers::InputIterator<T> end{ source.data() + source.size() };
 
       SECTION("Assignment triggers reallocation.")
       {
-         auto const initial_size{ 8UZ };
-         swtl::Vector<TestType> vec(initial_size);
+         auto const expected{ helpers::generate_vector<T>(source_size) };
 
-         INFO(
-             "If initial_size (which was "
-             << initial_size
-             << " ) is greater than or equal to source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         if constexpr (!std::is_move_constructible_v<T>)
          {
             vec.assign(begin, end);
-            REQUIRE(vec == expected);
          }
          else
          {
             vec.assign(
                 std::make_move_iterator(begin), std::make_move_iterator(end));
-            REQUIRE(vec == expected);
          }
+
+         REQUIRE(vec == expected);
       }
 
-      SECTION("Assignment to existing memory.")
+      SECTION("Assignment to some existing elements.")
       {
-         auto const initial_size{ 12UZ };
-         swtl::Vector<TestType> vec(initial_size);
+         auto const count{ initial_size / 2 };
 
-         INFO(
-             "If initial_size (which was "
-             << initial_size << " ) is less than source_size (which was "
-             << source_size << " ) this test is invalid.");
+         auto const expected{ helpers::generate_vector<T>(count) };
 
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         end = source.data() + count;
+
+         if constexpr (!std::is_move_assignable_v<T>)
          {
             vec.assign(begin, end);
-            REQUIRE(vec == expected);
          }
          else
          {
             vec.assign(
                 std::make_move_iterator(begin), std::make_move_iterator(end));
-            REQUIRE(vec == expected);
          }
-      }
-   }
-   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
-}
 
-TEMPLATE_TEST_CASE(
-    "Vector::assign(InputIterator src_begin, Sentinel src_end) exception "
-    "safety for input iterators.",
-    "[vector][assign]",
-    helpers::TrackedObject,
-    helpers::CopyOnlyTrackedObject,
-    helpers::MoveOnlyTrackedObject)
-{
-   helpers::g_test_controller.reset();
-   {
-      auto const source_size{ 10UZ };
-      auto source{ helpers::generate_vector<TestType>(source_size) };
+         REQUIRE(vec == expected);
 
-      helpers::InputIterator<TestType> begin{ source.data() };
-      helpers::InputIterator<TestType> end{ source.data() + source.size() };
-
-      helpers::g_test_controller.enable_throwing();
-
-      SECTION("Assignment triggers reallocation.")
-      {
-         auto const initial_size{ 8UZ };
-         swtl::Vector<TestType> vec(initial_size);
-
-         helpers::g_test_controller.throw_when.copy_construction
-             = helpers::g_test_controller.count_of.copy_construction
-             + source_size;
-         // We know the size of the source is large enough to trigger
-         // reallocation but the iterator can't be measured at runtime, so the
-         // implementation falls back to recursive calls to push_back, which
-         // means we're going to get move assignment until the initial size is
-         // exhausted and reallocation is triggered - this is why
-         // `source_size - initial_size` is used below.
-         helpers::g_test_controller.throw_when.move_construction
-             = helpers::g_test_controller.count_of.move_construction
-             + source_size - initial_size;
-
-         INFO(
-             "If initial_size (which was "
-             << initial_size
-             << " ) is greater than or equal to source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         if constexpr (std::derived_from<T, helpers::TrackedObject>)
          {
-            REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
-         }
-         else
-         {
-            REQUIRE_THROWS_AS(
-                vec.assign(
-                    std::make_move_iterator(begin),
-                    std::make_move_iterator(end)),
-                helpers::TestException);
+            // Ensures that existing elements past the new elements are
+            // destroyed following assignment.
+            REQUIRE(
+                helpers::g_test_controller.instances_alive()
+                == vec.size() + expected.size() + source.size());
          }
       }
 
       SECTION("Assignment to existing memory.")
       {
-         helpers::g_test_controller.throw_when.copy_assignment
-             = helpers::g_test_controller.count_of.copy_assignment
-             + source_size;
-         helpers::g_test_controller.throw_when.move_assignment
-             = helpers::g_test_controller.count_of.move_assignment
-             + source_size;
+         vec.reserve(source_size);
 
-         auto const initial_size{ 12UZ };
-         swtl::Vector<TestType> vec(initial_size);
+         auto const expected{ helpers::generate_vector<T>(source_size) };
 
-         INFO(
-             "If initial_size (which was "
-             << initial_size << " ) is less than source_size (which was "
-             << source_size << " ) this test is invalid.");
-
-         if constexpr (!std::is_move_constructible_v<TestType>)
+         if constexpr (
+             !std::is_move_assignable_v<T> && !std::is_move_constructible_v<T>)
          {
-            REQUIRE_THROWS_AS(vec.assign(begin, end), helpers::TestException);
+            vec.assign(begin, end);
          }
          else
          {
-            REQUIRE_THROWS_AS(
-                vec.assign(
-                    std::make_move_iterator(begin),
-                    std::make_move_iterator(end)),
-                helpers::TestException);
+            vec.assign(
+                std::make_move_iterator(begin), std::make_move_iterator(end));
          }
+
+         REQUIRE(vec == expected);
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -1598,9 +1674,8 @@ TEMPLATE_TEST_CASE(
             swtl::Vector vec{ helpers::generate_vector<T>(size) };
             swtl::Vector source{ helpers::generate_vector<T>(size) };
 
-            helpers::InputIterator<TestType> begin{ source.data() };
-            helpers::InputIterator<TestType> end{ source.data()
-                                                  + source.size() };
+            helpers::InputIterator<T> begin{ source.data() };
+            helpers::InputIterator<T> end{ source.data() + source.size() };
 
             helpers::g_test_controller.enable_throwing();
             helpers::g_test_controller.throw_when.total_operations
@@ -1654,9 +1729,8 @@ TEMPLATE_TEST_CASE(
                 << vec.size() << " ) this test is invalid.");
             REQUIRE(source_size < vec.size());
 
-            helpers::InputIterator<TestType> begin{ source.data() };
-            helpers::InputIterator<TestType> end{ source.data()
-                                                  + source.size() };
+            helpers::InputIterator<T> begin{ source.data() };
+            helpers::InputIterator<T> end{ source.data() + source.size() };
 
             helpers::g_test_controller.enable_throwing();
             helpers::g_test_controller.throw_when.total_operations
@@ -1711,9 +1785,8 @@ TEMPLATE_TEST_CASE(
                 << vec.size() << " ) this test is invalid.");
             REQUIRE(source_size > vec.size());
 
-            helpers::InputIterator<TestType> begin{ source.data() };
-            helpers::InputIterator<TestType> end{ source.data()
-                                                  + source.size() };
+            helpers::InputIterator<T> begin{ source.data() };
+            helpers::InputIterator<T> end{ source.data() + source.size() };
 
             helpers::g_test_controller.enable_throwing();
             helpers::g_test_controller.throw_when.total_operations
@@ -1972,6 +2045,9 @@ TEST_CASE(
    REQUIRE(vec.front() == expected);
 }
 
+// TODO: Coverage Testing - implement a testing allocator to test the path where
+// requested capacity is valid but the amount of memory returned by the
+// allocator exceeds max.
 TEMPLATE_TEST_CASE(
     "Vector::reserve() increases capacity on an empty vector.",
     "[vector][capacity][reserve]",
@@ -2034,11 +2110,13 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto vec{ helpers::generate_vector<TestType>() };
+      auto vec{ helpers::generate_vector<T>() };
       auto const initial_capacity{ vec.capacity() };
-      swtl::Vector const expected{ helpers::generate_vector<TestType>() };
+      swtl::Vector const expected{ helpers::generate_vector<T>() };
 
       // Capacity may be greater than requested due to using
       // allocate_at_least().
@@ -2086,12 +2164,14 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      swtl::Vector<TestType> vec;
-      auto const data{ helpers::generate_vector<TestType>() };
+      swtl::Vector<T> vec;
+      auto const data{ helpers::generate_vector<T>() };
 
-      if constexpr (std::is_copy_constructible_v<TestType>)
+      if constexpr (std::is_copy_constructible_v<T>)
       {
          SECTION("Inserting lvalue references works as expected.")
          {
@@ -2104,11 +2184,11 @@ TEMPLATE_TEST_CASE(
          }
       }
 
-      if constexpr (std::is_move_constructible_v<TestType>)
+      if constexpr (std::is_move_constructible_v<T>)
       {
          SECTION("Inserting rvalue references works as expected.")
          {
-            auto expiring{ helpers::generate_vector<TestType>() };
+            auto expiring{ helpers::generate_vector<T>() };
 
             for (auto &element : expiring)
             {
@@ -2214,9 +2294,11 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto vec{ helpers::generate_vector<TestType>() };
+      auto vec{ helpers::generate_vector<T>() };
       vec.reserve(10UZ);
       auto const initial_capacity{ vec.capacity() };
 
@@ -2227,7 +2309,7 @@ TEMPLATE_TEST_CASE(
             vec.emplace_back(vec.size());
          }
 
-         auto expected{ helpers::generate_vector<TestType>(vec.size()) };
+         auto expected{ helpers::generate_vector<T>(vec.size()) };
 
          REQUIRE(vec.size() == initial_capacity);
          REQUIRE(vec.capacity() == initial_capacity);
@@ -2237,7 +2319,7 @@ TEMPLATE_TEST_CASE(
          {
             vec.emplace_back(vec.size());
 
-            expected = helpers::generate_vector<TestType>(vec.size());
+            expected = helpers::generate_vector<T>(vec.size());
 
             REQUIRE(vec.capacity() >= initial_capacity * 2UZ);
             REQUIRE(vec == expected);
@@ -2251,22 +2333,37 @@ TEMPLATE_TEST_CASE(
                   vec.emplace_back(vec.size());
                }
 
-               expected = helpers::generate_vector<TestType>(vec.size());
+               expected = helpers::generate_vector<T>(vec.size());
 
                REQUIRE(vec.size() == expanded_capacity);
                REQUIRE(vec.capacity() == expanded_capacity);
                REQUIRE(vec == expected);
 
                SECTION("Consistent growth.")
-               vec.emplace_back(vec.size());
+               {
+                  // For coverage testing.
+                  T lvalue{ static_cast<std::uint8_t>(vec.size()) };
+                  if constexpr (std::is_copy_constructible_v<T>)
+                  {
+                     vec.emplace_back(lvalue);
+                  }
+                  else
+                  {
+                     vec.emplace_back(std::move(lvalue));
+                  }
 
-               expected = helpers::generate_vector<TestType>(vec.size());
+                  expected = helpers::generate_vector<T>(vec.size());
 
-               REQUIRE(vec.capacity() >= expanded_capacity * 2UZ);
-               REQUIRE(vec == expected);
+                  REQUIRE(vec.capacity() >= expanded_capacity * 2UZ);
+                  REQUIRE(vec == expected);
+               }
             }
          }
       }
+
+      // TODO: Implement a "MeagerAllocator" that returns a small max_size. Then
+      // you can test the case where calculate_growth_size throws a length
+      // error.
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -2453,16 +2550,36 @@ TEST_CASE("Vector growth with move-only types.", "[vector][modifiers]")
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
 
-TEST_CASE("Vector comparison.", "[vector][comparison]")
+TEMPLATE_TEST_CASE(
+    "Vector comparison.",
+    "[vector][comparison]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
 {
-   swtl::Vector<int> const baseline_vec{ 0, 1, 2, 3, 4, 5 };
-   swtl::Vector<int> const equal_vec{ baseline_vec };
-   swtl::Vector<int> const greater_vec{ 0, 1, 2, 3, 4, 6 };
-   swtl::Vector<int> const lesser_vec{ 0, 1, 2, 3, 4, 4 };
-   swtl::Vector<int> const bigger_vec_with_lesser_values{ 0, 0, 1, 2, 3, 4, 5 };
-   swtl::Vector<int> const smaller_vec_with_greater_values{ 9, 8, 7 };
-   swtl::Vector<int> const different_elements_but_same_size{ 1, 2, 3, 4, 5, 6 };
-   swtl::Vector<int> same_elements_different_capacity{ 0, 1, 2, 3, 4, 5 };
+   using T = TestType;
+
+   auto const baseline_vec{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ) };
+   auto const equal_vec{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ) };
+   auto const greater_vec{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 6UZ) };
+   auto const lesser_vec{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 4UZ) };
+   auto const bigger_vec_with_lesser_values{ helpers::make_vec_of<T>(
+       0UZ, 0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ) };
+   auto const smaller_vec_with_greater_values{ helpers::make_vec_of<T>(
+       9UZ, 8UZ, 7UZ) };
+   auto const smaller_vec_with_similar_values{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ) };
+   auto const different_elements_but_same_size{ helpers::make_vec_of<T>(
+       1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ) };
+   auto same_elements_different_capacity{ helpers::make_vec_of<T>(
+       0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ) };
    same_elements_different_capacity.reserve(100UZ);
 
    REQUIRE(baseline_vec == equal_vec);
@@ -2471,6 +2588,8 @@ TEST_CASE("Vector comparison.", "[vector][comparison]")
    REQUIRE(baseline_vec != greater_vec);
    REQUIRE(baseline_vec != lesser_vec);
    REQUIRE(baseline_vec != different_elements_but_same_size);
+   REQUIRE(baseline_vec != bigger_vec_with_lesser_values);
+   REQUIRE(baseline_vec != smaller_vec_with_greater_values);
 
    REQUIRE(baseline_vec < greater_vec);
    REQUIRE(baseline_vec < smaller_vec_with_greater_values);
@@ -2483,6 +2602,9 @@ TEST_CASE("Vector comparison.", "[vector][comparison]")
 
    REQUIRE(baseline_vec >= lesser_vec);
    REQUIRE(baseline_vec >= equal_vec);
+
+   REQUIRE((baseline_vec <=> smaller_vec_with_similar_values) > 0);
+   REQUIRE((smaller_vec_with_similar_values <=> baseline_vec) < 0);
 }
 
 TEMPLATE_TEST_CASE(
@@ -2495,10 +2617,12 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      auto vec_a{ helpers::generate_vector<TestType>(10UZ) };
-      auto vec_b{ helpers::generate_vector<TestType>(20UZ) };
+      auto vec_a{ helpers::generate_vector<T>(10UZ) };
+      auto vec_b{ helpers::generate_vector<T>(20UZ) };
 
       auto const *vec_a_ptr{ vec_a.data() };
       auto const vec_a_size{ vec_a.size() };
@@ -2617,9 +2741,11 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
-      swtl::Vector<TestType> vec;
+      swtl::Vector<T> vec;
 
       SECTION("Shrinking a vector with no capacity does nothing.")
       {
@@ -2674,6 +2800,30 @@ TEMPLATE_TEST_CASE(
          REQUIRE(vec.data() != previous_data_pointer);
          REQUIRE(vec.size() == previous_size);
       }
+
+      // TODO: Implement an "OvereagerAllocator" that allocates double the
+      // memory requested.  Then you can test the case where shrink to fit
+      // allocates more than capacity() and doesn't change the vector.
+      /*
+      SECTION(
+          "If the allocation for shrinkage exceeds current capacity the vector "
+          "is unmodified.")
+      {
+         swtl::Vector<T, helpers::OvereagerAllocator> overeager_vec;
+         overeager_vec.reserve(2UZ);
+         overeager_vec.assign(5UZ, T{});
+
+         auto const previous_capacity{ overeager_vec.capacity() };
+         auto const previous_data_pointer{ overeager_vec.data() };
+         auto const previous_size{ overeager_vec.size() };
+
+         overeager_vec.shrink_to_fit();
+
+         REQUIRE(overeager_vec.capacity() == previous_capacity);
+         REQUIRE(overeager_vec.data() == previous_data_pointer);
+         REQUIRE(overeager_vec.size() == previous_size);
+      }
+      */
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
 }
@@ -2716,17 +2866,16 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ }, T{ 5UZ },
-                        T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
       vec.reserve(10UZ);
       auto const args{ 0UZ };
 
       SECTION("Calling emplace with `begin()` inserts at the beginning.")
       {
-         swtl::Vector const expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
-                                      T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
-                                      T{ 8UZ }, T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
          vec.emplace(vec.cbegin(), args);
 
@@ -2735,9 +2884,8 @@ TEMPLATE_TEST_CASE(
 
       SECTION("Calling emplace with `end()` inserts at the end.")
       {
-         swtl::Vector const expected{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                                      T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ },
-                                      T{ 9UZ }, T{ 0UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ, 0UZ) };
 
          vec.emplace(vec.cend(), args);
 
@@ -2748,9 +2896,8 @@ TEMPLATE_TEST_CASE(
           "Calling emplace with an iterator to the middle inserts in the "
           "correct position.")
       {
-         swtl::Vector const expected{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                                      T{ 0UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
-                                      T{ 8UZ }, T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             1UZ, 2UZ, 3UZ, 4UZ, 0UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
          auto const index{ 4UZ };
          auto const iter_pos{ vec.cbegin() + index };
 
@@ -2762,9 +2909,8 @@ TEMPLATE_TEST_CASE(
       SECTION("Vector does not grow when there is sufficient capacity.")
       {
          auto const old_capacity{ vec.capacity() };
-         swtl::Vector const expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
-                                      T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
-                                      T{ 8UZ }, T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
          vec.emplace(vec.cbegin(), args);
 
@@ -2777,9 +2923,8 @@ TEMPLATE_TEST_CASE(
          helpers::fill_to_capacity(vec);
          auto const old_capacity{ vec.capacity() };
 
-         swtl::Vector expected{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ },
-                                T{ 4UZ }, T{ 5UZ }, T{ 6UZ }, T{ 7UZ },
-                                T{ 8UZ }, T{ 9UZ } };
+         auto expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
          while (expected.size() != vec.size() + 1)
          {
@@ -2794,7 +2939,7 @@ TEMPLATE_TEST_CASE(
 
       SECTION("emplace returns an iterator to the inserted element.")
       {
-         TestType value_to_insert{ 42UZ };
+         T value_to_insert{ 42UZ };
 
          auto inserted_iter{ vec.emplace(vec.cbegin(), value_to_insert) };
 
@@ -2834,8 +2979,8 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ }, T{ 5UZ },
-                        T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
       vec.reserve(10UZ);
       auto const args{ 0UZ };
@@ -3004,28 +3149,50 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
       auto const reference_element{ T{ 42UZ } };
       auto const count{ 4UZ };
+
+      SECTION("Requesting zero elements does nothing.")
+      {
+         auto const expected{ vec };
+
+         auto ret_val{ vec.insert(vec.cbegin(), 0UZ, reference_element) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
+      }
 
       SECTION(
           "Insertion when elements fit inside the existing initialized "
           "range.")
       {
          vec.reserve(20UZ);
-         auto const pos{ vec.cbegin() + 3UZ };
+         auto const pos{ 3UZ };
 
-         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
-                                      T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
-                                      T{ 42UZ }, T{ 3UZ },  T{ 4UZ },
-                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
-                                      T{ 8UZ },  T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ,
+             1UZ,
+             2UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             3UZ,
+             4UZ,
+             5UZ,
+             6UZ,
+             7UZ,
+             8UZ,
+             9UZ) };
 
-         vec.insert(pos, count, reference_element);
+         auto ret_val{ vec.insert(
+             vec.cbegin() + pos, count, reference_element) };
 
          REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + pos);
       }
 
       SECTION(
@@ -3033,49 +3200,83 @@ TEMPLATE_TEST_CASE(
           "range.")
       {
          vec.reserve(20UZ);
-         auto const pos{ vec.cend() - 2UZ };
+         auto const pos{ vec.size() - 2UZ };
 
-         swtl::Vector const expected{ T{ 0UZ },  T{ 1UZ },  T{ 2UZ },
-                                      T{ 3UZ },  T{ 4UZ },  T{ 5UZ },
-                                      T{ 6UZ },  T{ 7UZ },  T{ 42UZ },
-                                      T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
-                                      T{ 8UZ },  T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ,
+             1UZ,
+             2UZ,
+             3UZ,
+             4UZ,
+             5UZ,
+             6UZ,
+             7UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             8UZ,
+             9UZ) };
 
-         vec.insert(pos, count, reference_element);
+         auto ret_val{ vec.insert(
+             vec.cbegin() + pos, count, reference_element) };
 
          REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + pos);
       }
 
       SECTION("Insertion at the end.")
       {
          vec.reserve(20UZ);
-         auto const pos{ vec.cend() };
+         auto const pos{ vec.size() };
 
-         swtl::Vector const expected{
-            T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
-            T{ 5UZ },  T{ 6UZ },  T{ 7UZ },  T{ 8UZ },  T{ 9UZ },
-            T{ 42UZ }, T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
-         };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ,
+             1UZ,
+             2UZ,
+             3UZ,
+             4UZ,
+             5UZ,
+             6UZ,
+             7UZ,
+             8UZ,
+             9UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             42UZ) };
 
-         vec.insert(pos, count, reference_element);
+         auto ret_val{ vec.insert(
+             vec.cbegin() + pos, count, reference_element) };
 
          REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + pos);
       }
 
       SECTION("Resizes as needed.")
       {
          helpers::fill_to_capacity(vec);
-         auto const pos{ vec.cbegin() };
 
-         swtl::Vector const expected{ T{ 42UZ }, T{ 42UZ }, T{ 42UZ },
-                                      T{ 42UZ }, T{ 0UZ },  T{ 1UZ },
-                                      T{ 2UZ },  T{ 3UZ },  T{ 4UZ },
-                                      T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
-                                      T{ 8UZ },  T{ 9UZ } };
+         auto const expected{ helpers::make_vec_of<T>(
+             42UZ,
+             42UZ,
+             42UZ,
+             42UZ,
+             0UZ,
+             1UZ,
+             2UZ,
+             3UZ,
+             4UZ,
+             5UZ,
+             6UZ,
+             7UZ,
+             8UZ,
+             9UZ) };
 
-         vec.insert(pos, count, reference_element);
+         auto ret_val{ vec.insert(vec.cbegin(), count, reference_element) };
 
          REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
       }
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
@@ -3092,8 +3293,8 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
       auto const reference_element{ T{ 42UZ } };
       auto const count{ 4UZ };
@@ -3126,10 +3327,8 @@ TEMPLATE_TEST_CASE(
          // Because elements are constructed in uninitialized storage before
          // other elements are shuffled around, one local copy, two successful
          // insertions, and then the third insertion throws.
-         swtl::Vector const expected{
-            T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },  T{ 5UZ },
-            T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ }, T{ 42UZ }, T{ 42UZ },
-         };
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ, 42UZ, 42UZ) };
 
          helpers::g_test_controller.enable_throwing();
          helpers::g_test_controller.throw_when.copy_construction
@@ -3640,8 +3839,8 @@ TEMPLATE_TEST_CASE(
 
       swtl::Vector source{ helpers::make_vec_of<T>(42UZ, 43UZ, 44UZ, 45UZ) };
 
-      helpers::InputIterator<TestType> begin{ source.data() };
-      helpers::InputIterator<TestType> end{ source.data() + source.size() };
+      helpers::InputIterator<T> begin{ source.data() };
+      helpers::InputIterator<T> end{ source.data() + source.size() };
 
       SECTION(
           "Insertion when elements fit inside the existing initialized "
@@ -3814,8 +4013,8 @@ TEMPLATE_TEST_CASE(
 
       swtl::Vector source{ helpers::make_vec_of<T>(42UZ, 43UZ, 44UZ, 45UZ) };
 
-      helpers::InputIterator<TestType> begin{ source.data() };
-      helpers::InputIterator<TestType> end{ source.data() + source.size() };
+      helpers::InputIterator<T> begin{ source.data() };
+      helpers::InputIterator<T> end{ source.data() + source.size() };
 
       helpers::g_test_controller.enable_throwing();
 
@@ -3968,9 +4167,8 @@ TEMPLATE_TEST_CASE(
             swtl::Vector source{ helpers::make_vec_of<T>(
                 42UZ, 43UZ, 44UZ, 45UZ) };
 
-            helpers::InputIterator<TestType> begin{ source.data() };
-            helpers::InputIterator<TestType> end{ source.data()
-                                                  + source.size() };
+            helpers::InputIterator<T> begin{ source.data() };
+            helpers::InputIterator<T> end{ source.data() + source.size() };
 
             helpers::g_test_controller.enable_throwing();
             helpers::g_test_controller.throw_when.total_operations
@@ -4030,17 +4228,28 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
       std::initializer_list const init_list{
          T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ }
       };
 
-      swtl::Vector const expected{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
-                                   T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },
-                                   T{ 4UZ },  T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
-                                   T{ 8UZ },  T{ 9UZ } };
+      auto const expected{ helpers::make_vec_of<T>(
+          42UZ,
+          43UZ,
+          44UZ,
+          45UZ,
+          0UZ,
+          1UZ,
+          2UZ,
+          3UZ,
+          4UZ,
+          5UZ,
+          6UZ,
+          7UZ,
+          8UZ,
+          9UZ) };
 
       auto const pos{ vec.cbegin() };
 
@@ -4066,15 +4275,26 @@ TEMPLATE_TEST_CASE(
 
    helpers::g_test_controller.reset();
    {
-      swtl::Vector vec{ T{ 0UZ }, T{ 1UZ }, T{ 2UZ }, T{ 3UZ }, T{ 4UZ },
-                        T{ 5UZ }, T{ 6UZ }, T{ 7UZ }, T{ 8UZ }, T{ 9UZ } };
+      auto vec{ helpers::make_vec_of<T>(
+          0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ, 8UZ, 9UZ) };
 
-      swtl::Vector const source{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ } };
+      auto const source{ helpers::make_vec_of<T>(42UZ, 43UZ, 44UZ, 45UZ) };
 
-      swtl::Vector const expected{ T{ 42UZ }, T{ 43UZ }, T{ 44UZ }, T{ 45UZ },
-                                   T{ 0UZ },  T{ 1UZ },  T{ 2UZ },  T{ 3UZ },
-                                   T{ 4UZ },  T{ 5UZ },  T{ 6UZ },  T{ 7UZ },
-                                   T{ 8UZ },  T{ 9UZ } };
+      auto const expected{ helpers::make_vec_of<T>(
+          42UZ,
+          43UZ,
+          44UZ,
+          45UZ,
+          0UZ,
+          1UZ,
+          2UZ,
+          3UZ,
+          4UZ,
+          5UZ,
+          6UZ,
+          7UZ,
+          8UZ,
+          9UZ) };
 
       auto const pos{ vec.cbegin() };
 
@@ -4083,6 +4303,244 @@ TEMPLATE_TEST_CASE(
       REQUIRE(vec == expected);
    }
    REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator pos) removes the element at pos and returns "
+    "an iterator to the next element.",
+    "[vector][modifiers][erase]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      auto vec{ helpers::generate_vector<T>() };
+
+      SECTION("Erase removes the element at begin.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin()) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
+      }
+
+      SECTION("Erase removes the element at end.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 3UZ, 4UZ, 5UZ, 6UZ) };
+
+         auto ret_val{ vec.erase(vec.cend() - 1) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.end());
+      }
+
+      SECTION("Erase removes an element in the middle.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto const element_idx{ 3UZ };
+
+         auto ret_val{ vec.erase(vec.cbegin() + element_idx) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + element_idx);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator pos) exception safety - exhaustive test.",
+    "[vector][modifiers][erase][exception][exhaustive]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   bool possibilities_exhausted{ false };
+
+   for (auto pos{ 0UZ }; !possibilities_exhausted; ++pos)
+   {
+      bool clean_pass{ false };
+
+      for (auto ops_count{ 1UZ }; !clean_pass; ++ops_count)
+      {
+         helpers::g_test_controller.reset();
+         {
+            swtl::Vector vec{ helpers::generate_vector<T>() };
+
+            helpers::g_test_controller.enable_throwing();
+            helpers::g_test_controller.throw_when.total_operations
+                = helpers::g_test_controller.count_of.total_operations
+                + ops_count;
+
+            try
+            {
+               if (pos <= vec.size())
+               {
+                  vec.erase(vec.cbegin() + pos);
+
+                  clean_pass = true;
+               }
+               else
+               {
+                  helpers::g_test_controller.disable_throwing();
+                  possibilities_exhausted = true;
+                  clean_pass = true;
+               }
+            }
+            catch (helpers::TestException const &)
+            {
+               REQUIRE(vec.size() <= vec.capacity());
+               REQUIRE(
+                   helpers::g_test_controller.instances_alive() == vec.size());
+            }
+         }
+         REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+      }
+   }
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator first, const_iterator last) removes elements "
+    "in the specified range and returns an iterator to the next element.",
+    "[vector][modifiers][erase]",
+    std::uint8_t,
+    int,
+    helpers::TrackedObject,
+    helpers::NoThrowTrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   helpers::g_test_controller.reset();
+   {
+      auto vec{ helpers::generate_vector<T>() };
+
+      SECTION("Erase removes elements from the beginning.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             3UZ, 4UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin(), vec.cbegin() + 3UZ) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin());
+      }
+
+      SECTION("Erase removes elements at the end.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(0UZ, 1UZ, 2UZ, 3UZ) };
+
+         auto ret_val{ vec.erase(vec.cbegin() + 4UZ, vec.cend()) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.end());
+      }
+
+      SECTION("Erase removes elements from the middle.")
+      {
+         auto const expected{ helpers::make_vec_of<T>(
+             0UZ, 1UZ, 2UZ, 5UZ, 6UZ, 7UZ) };
+
+         auto const first_distance{ 3UZ };
+         auto const last_distance{ 5UZ };
+
+         auto const first{ vec.cbegin() + first_distance };
+         auto const last{ vec.cbegin() + last_distance };
+
+         auto ret_val{ vec.erase(first, last) };
+
+         REQUIRE(vec == expected);
+         REQUIRE(ret_val == vec.begin() + first_distance);
+      }
+   }
+   REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+}
+
+TEMPLATE_TEST_CASE(
+    "Vector::erase(const_iterator first, const_iterator last) exception safety "
+    "- exhaustive test.",
+    "[vector][modifiers][erase][exception][exhaustive]",
+    helpers::TrackedObject,
+    helpers::CopyOnlyTrackedObject,
+    helpers::MoveOnlyTrackedObject)
+{
+   using T = TestType;
+
+   bool first_range_exhausted{ false };
+
+   for (auto first_pos{ 0UZ }; !first_range_exhausted; ++first_pos)
+   {
+      bool last_range_exhausted{ false };
+
+      for (auto last_pos{ first_pos }; !last_range_exhausted; ++last_pos)
+      {
+         bool clean_pass{ false };
+
+         for (auto ops_count{ 1UZ }; !clean_pass; ++ops_count)
+         {
+            helpers::g_test_controller.reset();
+            {
+               swtl::Vector vec{ helpers::generate_vector<T>() };
+               auto const limit{ vec.size() };
+
+               helpers::g_test_controller.enable_throwing();
+               helpers::g_test_controller.throw_when.total_operations
+                   = helpers::g_test_controller.count_of.total_operations
+                   + ops_count;
+
+               try
+               {
+                  if (first_pos < limit && last_pos <= limit)
+                  {
+                     vec.erase(
+                         vec.cbegin() + first_pos, vec.cbegin() + last_pos);
+
+                     clean_pass = true;
+                  }
+                  else
+                  {
+                     helpers::g_test_controller.disable_throwing();
+
+                     if (first_pos == limit)
+                     {
+                        first_range_exhausted = true;
+                     }
+
+                     if (last_pos > limit)
+                     {
+                        last_range_exhausted = true;
+                     }
+
+                     clean_pass = true;
+                  }
+               }
+               catch (helpers::TestException const &)
+               {
+                  REQUIRE(vec.size() <= vec.capacity());
+                  REQUIRE(
+                      helpers::g_test_controller.instances_alive()
+                      == vec.size());
+               }
+            }
+            REQUIRE(helpers::g_test_controller.all_instances_destroyed());
+         }
+      }
+   }
 }
 
 /* Test template.
@@ -4097,6 +4555,8 @@ TEMPLATE_TEST_CASE(
     helpers::CopyOnlyTrackedObject,
     helpers::MoveOnlyTrackedObject)
 {
+   using T = TestType;
+
    helpers::g_test_controller.reset();
    {
    }

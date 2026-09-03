@@ -1,100 +1,103 @@
 {
-  "version": 10,
-  "cmakeMinimumRequired": {
-    "major": 3,
-    "minor": 31,
-    "patch": 0
-  },
-  "configurePresets": [
-    {
-      "name": "base-config",
-      "hidden": true,
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/${presetName}",
-      "cacheVariables": {
-        "CMAKE_CXX_STANDARD": "26",
-        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/out/bin/${presetName}",
-        "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/out/lib/${presetName}",
-        "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/out/lib/${presetName}"
+   "version": 10,
+   "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 31,
+      "patch": 0
+   },
+   "configurePresets": [
+      {
+         "name": "base-config",
+         "hidden": true,
+         "generator": "Ninja",
+         "binaryDir": "${sourceDir}/build/${presetName}",
+         "cacheVariables": {
+            "CMAKE_CXX_STANDARD": "26",
+            "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+            "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+            "CMAKE_RUNTIME_OUTPUT_DIRECTORY": "${sourceDir}/out/bin/${presetName}",
+            "CMAKE_LIBRARY_OUTPUT_DIRECTORY": "${sourceDir}/out/lib/${presetName}",
+            "CMAKE_ARCHIVE_OUTPUT_DIRECTORY": "${sourceDir}/out/lib/${presetName}"
+         }
+      },
+      {
+         "name": "test-flags",
+         "hidden": true,
+         "cacheVariables": {
+            "SWTL_ENABLE_CONTRACT_TESTS": "ON",
+            "SWTL_ENABLE_COVERAGE_TESTS": "ON"
+         }
+      },
+      {
+         "name": "gnu-compiler",
+         "hidden": true,
+         "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" }
+      },
+      {
+         "name": "clang-compiler",
+         "hidden": true,
+         "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
+      },
+      {
+         "name": "microsoft-compiler",
+         "hidden": true,
+         "cacheVariables": { "CMAKE_CXX_COMPILER": "cl" }
+      },
+      {
+         "name": "debug-build",
+         "hidden": true,
+         "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      },
+      {
+         "name": "release-build",
+         "hidden": true,
+         "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      },
+      {
+         "name": "x64-gcc-debug",
+         "inherits": ["base-config", "gnu-compiler", "debug-build", "test-flags"]
+      },
+      {
+         "name": "x64-gcc-release",
+         "inherits": ["base-config", "gnu-compiler", "release-build"]
+      },
+      {
+         "name": "x64-clang-debug",
+         "inherits": ["base-config", "clang-compiler", "debug-build", "test-flags"]
+      },
+      {
+         "name": "x64-clang-release",
+         "inherits": ["base-config", "clang-compiler", "release-build"]
+      },
+      {
+         "name": "x64-msvc-debug",
+         "inherits": ["base-config", "microsoft-compiler", "debug-build"]
+      },
+      {
+         "name": "x64-msvc-release",
+         "inherits": ["base-config", "microsoft-compiler", "release-build"]
       }
-    },
-    {
-      "name": "test-flags",
-      "hidden": true,
-      "cacheVariables": { "SWTL_ENABLE_CONTRACT_TESTS": "ON" }
-    },
-    {
-      "name": "gnu-compiler",
-      "hidden": true,
-      "cacheVariables": { "CMAKE_CXX_COMPILER": "g++" }
-    },
-    {
-      "name": "clang-compiler",
-      "hidden": true,
-      "cacheVariables": { "CMAKE_CXX_COMPILER": "clang++" }
-    },
-    {
-      "name": "microsoft-compiler",
-      "hidden": true,
-      "cacheVariables": { "CMAKE_CXX_COMPILER": "cl" }
-    },
-    {
-      "name": "debug-build",
-      "hidden": true,
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
-    },
-    {
-      "name": "release-build",
-      "hidden": true,
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
-    },
-    {
-      "name": "x64-gcc-debug",
-      "inherits": ["base-config", "gnu-compiler", "debug-build", "test-flags"]
-    },
-    {
-      "name": "x64-gcc-release",
-      "inherits": ["base-config", "gnu-compiler", "release-build"]
-    },
-    {
-      "name": "x64-clang-debug",
-      "inherits": ["base-config", "clang-compiler", "debug-build", "test-flags"]
-    },
-    {
-      "name": "x64-clang-release",
-      "inherits": ["base-config", "clang-compiler", "release-build"]
-    },
-    {
-      "name": "x64-msvc-debug",
-      "inherits": ["base-config", "microsoft-compiler", "debug-build"]
-    },
-    {
-      "name": "x64-msvc-release",
-      "inherits": ["base-config", "microsoft-compiler", "release-build"]
-    }
-  ],
-  "buildPresets": [
-    { "name": "x64-gcc-debug",     "configurePreset": "x64-gcc-debug" },
-    { "name": "x64-gcc-release",   "configurePreset": "x64-gcc-release" },
-    { "name": "x64-clang-debug",   "configurePreset": "x64-clang-debug" },
-    { "name": "x64-clang-release", "configurePreset": "x64-clang-release" },
-    { "name": "x64-msvc-debug",    "configurePreset": "x64-msvc-debug" },
-    { "name": "x64-msvc-release",  "configurePreset": "x64-msvc-release" }
-  ],
-  "testPresets": [
-    {
-      "name": "test-x64-gcc-debug",
-      "configurePreset": "x64-gcc-debug",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error" }
-    },
-    {
-      "name": "test-x64-clang-debug",
-      "configurePreset": "x64-clang-debug",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error" }
-    }
-  ]
+   ],
+   "buildPresets": [
+      { "name": "x64-gcc-debug",     "configurePreset": "x64-gcc-debug" },
+      { "name": "x64-gcc-release",   "configurePreset": "x64-gcc-release" },
+      { "name": "x64-clang-debug",   "configurePreset": "x64-clang-debug" },
+      { "name": "x64-clang-release", "configurePreset": "x64-clang-release" },
+      { "name": "x64-msvc-debug",    "configurePreset": "x64-msvc-debug" },
+      { "name": "x64-msvc-release",  "configurePreset": "x64-msvc-release" }
+   ],
+   "testPresets": [
+      {
+         "name": "test-x64-gcc-debug",
+         "configurePreset": "x64-gcc-debug",
+         "output": { "outputOnFailure": true },
+         "execution": { "noTestsAction": "error" }
+      },
+      {
+         "name": "test-x64-clang-debug",
+         "configurePreset": "x64-clang-debug",
+         "output": { "outputOnFailure": true },
+         "execution": { "noTestsAction": "error" }
+      }
+   ]
 }

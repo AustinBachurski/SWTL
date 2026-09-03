@@ -1,3 +1,7 @@
+module;
+
+#include <cassert>
+
 export module swtl.memory:alloc_aware_uninitialized;
 
 import std;
@@ -35,6 +39,9 @@ uninitialized_fill_n(
     typename std::allocator_traits<Allocator>::pointer first,
     std::size_t count,
     T const &val)
+    noexcept(std::is_nothrow_copy_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    auto const end{ first + count };
 
@@ -99,14 +106,16 @@ uninitialized_copy(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(std::is_nothrow_copy_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
    if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
    {
-      contract_assert(
-          last - first >= 0 && "`last` must be reachable from `first`");
+      assert(last - first >= 0 && "`last` must be reachable from `first`");
    }
 
    if constexpr (std::is_nothrow_copy_constructible_v<value_type>)
@@ -172,14 +181,16 @@ uninitialized_move(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(std::is_nothrow_move_constructible_v<
+             typename std::allocator_traits<Allocator>::value_type
+    >)
 {
    using a_traits = std::allocator_traits<Allocator>;
    using value_type = a_traits::value_type;
 
    if constexpr (std::sized_sentinel_for<Sentinel, SourceIterator>)
    {
-      contract_assert(
-          last - first >= 0 && "`last` must be reachable from `first`");
+      assert(last - first >= 0 && "`last` must be reachable from `first`");
    }
 
    if constexpr (std::is_nothrow_move_constructible_v<value_type>)
@@ -248,6 +259,13 @@ uninitialized_move_if_noexcept(
     SourceIterator first,
     Sentinel last,
     DestinationIterator dest)
+    noexcept(
+        std::is_nothrow_move_constructible_v<
+            typename std::allocator_traits<Allocator>::value_type
+        >
+        && std::is_nothrow_copy_constructible_v<
+            typename std::allocator_traits<Allocator>::value_type
+        >)
 {
    using value_type = std::allocator_traits<Allocator>::value_type;
 
